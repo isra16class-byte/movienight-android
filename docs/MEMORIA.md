@@ -24,7 +24,8 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
   JSON, mismos endpoints, mismos eventos de Socket.io. Por diseño, esta app
   **no debería requerir cambios en el servidor** salvo que aparezca un
   bloqueo real (documentado si/cuando pase, ver `docs/PLAN-PRODUCCION.md`,
-  Fase 0).
+  Fase 0). El detalle exacto de rutas/eventos que la app consume vive en
+  `docs/API-CONTRATO.md` — para no tener que releer todo `server.js` cada vez.
 - **Repos completamente separados** — sin submódulos, sin código compartido.
   Cualquier cambio acá no puede romper la web, y viceversa.
 - **Autenticación**: cookie `httpOnly` (`movienight.sid`), la misma que usa
@@ -57,6 +58,7 @@ movienight-android/
     MEMORIA.md              # Este archivo
     CHANGELOG.md             # Historial de cambios
     PLAN-PRODUCCION.md      # Roadmap por fases
+    API-CONTRATO.md          # Rutas HTTP y eventos de Socket.io que la app consume del backend
     historico/               # Vacío por ahora — para cuando este archivo crezca
                               # demasiado y convenga archivar detalle viejo,
                               # mismo criterio que ya usa el repo web.

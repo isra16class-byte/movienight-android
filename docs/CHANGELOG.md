@@ -5,6 +5,18 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-09-26 — `docs/API-CONTRATO.md`
+
+- Agregado `docs/API-CONTRATO.md`, documentando el contrato exacto (rutas
+  HTTP + eventos de Socket.io, con shapes de payload) que la app va a
+  consumir del backend de `movienight`. Confirmado leyendo directamente
+  `server.js` (rutas de `/auth/*`, salas, y los 9 eventos de Socket.io que
+  maneja `io.on('connection', ...)`), no de memoria — para que quede como
+  referencia confiable al implementar cada fase del plan.
+- Referenciado desde `docs/MEMORIA.md`.
+- Sin código propio todavía — sigue pendiente la Fase 1 del plan (spike
+  técnico de conexión).
+
 ## 2026-09-26 — Setup inicial del proyecto y documentación
 
 - Creado el repositorio `movienight-android` en GitHub.
