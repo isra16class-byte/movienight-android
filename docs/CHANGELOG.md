@@ -5,6 +5,24 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-09-26 — Riesgos técnicos agregados a la Fase 1 + fix del comando `git am`
+
+- **Revisión crítica del plan**: se detectaron 3 riesgos técnicos que el
+  plan original (Fase 0/1) no contemplaba, agregados como checklist dentro
+  de la Fase 1 de `docs/PLAN-PRODUCCION.md`: (1) compatibilidad de versión
+  entre el cliente Socket.io de Android y `socket.io ^4.7.5` del server
+  (confirmado en `movienight/package.json`), sin resolver todavía; (2)
+  bloqueo de tráfico cleartext (HTTP sin TLS) por parte de Android en
+  pruebas locales sin pasar por el túnel de Cloudflare; (3) confirmar que
+  `requireSameOrigin` (visto en las rutas de `/admin/*`) no afecta a las
+  rutas que la app sí necesita — revisado por lectura de código, no
+  confirmado todavía con una request real.
+- **Fix de proceso documentado en `docs/MEMORIA.md`**: `git am ~/Downloads/...`
+  falla en PowerShell (`~` no se expande igual que en bash al pasarlo a un
+  programa externo) — el comando correcto usa `$env:USERPROFILE`. Anotado
+  como la forma exacta en que el asistente debe entregar el comando de
+  ahora en adelante.
+
 ## 2026-09-26 — `docs/API-CONTRATO.md`
 
 - Agregado `docs/API-CONTRATO.md`, documentando el contrato exacto (rutas

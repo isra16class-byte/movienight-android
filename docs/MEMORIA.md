@@ -80,7 +80,19 @@ Mismo flujo que ya usa `movienight` (la web):
   commit local (con las credenciales reales de la persona, no las del
   asistente, para que el historial de GitHub quede a su nombre) → genera un
   patch con `git format-patch` → lo entrega como archivo descargable → la
-  persona lo aplica con `git am nombre.patch` y hace `git push` ella misma.
+  persona lo aplica con `git am` y hace `git push` ella misma.
+- **La terminal de trabajo es PowerShell (Windows, Android Studio/IntelliJ)**
+  — `~` no se expande igual que en bash al pasarlo a un programa externo
+  como `git`, así que hay que usar la ruta completa vía `$env:USERPROFILE`.
+  El comando a entregar siempre debería tener esta forma exacta (reemplazando
+  solo el nombre del archivo):
+  ```powershell
+  git am "$env:USERPROFILE\Downloads\nombre-del-patch.patch"
+  git push
+  ```
+  Sin esto, `git am ~/Downloads/...` falla con
+  `fatal: could not open '...' for reading: No such file or directory` en
+  PowerShell (confirmado el 2026-09-26).
 - Cada cambio importante se refleja acá (`docs/MEMORIA.md`, si cambia algo
   esencial) y como entrada nueva en `docs/CHANGELOG.md`.
 

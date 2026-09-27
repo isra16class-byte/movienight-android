@@ -52,6 +52,32 @@ más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
 - [ ] Recibir `room-data`, `chat-history`, `viewer-list`, `viewer-count`.
 - [ ] Mandar y recibir `chat-message`, `typing`, `reaction`.
 
+### Riesgos técnicos a confirmar antes/durante esta fase (detectados el 2026-09-26, sin resolver todavía)
+
+- [ ] **Compatibilidad de versión de Socket.io.** El server usa
+      `socket.io ^4.7.5` (confirmado en `movienight/package.json`). El
+      cliente Android (`socket.io-client-java` o equivalente) necesita una
+      versión compatible con el protocolo Engine.IO v4 — no cualquier
+      versión de la librería cliente sirve. Confirmar la versión correcta
+      **antes** de escribir el primer código de conexión, no después: si la
+      versión no matchea, el handshake ni siquiera conecta y el error puede
+      no ser obvio.
+- [ ] **Tráfico "cleartext" (HTTP sin TLS) para pruebas locales.** Android
+      bloquea por defecto conexiones HTTP sin cifrar desde API 28+. Contra el
+      túnel de Cloudflare (HTTPS) no hay problema, pero si en algún momento
+      se prueba contra `http://localhost` o una IP local de la red (sin pasar
+      por el túnel), la conexión se va a rechazar silenciosamente salvo que
+      se configure un `network_security_config.xml` permitiendo cleartext
+      para esa IP específica. Definir esto antes de la primera prueba local.
+- [ ] **Confirmar que `requireSameOrigin` no bloquea las rutas que la app
+      necesita.** Se vio en `server.js` que algunas rutas (las de
+      `/admin/*`) chequean `Origin`/`Referer` contra el host propio. Por
+      revisión rápida del código, las rutas que la app sí usa
+      (`/auth/login`, `/create-room-from-upload`, etc.) no pasan por ese
+      middleware — pero no se confirmó ruta por ruta de forma exhaustiva.
+      Verificar esto con una request real desde la app antes de asumir que
+      no hay fricción.
+
 **Criterio de éxito de esta fase**: dos clientes en la misma sala (uno web,
 uno Android) viéndose el chat en tiempo real, sin tocar nada del servidor.
 
