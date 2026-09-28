@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!-- Solo debug. OJO: la cookie de sesión del server sale con `secure: true`, así que además hay
+         que arrancar el server local con SESSION_COOKIE_INSECURE=1 o la sesión no se reenvía por HTTP. -->
+    <base-config cleartextTrafficPermitted="true" />
+</network-security-config>

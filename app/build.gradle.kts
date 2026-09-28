@@ -50,6 +50,15 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+    implementation(libs.androidx.lifecycle.viewmodel.compose)
+    implementation(libs.kotlinx.coroutines.android)
+    // Fase 1 (spike): HTTP + Socket.IO. socket.io-client 2.x es la serie compatible con servidores
+    // Socket.IO 3.x/4.x (el backend usa 4.8.3). org.json ya viene con Android, se excluye el de la
+    // librería para no duplicar clases. OkHttp se declara explícito (4.x) para usar su API Kotlin.
+    implementation(libs.okhttp)
+    implementation(libs.socketio.client) {
+        exclude(group = "org.json", module = "json")
+    }
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)

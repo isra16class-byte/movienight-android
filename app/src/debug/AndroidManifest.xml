@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Solo builds debug: permite HTTP sin TLS para probar contra http://IP-local:3000 sin pasar por
+         el túnel de Cloudflare. Android lo bloquea por defecto desde API 28. -->
+    <application android:networkSecurityConfig="@xml/network_security_config_debug" />
+
+</manifest>
