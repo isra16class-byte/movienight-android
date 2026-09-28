@@ -5,6 +5,27 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-09-28 — Fase 1 completada: spike probado en dispositivo real
+
+- El spike compila y corre en un teléfono Android real contra el servidor de producción
+  (`plan-produccion`, dominio propio por Cloudflare Tunnel; `/health` con Redis, R2 y Postgres
+  en `ok`).
+- **Verificado**: `POST /auth/login` (200, cookie `movienight.sid` guardada en el CookieJar),
+  `GET /auth/me` (`loggedIn: true`), sesión que sobrevive al cierre de la app,
+  `join-room` a una sala creada desde la web, y recepción de `chat-history`, `room-data`,
+  `viewer-count`, `viewer-list` y `host-status`.
+- **Punto crítico confirmado**: la cookie de sesión viaja en el handshake de Socket.IO —
+  `host-status { isHost: true }` llegó sin mandar `hostToken`, porque el server reconoció la
+  sesión de la cuenta dueña de la sala. Requiere pasar el `OkHttpClient` con el `CookieJar` como
+  `callFactory` y `webSocketFactory` (hecho en `RoomSocket`).
+- **Chat en ambos sentidos** entre la web y la app (mensajes propios reflejados, mensajes de la
+  web recibidos, `typing` recibido). **Criterio de éxito de la fase cumplido**, sin cambios en el
+  servidor.
+- **Pendiente menor**: probar `reaction` y confirmar en la web el `typing` enviado desde la app.
+- **Observación**: solo hay un host a la vez; al entrar la app con la cuenta dueña, el server le
+  quitó el host a la pestaña web que ya estaba en la sala. A tener en cuenta en las Fases 3 y 5.
+- Los riesgos técnicos de la Fase 1 quedaron todos tachados en `docs/PLAN-PRODUCCION.md`.
+
 ## 2026-09-28 — Fase 1: verificación del backend y código del spike
 
 - **Hallazgo importante**: el backend con cuentas/sesiones (`/auth/*`, presign, `/health`,

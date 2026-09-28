@@ -46,24 +46,31 @@ necesitar la fase siguiente para tener sentido.
 Antes de invertir tiempo en pantallas o en el reproductor, confirmar que lo
 más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
 
-- [ ] Login (`POST /auth/login`) + confirmar que el `CookieJar` persiste la
-      cookie de sesión entre requests.
-- [ ] `GET /auth/me` — confirmar que el server reconoce la sesión.
-- [ ] Conectar a una sala ya creada desde la web vía Socket.io, con
-      `join-room` (roomId, username, hostToken/userId, password).
-- [ ] Confirmar que el handshake de Socket.io manda la cookie correctamente
+- [x] Login (`POST /auth/login`) + confirmar que el `CookieJar` persiste la
+      cookie de sesión entre requests. *(Probado en dispositivo 2026-09-28:
+      login 200, `movienight.sid` guardada, sesión también tras cerrar la app.)*
+- [x] `GET /auth/me` — confirmar que el server reconoce la sesión. *(Devuelve
+      `loggedIn: true` con el id/email de la cuenta.)*
+- [x] Conectar a una sala ya creada desde la web vía Socket.io, con
+      `join-room` (roomId, username, hostToken/userId, password). *(Sala creada
+      desde la web con la cuenta de prueba, sin contraseña.)*
+- [x] Confirmar que el handshake de Socket.io manda la cookie correctamente
       (el server la lee vía `io.engine.use(sessionMiddleware)` — punto crítico
-      a validar, es la parte más fácil de romper sin darse cuenta).
-- [ ] Recibir `room-data`, `chat-history`, `viewer-list`, `viewer-count`.
-- [ ] Mandar y recibir `chat-message`, `typing`, `reaction`.
+      a validar, es la parte más fácil de romper sin darse cuenta). *(Confirmado:
+      `host-status { isHost: true }` sin mandar `hostToken`.)*
+- [x] Recibir `room-data`, `chat-history`, `viewer-list`, `viewer-count`.
+- [x] Mandar y recibir `chat-message` (en ambos sentidos web ↔ Android) y recibir
+      `typing`.
+- [ ] Probar `reaction` (enviar y recibir) y confirmar en la web el `typing`
+      enviado desde la app — el código ya los emite, no se probaron todavía.
 
-### Riesgos técnicos a confirmar antes/durante esta fase (detectados el 2026-09-26, sin resolver todavía)
+### Riesgos técnicos detectados en esta fase (2026-09-26; resueltos el 2026-09-28)
 
 - [x] **Compatibilidad de versión de Socket.io.** *(Resuelto 2026-09-28.)* El
       lockfile del backend fija `socket.io 4.8.3` / `engine.io 6.6.9` (protocolo
       EIO v4). Según el README de `socketio/socket.io-client-java`, la serie
       **2.x** es la compatible con servidores 3.x/4.x; se usa `2.1.2` (última
-      tag). Falta confirmar en un dispositivo real que el handshake conecta.
+      tag). Confirmado en dispositivo: el handshake conecta y el join funciona.
 - [x] **Tráfico "cleartext" (HTTP sin TLS) para pruebas locales.** *(Configurado
       2026-09-28, sin probar en dispositivo.)* Android lo bloquea por defecto desde
       API 28+. Se agregó `app/src/debug/` con un `network_security_config` que lo
@@ -75,25 +82,32 @@ más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
       necesita.** *(Verificado por código 2026-09-28.)* En `server.js` solo lo
       usan las rutas de escritura de `/admin/*`; ninguna de las que consume la
       app lo tiene. CORS (`ALLOWED_ORIGINS`) solo afecta a navegadores y un
-      cliente nativo no manda `Origin`. Sigue pendiente confirmarlo con una
-      request real (lo hace el spike).
-- [ ] **La cookie tiene que viajar en el handshake de Socket.IO.** *(Nuevo,
-      2026-09-28.)* El cliente Java solo la manda si se le pasa el mismo
-      `OkHttpClient` (con el `CookieJar`) como `callFactory` **y**
+      cliente nativo no manda `Origin`. Confirmado con requests reales desde la
+      app (health, login, me y Socket.IO por el dominio propio, sin bloqueos).
+- [x] **La cookie tiene que viajar en el handshake de Socket.IO.** *(Nuevo,
+      2026-09-28; confirmado.)* El cliente Java solo la manda si se le pasa el
+      mismo `OkHttpClient` (con el `CookieJar`) como `callFactory` **y**
       `webSocketFactory`, y con `readTimeout` largo (el long-polling se corta
-      con los 10 s por defecto). Implementado en `net/RoomSocket.kt`; falta
-      verlo funcionar: en el `join-room`, si el server reconoce la sesión, una
-      sala creada con la cuenta de prueba debe devolver `host-status`
+      con los 10 s por defecto). Implementado en `net/RoomSocket.kt` y verificado:
+      una sala creada con la cuenta de prueba devolvió `host-status`
       `{ isHost: true }` sin mandar `hostToken`.
-- [ ] **El servidor destino corre `plan-produccion` con Postgres.** *(Nuevo,
-      2026-09-28.)* Sin eso `/auth/*` da 404 (ver Fase 0).
+- [x] **El servidor destino corre `plan-produccion` con Postgres.** *(Nuevo,
+      2026-09-28; confirmado.)* `/health` del servidor real reporta Redis, R2 y
+      Postgres activos, y `/auth/*` responde.
 
-**Estado del spike (2026-09-28)**: código escrito (`net/` + `SpikeScreen`), **todavía
-no compilado ni probado en un dispositivo** — por eso los checkboxes de la lista de
-arriba siguen sin tachar. Solo se verificó por ejecución `normalizeBaseUrl`.
+**Estado del spike (2026-09-28)**: el proyecto compila y corre en un dispositivo
+Android real contra el servidor de producción (dominio propio por Cloudflare
+Tunnel). Solo queda pendiente probar `reaction` (ver checklist arriba); no bloquea
+pasar a la Fase 2.
 
-**Criterio de éxito de esta fase**: dos clientes en la misma sala (uno web,
-uno Android) viéndose el chat en tiempo real, sin tocar nada del servidor.
+**Comportamiento observado que hay que tener presente (Fases 3 y 5)**: solo puede
+haber un host a la vez. Al entrar la app con la cuenta dueña de la sala, el server
+le quitó el host a la pestaña web que ya estaba dentro (`setHost` degrada al host
+anterior). Recargar la web se lo devuelve y se lo quita a la app.
+
+**Criterio de éxito de esta fase** ✅ *(cumplido 2026-09-28)*: dos clientes en la
+misma sala (uno web, uno Android) viéndose el chat en tiempo real, sin tocar nada
+del servidor.
 
 ---
 

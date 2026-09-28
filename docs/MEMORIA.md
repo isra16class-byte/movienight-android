@@ -110,10 +110,13 @@ Mismo flujo que ya usa `movienight` (la web):
 
 ## Por dónde seguir
 
-**Fase 1 en curso (2026-09-28).** Ya se revisó el backend (`plan-produccion`), se
-cerraron los riesgos de versión de Socket.IO / `requireSameOrigin` / cleartext y se
-escribió el código del spike (`net/` + pantalla de pruebas). **Todavía no se compiló ni
-se probó en un dispositivo.** Siguiente paso: abrir el proyecto en Android Studio
-(Gradle sync), correr el spike contra el servidor real y tachar los checkboxes de la
-Fase 1 en `docs/PLAN-PRODUCCION.md`. Para eso hacen falta: URL del túnel, una cuenta de
-prueba y el ID de una sala creada desde la web.
+**Fase 1 completada (2026-09-28), salvo probar `reaction`.** El spike corre en un
+dispositivo Android real contra el servidor de producción: login por cookie, sesión
+persistente, `join-room` por Socket.IO (la cookie viaja en el handshake y el server
+reconoce a la cuenta dueña como host) y chat en ambos sentidos con la web. Quedó validado
+que **no hace falta tocar el servidor**. La capa `net/` sirve de base para la Fase 2.
+
+Siguiente paso: **Fase 2** de `docs/PLAN-PRODUCCION.md` (pantallas base: login/registro
+reales, biblioteca, crear sala). Cosas a tener presentes: `GET /api/room/:id` solo devuelve
+`{ passwordProtected }`; solo puede haber un host a la vez (la app le quita el host a la web
+si entra con la cuenta dueña); el servidor destino tiene que correr `plan-produccion`.
