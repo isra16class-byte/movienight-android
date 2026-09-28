@@ -19,6 +19,9 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 
 ## Relación con el proyecto web (`movienight`)
 
+- **Rama objetivo: `plan-produccion`.** La rama `main` de `movienight` es la versión vieja
+  (sin cuentas ni `/auth/*`); esta app solo funciona contra `plan-produccion` con Postgres
+  configurado. Confirmado el 2026-09-28.
 - **Un solo backend, dos clientes.** El servidor (`server.js` en el repo web)
   no distingue entre un request de la app Android y uno del navegador — mismo
   JSON, mismos endpoints, mismos eventos de Socket.io. Por diseño, esta app
@@ -39,18 +42,27 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
 - **Reproductor de video**: Media3 (ExoPlayer) — planeado, todavía no
   integrado (ver Fase 3 del plan).
-- **Networking**: por definir en la Fase 1 (Retrofit/OkHttp + `socket.io-client`
-  para Java/Kotlin son los candidatos naturales, sin decisión cerrada
-  todavía).
+- **Networking** (decidido 2026-09-28): OkHttp `4.12.0` + `io.socket:socket.io-client:2.1.2`
+  (serie 2.x = compatible con Socket.IO 3.x/4.x del server) + coroutines. Sin Retrofit por
+  ahora. Las dos comparten un `PersistentCookieJar` (cookie de sesión en SharedPreferences,
+  excluida de los backups).
 
-## Estructura de archivos (estado inicial, sin código propio todavía)
+## Estructura de archivos
 
 ```
 movienight-android/
   app/
-    build.gradle.kts       # applicationId, minSdk, targetSdk
+    build.gradle.kts       # applicationId, minSdk, targetSdk, dependencias de red
     src/main/java/com/isra16/movienight/
-      MainActivity.kt       # plantilla default de Android Studio, sin modificar
+      MainActivity.kt       # monta SpikeScreen
+      SpikeScreen.kt        # UI descartable de pruebas de la Fase 1 (formulario + log)
+      SpikeViewModel.kt     # estado del spike y orquestación de la red
+      net/                  # capa de red, sin nada de UI (pensada para reusarse)
+        PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
+        MovieNightApi.kt        # llamadas HTTP (health, login, me, logout)
+        RoomSocket.kt           # wrapper de Socket.IO (join-room, chat, eventos del server)
+        UrlUtils.kt             # normalizeBaseUrl()
+    src/debug/              # solo builds debug: permite HTTP sin TLS (pruebas locales)
   build.gradle.kts
   settings.gradle.kts
   gradle/
@@ -98,8 +110,10 @@ Mismo flujo que ya usa `movienight` (la web):
 
 ## Por dónde seguir
 
-**Todo por hacer** — el proyecto recién se creó (2026-09-26) con la plantilla
-default de Android Studio ("Empty Activity"), sin ningún código propio
-todavía. El primer paso real es la **Fase 1** de `docs/PLAN-PRODUCCION.md`:
-un spike técnico para confirmar que la conexión (login + sesión + Socket.io)
-funciona desde Android, antes de construir ninguna pantalla.
+**Fase 1 en curso (2026-09-28).** Ya se revisó el backend (`plan-produccion`), se
+cerraron los riesgos de versión de Socket.IO / `requireSameOrigin` / cleartext y se
+escribió el código del spike (`net/` + pantalla de pruebas). **Todavía no se compiló ni
+se probó en un dispositivo.** Siguiente paso: abrir el proyecto en Android Studio
+(Gradle sync), correr el spike contra el servidor real y tachar los checkboxes de la
+Fase 1 en `docs/PLAN-PRODUCCION.md`. Para eso hacen falta: URL del túnel, una cuenta de
+prueba y el ID de una sala creada desde la web.

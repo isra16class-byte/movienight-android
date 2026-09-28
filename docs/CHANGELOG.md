@@ -5,6 +5,32 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-09-28 — Fase 1: verificación del backend y código del spike
+
+- **Hallazgo importante**: el backend con cuentas/sesiones (`/auth/*`, presign, `/health`,
+  `io.engine.use(sessionMiddleware)`) existe solo en la rama **`plan-produccion`** de `movienight`;
+  `main` es la versión vieja y no lo tiene. `API-CONTRATO.md` era correcto pero no decía de qué
+  rama salía. Confirmado con el usuario que el servidor destino corre `plan-produccion`.
+- **`docs/API-CONTRATO.md` corregido** contra el código real: fuente y versiones (`socket.io 4.8.3`),
+  atributos de la cookie (`secure: true`, `sameSite: lax`, 30 días rolling), `GET /api/room/:id`
+  devuelve solo `{ passwordProtected }`, body/respuesta de `/create-room-from-upload`
+  (`{ filename, password? }` → `{ roomId, hostToken }`), campos de `change-video-from-upload` y
+  `upload-subtitle` (`subtitle` + `hostToken`), y la regla de dueño de sala por sesión.
+- **Riesgos de la Fase 1**: versión de Socket.IO resuelta (cliente `2.1.2`), `requireSameOrigin`
+  verificado por código (solo `/admin/*`), cleartext configurado solo para debug. Agregados dos
+  riesgos nuevos: la cookie en el handshake de Socket.IO (requiere pasar el `OkHttpClient` como
+  `callFactory` y `webSocketFactory`) y que el servidor destino corra `plan-produccion` con Postgres.
+- **Código del spike** (descartable, `SpikeScreen`/`SpikeViewModel`; la capa `net/` sí está pensada
+  para reusarse): `PersistentCookieJar`, `MovieNightApi` (health/login/me/logout), `RoomSocket`
+  (join-room, chat, typing, reaction y log de todos los eventos del server), `normalizeBaseUrl`
+  con test unitario. Dependencias nuevas: OkHttp 4.12.0, socket.io-client 2.1.2, coroutines 1.9.0,
+  lifecycle-viewmodel-compose.
+- Permiso `INTERNET`; `app/src/debug/` con `network_security_config` (HTTP solo en debug); la cookie
+  de sesión se excluye de los backups (`backup_rules.xml`, `data_extraction_rules.xml`).
+- **No verificado**: el proyecto no se compiló ni se corrió en un dispositivo (el entorno donde se
+  escribió no tiene Android SDK ni acceso a Maven). Solo se ejecutó `normalizeBaseUrl` con
+  kotlinc 2.0.21. Los checkboxes de la Fase 1 siguen sin tachar hasta probarlo en un dispositivo.
+
 ## 2026-09-26 — Riesgos técnicos agregados a la Fase 1 + fix del comando `git am`
 
 - **Revisión crítica del plan**: se detectaron 3 riesgos técnicos que el

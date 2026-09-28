@@ -29,6 +29,11 @@ necesitar la fase siguiente para tener sentido.
       (Kotlin + Jetpack Compose). iOS queda fuera de este plan.
 - [x] **¿Reproductor de video?** → **Media3 (ExoPlayer)**, el estándar actual
       de Android para reproducción de video.
+- [x] **¿Contra qué versión del backend?** → **Rama `plan-produccion` de `movienight`**
+      (cuentas, sesiones en Redis, presign de R2, `/health`). La rama `main` del repo web
+      es la versión vieja (sin `/auth/*`) y no sirve para esta app. Confirmado el 2026-09-28
+      leyendo `server.js` de ambas ramas. Además el servidor necesita `DATABASE_URL`
+      (Postgres) para que `/auth/*` esté habilitado.
 - [x] **¿Un solo repo o repos separados?** → **Repos separados.**
       `movienight` (web + servidor) y `movienight-android` (esta app) no
       comparten código ni historial de git — solo se comunican por red, igual
@@ -54,29 +59,38 @@ más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
 
 ### Riesgos técnicos a confirmar antes/durante esta fase (detectados el 2026-09-26, sin resolver todavía)
 
-- [ ] **Compatibilidad de versión de Socket.io.** El server usa
-      `socket.io ^4.7.5` (confirmado en `movienight/package.json`). El
-      cliente Android (`socket.io-client-java` o equivalente) necesita una
-      versión compatible con el protocolo Engine.IO v4 — no cualquier
-      versión de la librería cliente sirve. Confirmar la versión correcta
-      **antes** de escribir el primer código de conexión, no después: si la
-      versión no matchea, el handshake ni siquiera conecta y el error puede
-      no ser obvio.
-- [ ] **Tráfico "cleartext" (HTTP sin TLS) para pruebas locales.** Android
-      bloquea por defecto conexiones HTTP sin cifrar desde API 28+. Contra el
-      túnel de Cloudflare (HTTPS) no hay problema, pero si en algún momento
-      se prueba contra `http://localhost` o una IP local de la red (sin pasar
-      por el túnel), la conexión se va a rechazar silenciosamente salvo que
-      se configure un `network_security_config.xml` permitiendo cleartext
-      para esa IP específica. Definir esto antes de la primera prueba local.
-- [ ] **Confirmar que `requireSameOrigin` no bloquea las rutas que la app
-      necesita.** Se vio en `server.js` que algunas rutas (las de
-      `/admin/*`) chequean `Origin`/`Referer` contra el host propio. Por
-      revisión rápida del código, las rutas que la app sí usa
-      (`/auth/login`, `/create-room-from-upload`, etc.) no pasan por ese
-      middleware — pero no se confirmó ruta por ruta de forma exhaustiva.
-      Verificar esto con una request real desde la app antes de asumir que
-      no hay fricción.
+- [x] **Compatibilidad de versión de Socket.io.** *(Resuelto 2026-09-28.)* El
+      lockfile del backend fija `socket.io 4.8.3` / `engine.io 6.6.9` (protocolo
+      EIO v4). Según el README de `socketio/socket.io-client-java`, la serie
+      **2.x** es la compatible con servidores 3.x/4.x; se usa `2.1.2` (última
+      tag). Falta confirmar en un dispositivo real que el handshake conecta.
+- [x] **Tráfico "cleartext" (HTTP sin TLS) para pruebas locales.** *(Configurado
+      2026-09-28, sin probar en dispositivo.)* Android lo bloquea por defecto desde
+      API 28+. Se agregó `app/src/debug/` con un `network_security_config` que lo
+      permite **solo en builds debug** (release queda solo HTTPS). **Ojo:** no
+      alcanza solo con eso — la cookie de sesión sale con `secure: true`, así que
+      para probar por HTTP el server local tiene que arrancar con
+      `SESSION_COOKIE_INSECURE=1`. Contra el túnel HTTPS no hace falta nada.
+- [x] **Confirmar que `requireSameOrigin` no bloquea las rutas que la app
+      necesita.** *(Verificado por código 2026-09-28.)* En `server.js` solo lo
+      usan las rutas de escritura de `/admin/*`; ninguna de las que consume la
+      app lo tiene. CORS (`ALLOWED_ORIGINS`) solo afecta a navegadores y un
+      cliente nativo no manda `Origin`. Sigue pendiente confirmarlo con una
+      request real (lo hace el spike).
+- [ ] **La cookie tiene que viajar en el handshake de Socket.IO.** *(Nuevo,
+      2026-09-28.)* El cliente Java solo la manda si se le pasa el mismo
+      `OkHttpClient` (con el `CookieJar`) como `callFactory` **y**
+      `webSocketFactory`, y con `readTimeout` largo (el long-polling se corta
+      con los 10 s por defecto). Implementado en `net/RoomSocket.kt`; falta
+      verlo funcionar: en el `join-room`, si el server reconoce la sesión, una
+      sala creada con la cuenta de prueba debe devolver `host-status`
+      `{ isHost: true }` sin mandar `hostToken`.
+- [ ] **El servidor destino corre `plan-produccion` con Postgres.** *(Nuevo,
+      2026-09-28.)* Sin eso `/auth/*` da 404 (ver Fase 0).
+
+**Estado del spike (2026-09-28)**: código escrito (`net/` + `SpikeScreen`), **todavía
+no compilado ni probado en un dispositivo** — por eso los checkboxes de la lista de
+arriba siguen sin tachar. Solo se verificó por ejecución `normalizeBaseUrl`.
 
 **Criterio de éxito de esta fase**: dos clientes en la misma sala (uno web,
 uno Android) viéndose el chat en tiempo real, sin tocar nada del servidor.
@@ -92,7 +106,9 @@ uno Android) viéndose el chat en tiempo real, sin tocar nada del servidor.
       pantalla nativa, dado que es un flujo de uso raro (una vez cada tanto).
 - [ ] Crear sala reusando un video de la biblioteca
       (`POST /create-room-from-upload`).
-- [ ] Ver detalle de una sala (`GET /api/room/:id`).
+- [ ] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve
+      `{ passwordProtected }`, sirve para decidir si pedir contraseña, no para
+      mostrar título/video (eso llegaría por `room-data` al unirse por socket).
 - [ ] Listar biblioteca (`GET /api/uploads`, alcanza con sesión iniciada,
       sin necesitar `LIBRARY_PASSWORD`).
 

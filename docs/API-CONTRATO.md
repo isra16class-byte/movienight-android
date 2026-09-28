@@ -11,7 +11,15 @@ actualizarlo — y viceversa, si la app necesita algo que el backend no
 expone, es acá donde se anota como pendiente antes de decidir si hace falta
 tocar `server.js`.
 
-**Fuente**: `movienight/server.js`, revisado directamente el 2026-09-26.
+**Fuente**: `movienight/server.js` de la rama **`plan-produccion`** (commit `a9bca2a`),
+revisado directamente el 2026-09-26 y re-verificado ruta por ruta el 2026-09-28.
+
+> ⚠️ **La rama `main` de `movienight` NO tiene nada de esto** (sin `/auth/*`, sin sesiones, sin
+> presign, sin `/health`). Esta app solo funciona contra un servidor que corra `plan-produccion`
+> **y** tenga `DATABASE_URL` (Postgres) configurada — sin eso `/auth/*` responde 404.
+
+**Versiones del backend**: `socket.io 4.8.3`, `engine.io 6.6.9` (protocolo EIO v4). Cliente Android:
+`io.socket:socket.io-client:2.1.2` (la serie 2.x es la compatible con servidores 3.x/4.x).
 
 ---
 
@@ -21,6 +29,19 @@ Cookie `httpOnly` `movienight.sid` — no hay token. El cliente Android necesita
 un `CookieJar` persistente (ej. `okhttp3.JavaNetCookieJar` o uno propio sobre
 `SharedPreferences`) que guarde esta cookie tras el login y la reenvíe en
 **todas** las siguientes requests, incluido el handshake de Socket.io.
+
+Atributos de la cookie (verificados en `server.js`): `httpOnly`, **`secure: true`** (solo se
+reenvía por HTTPS; para pruebas locales por HTTP el server tiene que arrancar con
+`SESSION_COOKIE_INSECURE=1`), `sameSite: lax`, duración 30 días con `rolling` (cada request
+autenticada la renueva). `/auth/logout` la borra con `res.clearCookie`.
+
+**Socket.IO y la cookie**: el cliente Java solo manda la cookie en el handshake si se le pasa el
+mismo `OkHttpClient` (el que lleva el `CookieJar`) en `IO.Options.callFactory` **y**
+`IO.Options.webSocketFactory`. Ese cliente necesita `readTimeout` largo (≥ 30 s): el long-polling
+de Engine.IO deja la request colgada ~25 s y con el timeout por defecto de OkHttp (10 s) se corta.
+
+**Rate limits**: el de login es por `ip + email`; el general de la API es de
+300 requests / 5 min por IP (no aplica a `/health`, `/healthz`, `/metrics`, estáticos ni Socket.IO).
 
 | Ruta | Método | Body | Respuesta | Notas |
 |---|---|---|---|---|
@@ -39,13 +60,13 @@ un `CookieJar` persistente (ej. `okhttp3.JavaNetCookieJar` o uno propio sobre
 |---|---|---|---|
 | `/api/uploads/presign` | POST | `requireUploadAuth` (sesión o `LIBRARY_PASSWORD`) | Devuelve URL prefirmada de R2 para subir un video directo al bucket. 404 si el server no tiene R2 configurado. |
 | `/create-room` | POST | `requireUploadAuth` | Sube un video por multipart (modo disco local o streaming a R2). Sujeto al límite `413` de Cloudflare si se comparte por Tunnel proxied. |
-| `/create-room-from-upload` | POST | `requireUploadAuth` | Crea una sala reusando un video ya en la biblioteca (por key/filename) |
+| `/create-room-from-upload` | POST | `requireUploadAuth` | Body JSON `{ filename, password? }` (`filename` = key/nombre del video en la biblioteca). Responde `{ roomId, hostToken }`. Si hay sesión iniciada la sala queda **con dueño** (ver "Rol de host"). |
 | `/room/:id/change-video` | POST | `requireUploadAuth` (además, dueño/host de la sala) | Sube un video nuevo para reemplazar el actual de la sala |
-| `/room/:id/change-video-from-upload` | POST | dueño/host de la sala | Cambia a un video ya existente en la biblioteca |
-| `/room/:id/upload-subtitle` | POST | dueño/host de la sala | Sube un `.srt`/`.vtt`, validado por estructura real |
+| `/room/:id/change-video-from-upload` | POST | dueño/host de la sala (no pasa por `requireUploadAuth`) | Body JSON `{ filename, hostToken? }`. 403 `No autorizado` si no eres el dueño. Responde `{ ok: true }`. |
+| `/room/:id/upload-subtitle` | POST | dueño/host de la sala (no pasa por `requireUploadAuth`) | `multipart/form-data`: campo de archivo **`subtitle`** + campo `hostToken` (solo salas anónimas). Sube un `.srt`/`.vtt`, validado por estructura real. Responde `{ ok, subtitleFile }`. |
 | `/room/:id` | GET | — | Devuelve la página HTML de la sala (no aplica a la app, es para el navegador) |
-| `/api/room/:id` | GET | — | Info de la sala en JSON — usable desde la app |
-| `/api/uploads` | GET | `requireLibraryAuth` (sesión o `LIBRARY_PASSWORD`) | Lista videos de la biblioteca compartida |
+| `/api/room/:id` | GET | — | **Solo** `{ passwordProtected: bool }` (404 `{ error: 'not found' }` si la sala no existe). Sirve para saber si pedir contraseña antes de unirse; no devuelve video ni título. |
+| `/api/uploads` | GET | `requireLibraryAuth` (sesión o `LIBRARY_PASSWORD`) | Lista videos de la biblioteca compartida. Con sesión no hace falta la contraseña; sin sesión se manda en el header `x-library-password`. |
 | `/api/uploads/:filename` | DELETE | `requireLibraryAuth` | Borra un video de la biblioteca |
 | `/health` (alias `/healthz`) | GET | — | Útil para un chequeo de conectividad desde la app antes de intentar conectar |
 
@@ -108,6 +129,11 @@ una sala sin cuenta).
   dentro de una ventana corta, el server no repite el mensaje de "se unió a
   la sala" — bueno tenerlo en cuenta para no duplicar lógica de UI para ese
   caso.
+- **Rol de host (dueño de sala)**: si la sala se creó con una sesión iniciada, queda con
+  `ownerUserId` y el host se reconoce **solo por la cookie de sesión** (un `hostToken` ya no
+  alcanza). Si se creó sin sesión (anónima), vale el `hostToken` que devuelve la creación, que la
+  app tiene que guardar y mandar en `join-room` y en `change-video-from-upload`/`upload-subtitle`.
+  Ver `isRoomOwner()` en `lib/hostAuth.js`.
 - **Solo el host puede mandar `sync` con efecto real** — el servidor
   descarta el evento si `socket.isHost` es falso, así que la UI de controles
   del reproductor en la app debería directamente no ofrecer controles de
