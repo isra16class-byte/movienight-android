@@ -178,20 +178,22 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
-**Fase 2, Sesión B escrita (2026-10-02), todavía sin probar en el emulador.** Quedaron hechos:
+**Fase 2, Sesión B hecha y probada en el emulador (2026-10-02).** Quedaron hechos:
 biblioteca (`GET /api/uploads`), crear sala (`POST /create-room-from-upload`), unirse por código o
 link, y la sala con chat (comprobar sala, contraseña, mensajes, "escribiendo…", lista de conectados,
 estados de host / silenciado / expulsado / servidor reiniciando), más el `userId` persistente. El spike
 se borró. La forma de `GET /api/uploads` se verificó en `server.js`: `[{ filename, displayName, size, mtime }]`.
-**Qué está verificado y qué no:** la lógica pura y los parsers de JSON tienen tests y pasan en el entorno
-del asistente (59 tests); la UI Compose, los ViewModels y `RoomSocket` **no se pudieron compilar** sin el
-SDK, así que el primer sync/build en Android Studio puede mostrar algún error de compilación a corregir.
-**A probar en el emulador:** que la biblioteca liste los videos reales; crear una sala (con y sin
-contraseña) y que la app quede como host; unirse desde la app a una sala creada en la web (con y sin
-contraseña, probando también una contraseña mala); chat en ambos sentidos con la web; "Salir" y que la
-web vea "salió de la sala"; cortar y devolver la red dentro de la sala; sesión vencida → login.
+**Qué está verificado:** los 59 tests de lógica pura y parsers pasan, y la Sesión B compiló y corrió en el
+emulador (Medium Phone API 36.1) contra el servidor real, sin cambios de código tras el primer build.
+Se probó con éxito: biblioteca con los videos reales; crear sala con y sin contraseña (la app queda
+como host); unirse desde la app a una sala creada en la web (con y sin contraseña, y con contraseña mala);
+chat en ambos sentidos con la web; salir de la sala; cortar y devolver la red dentro de la sala.
+**Sin prueba explícita todavía** (necesitan un host que los dispare o un reinicio del server): "te sacó de
+la sala", chat bloqueado al silenciar y el aviso `server-restarting`.
 Sigue pendiente (no bloquea): recuperar contraseña de punta a punta (el server no tiene emails configurados).
-Siguiente: probar la Sesión B y pasar a la **Fase 3** (reproductor Media3 sincronizado).
+Siguiente: **Fase 3** (reproductor Media3 sincronizado). Antes de escribir código, revisar en `server.js`
+cómo llegan `sync`, `video-changed` y `subtitle-changed`, y cómo se sirve el video (`/uploads/...` en
+disco o URL pública de R2).
 
 **Fase 1 completada (2026-09-28), salvo probar `reaction`.** El spike corre en un
 dispositivo Android real contra el servidor de producción: login por cookie, sesión

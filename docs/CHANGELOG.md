@@ -5,6 +5,24 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-02 — Fase 2, Sesión B probada en emulador
+
+- **Primer build real**: la Sesión B (escrita sin Android SDK) sincronizó y compiló en Android
+  Studio, y corrió en el emulador Medium Phone API 36.1 contra el servidor real. La dependencia
+  `org.json:json:20240303` de tests resolvió bien.
+- **Funciona**: biblioteca con los videos reales, crear sala (con y sin contraseña, la app queda
+  como host), unirse a una sala de la web (con y sin contraseña, incluida una incorrecta), chat en
+  ambos sentidos con la web, salir de la sala y reconexión al cortar y devolver la red.
+- **Sin prueba explícita**: "te sacó de la sala", chat bloqueado al silenciar y aviso de
+  `server-restarting` (hace falta un host que los dispare o reiniciar el server).
+- **Plan**: tildados los tres ítems de la Fase 2 que cubría la Sesión B (listar biblioteca,
+  crear sala, detalle de sala). Los adelantos de las Fases 5 y 6 quedan sin tildar, con la nota de
+  qué se probó y qué no.
+- **Sigue pendiente** (no bloquea): recuperar contraseña de punta a punta (emails del server).
+- **Siguiente**: Fase 3, reproductor Media3 sincronizado.
+
+---
+
 ## 2026-10-02 — Fase 2, Sesión B: biblioteca, crear sala y sala con chat (sin probar en emulador)
 
 - **Verificado en `server.js` (`plan-produccion`)** antes de escribir código: `GET /api/uploads`

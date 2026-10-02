@@ -134,18 +134,19 @@ del servidor.
       servidor todavía no tiene configurado el envío de emails (`RESEND_API_KEY`, `EMAIL_FROM`,
       `APP_BASE_URL`), así que no se pudo comprobar que llegue el correo ni que el link abra
       `reset-password.html`.)*
-- [ ] Crear sala reusando un video de la biblioteca
-      (`POST /create-room-from-upload`). *(Sesión B: código escrito el 2026-10-02, diálogo con
-      contraseña opcional; **falta probarlo en el emulador**.)*
-- [ ] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve
+- [x] Crear sala reusando un video de la biblioteca
+      (`POST /create-room-from-upload`). *(Sesión B: código escrito y **probado en el emulador el
+      2026-10-02**, con y sin contraseña; la app queda como host.)*
+- [x] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve
       `{ passwordProtected }`, sirve para decidir si pedir contraseña, no para
       mostrar título/video (eso llegaría por `room-data` al unirse por socket). *(Sesión B:
       código escrito; la pantalla de la sala usa `/api/room/:id` para saber si existe y pedir
-      contraseña, y el nombre de la cinta llega por `room-data`. **Falta probarlo en el emulador**,
-      junto con el chat, que también se hizo en esta sesión.)*
-- [ ] Listar biblioteca (`GET /api/uploads`, alcanza con sesión iniciada,
-      sin necesitar `LIBRARY_PASSWORD`). *(Sesión B: código escrito, forma de la respuesta
-      verificada en `server.js`; **falta probarlo en el emulador**.)*
+      contraseña, y el nombre de la cinta llega por `room-data`. **Probado en el emulador el
+      2026-10-02**, junto con el chat: unirse por código/link, contraseña de sala (también la
+      incorrecta) y chat en ambos sentidos con la web.)*
+- [x] Listar biblioteca (`GET /api/uploads`, alcanza con sesión iniciada,
+      sin necesitar `LIBRARY_PASSWORD`). *(Sesión B: forma de la respuesta verificada en
+      `server.js`; **probado en el emulador el 2026-10-02**, lista los videos reales.)*
 
 ---
 
@@ -185,9 +186,10 @@ del servidor.
 
 - [ ] Consumir `make-host`, `kick-user`, `toggle-mute` (eventos ya existen en
       el server, del lado Android solo hay que dispararlos/escucharlos).
-- [ ] Reaccionar a `kicked`, `mute-status`, `room-error`. *(Adelantado en la Sesión B, sin probar:
-      la app ya muestra "te sacó de la sala", bloquea el chat si te silencian y vuelve a pedir la
-      contraseña ante un `room-error` de contraseña. Falta la parte de **host**: disparar
+- [ ] Reaccionar a `kicked`, `mute-status`, `room-error`. *(Adelantado en la Sesión B. Probado en
+      el emulador el 2026-10-02: la contraseña de sala incorrecta (`room-error`). **Sin prueba
+      explícita todavía:** "te sacó de la sala" y el chat bloqueado al silenciar, que necesitan
+      un host que los dispare. Falta la parte de **host**: disparar
       `make-host` / `kick-user` / `toggle-mute`.)*
 
 ---
@@ -195,8 +197,9 @@ del servidor.
 ## Fase 6 — Extras (no bloqueante, evaluar más adelante)
 
 - [ ] Manejar `server-restarting` (graceful shutdown del backend) con un
-      aviso en pantalla, igual que hace `room.html`. *(Adelantado en la Sesión B, sin probar: aviso
-      en la sala y reconexión automática de Socket.IO.)*
+      aviso en pantalla, igual que hace `room.html`. *(Adelantado en la Sesión B. La reconexión
+      automática tras cortar y devolver la red se probó en el emulador el 2026-10-02; el aviso de
+      `server-restarting` en sí no se provocó.)*
 - [ ] Evaluar si tiene sentido un acceso al panel de administración
       (`/admin/*`) desde la app — no es prioritario, el panel web ya cubre
       ese caso de uso.
