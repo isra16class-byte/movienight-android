@@ -49,7 +49,8 @@ sealed interface RoomPhase {
  * estado del chat. Vive mientras la pantalla esté en la pila de navegación: al salir, [onCleared]
  * cierra el socket y el server anuncia que la persona salió.
  *
- * El video lo reproduce [player] (Fase 3A: como espectadora, sin sincronizar con el host todavía).
+ * El video lo reproduce [player]. Fase 3B: si la persona NO es host, el reproductor sigue los `sync` del
+ * host; la app todavía no emite `sync` (eso es la 3C), así que quien es host controla solo su copia local.
  */
 class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : AndroidViewModel(app) {
 
@@ -187,12 +188,15 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.HostStatus -> {
                 isHost = event.isHost
+                // Quien es host ya no sigue a nadie: se le quita cualquier ajuste de velocidad del seguimiento.
+                if (event.isHost) player.resetSpeed()
                 markJoined()
             }
             is RoomEvent.RoomData -> {
                 videoName = videoDisplayName(event.videoFile)
-                // También llega al reconectar tras un corte de red: si el video ya es ese no se recarga.
-                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false)
+                // También llega al reconectar tras un corte de red: si el video ya es ese no se recarga
+                // (y entonces la posición se ignora: el próximo heartbeat del host lo realinea).
+                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false, start = event.position)
                 markJoined()
             }
             is RoomEvent.VideoChanged -> {
@@ -200,6 +204,9 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 videoName = videoDisplayName(event.videoFile)
                 player.load(resolveVideoUrl(baseUrl, event.videoFile), force = true)
             }
+            // El server solo retransmite `sync` a quien no es host; igual se descarta si somos host (p. ej. durante
+            // un traspaso), para no pelear con los controles locales. La app no emite nada: no hay bucle posible.
+            is RoomEvent.Sync -> if (!isHost) player.applySync(event.message)
             is RoomEvent.MuteStatus -> isMuted = event.muted
             is RoomEvent.ViewerCount -> viewerCount = event.count
             is RoomEvent.ViewerList -> viewers = event.viewers

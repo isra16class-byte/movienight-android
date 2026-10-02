@@ -27,6 +27,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -35,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,7 +56,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.delay
 import com.isra16.movienight.net.ChatMessage
+import com.isra16.movienight.net.formatPlaybackTime
+import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.room.RoomPhase
 import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
@@ -195,7 +200,7 @@ private fun RoomContent(vm: RoomViewModel) {
     Column(Modifier.fillMaxSize()) {
         // Con el teclado abierto se esconde el recuadro del video: en un teléfono chico dejaría el chat aplastado.
         val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-        if (!keyboardOpen) RoomVideo(vm.player, videoName = vm.videoName)
+        if (!keyboardOpen) RoomVideo(vm.player, videoName = vm.videoName, isHost = vm.isHost)
 
         val banner = when {
             !vm.isConnected -> vm.notice ?: "Reconectando…"
@@ -307,11 +312,23 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
 }
 
 /**
- * El video de la sala (Fase 3A: espectadora, play/pause local). Los botones van debajo del video y no
- * encima: así no hay nada dibujado sobre la `SurfaceView` del `PlayerView`.
+ * El video de la sala. Los controles van debajo del video y no encima: así no hay nada dibujado sobre
+ * la `SurfaceView` del `PlayerView` (que además no usa los controles nativos de Media3).
+ *
+ * Fase 3B: quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto:
+ * la sala la maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host
+ * conserva el play/pause local de la 3A, que todavía no llega a la sala (eso es la 3C).
  */
 @Composable
-private fun RoomVideo(rp: RoomPlayer, videoName: String) {
+private fun RoomVideo(rp: RoomPlayer, videoName: String, isHost: Boolean) {
+    // La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe.
+    LaunchedEffect(rp, rp.hasVideo) {
+        while (true) {
+            rp.refreshProgress()
+            delay(PROGRESS_REFRESH_MS)
+        }
+    }
+
     Column(Modifier.fillMaxWidth()) {
         Box(
             Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
@@ -353,8 +370,10 @@ private fun RoomVideo(rp: RoomPlayer, videoName: String) {
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedButton(onClick = rp::togglePlay, enabled = rp.hasVideo && rp.error == null) {
-                Text(if (rp.showsPause) "Pausar" else "Reproducir")
+            if (isHost) {
+                OutlinedButton(onClick = rp::togglePlay, enabled = rp.hasVideo && rp.error == null) {
+                    Text(if (rp.showsPause) "Pausar" else "Reproducir")
+                }
             }
             if (rp.isBuffering) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             Text(
@@ -365,8 +384,40 @@ private fun RoomVideo(rp: RoomPlayer, videoName: String) {
                 maxLines = 1,
             )
         }
+        if (isHost) {
+            Text(
+                "Sos el host, pero la app todavía no controla la sala: lo que hagas acá no lo ven los demás.",
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else if (rp.hasVideo && rp.error == null) {
+            GuestProgressBar(positionMs = rp.positionMs, durationMs = rp.durationMs)
+        }
     }
 }
+
+/** Barra de progreso de solo lectura para quien no es host: no se puede tocar ni arrastrar. */
+@Composable
+private fun GuestProgressBar(positionMs: Long, durationMs: Long) {
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        LinearProgressIndicator(
+            progress = { progressFraction(positionMs, durationMs) },
+            modifier = Modifier.weight(1f),
+        )
+        Text(
+            "${formatPlaybackTime(positionMs)} / ${if (durationMs > 0L) formatPlaybackTime(durationMs) else "--:--"}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+private const val PROGRESS_REFRESH_MS = 500L
 
 /**
  * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla...), pero no cuando la

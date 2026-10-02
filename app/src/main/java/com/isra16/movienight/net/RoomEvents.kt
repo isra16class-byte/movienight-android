@@ -41,8 +41,12 @@ sealed interface RoomEvent {
     data class Chat(val message: ChatMessage) : RoomEvent
     data class ChatRateLimited(val message: String) : RoomEvent
     data class HostStatus(val isHost: Boolean) : RoomEvent
-    data class RoomData(val videoFile: String?) : RoomEvent
+    /** `room-data`: la cinta y, si el server la mandó, dónde va el video ([position], en el momento del join). */
+    data class RoomData(val videoFile: String?, val position: RoomPosition? = null) : RoomEvent
     data class VideoChanged(val videoFile: String?) : RoomEvent
+
+    /** `sync` del host (play, pause, seek o heartbeat). Solo llega a quien NO es host. */
+    data class Sync(val message: SyncMessage) : RoomEvent
     data class MuteStatus(val muted: Boolean) : RoomEvent
     data class ViewerCount(val count: Int) : RoomEvent
     data class ViewerList(val viewers: List<Viewer>) : RoomEvent
@@ -51,10 +55,10 @@ sealed interface RoomEvent {
     data object ServerRestarting : RoomEvent
 }
 
-/** Eventos del server que [parseServerEvent] sabe interpretar (los demás —`sync`, `reaction`...— llegan en la Fase 3). */
+/** Eventos del server que [parseServerEvent] sabe interpretar (los demás —`reaction`, `subtitle-changed`...— llegan después). */
 val HANDLED_SERVER_EVENTS: List<String> = listOf(
     "room-error", "chat-history", "chat-message", "chat-rate-limited", "host-status", "room-data",
-    "video-changed", "mute-status", "viewer-count", "viewer-list", "typing", "kicked", "server-restarting",
+    "video-changed", "sync", "mute-status", "viewer-count", "viewer-list", "typing", "kicked", "server-restarting",
 )
 
 /**
@@ -72,8 +76,11 @@ fun parseServerEvent(name: String, args: Array<out Any?>): RoomEvent? {
                 ?: "Estás mandando mensajes muy rápido, esperá un toque.",
         )
         "host-status" -> (first as? JSONObject)?.let { RoomEvent.HostStatus(it.optBoolean("isHost", false)) }
-        "room-data" -> (first as? JSONObject)?.let { RoomEvent.RoomData(it.optStringOrNull("videoFile")) }
+        "room-data" -> (first as? JSONObject)?.let {
+            RoomEvent.RoomData(it.optStringOrNull("videoFile"), parseRoomPosition(it.optJSONObject("position")))
+        }
         "video-changed" -> (first as? JSONObject)?.let { RoomEvent.VideoChanged(it.optStringOrNull("videoFile")) }
+        "sync" -> (first as? JSONObject)?.let(::parseSyncMessage)?.let { RoomEvent.Sync(it) }
         "mute-status" -> (first as? JSONObject)?.let { RoomEvent.MuteStatus(it.optBoolean("muted", false)) }
         "viewer-count" -> (first as? Number)?.let { RoomEvent.ViewerCount(it.toInt()) }
         "viewer-list" -> (first as? JSONArray)?.let { RoomEvent.ViewerList(parseViewers(it)) }

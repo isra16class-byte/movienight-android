@@ -1,6 +1,9 @@
 package com.isra16.movienight
 
 import com.isra16.movienight.net.RoomEvent
+import com.isra16.movienight.net.RoomPosition
+import com.isra16.movienight.net.SyncMessage
+import com.isra16.movienight.net.SyncType
 import com.isra16.movienight.net.parseServerEvent
 import org.json.JSONArray
 import org.json.JSONObject
@@ -86,9 +89,32 @@ class RoomEventsTest {
     @Test
     fun datosDeLaSala() {
         val data = JSONObject("""{"videoFile":"/uploads/1__x.mp4","subtitleFile":null,"position":{"time":0,"paused":true}}""")
-        assertEquals(RoomEvent.RoomData("/uploads/1__x.mp4"), parse("room-data", data))
-        assertEquals(RoomEvent.RoomData(null), parse("room-data", JSONObject("""{"videoFile":null}""")))
+        assertEquals(
+            RoomEvent.RoomData("/uploads/1__x.mp4", RoomPosition(timeMs = 0, paused = true)),
+            parse("room-data", data),
+        )
+        // Sin `position` (o con una forma rara) el video igual se carga, solo que sin posición inicial.
+        assertEquals(RoomEvent.RoomData(null, null), parse("room-data", JSONObject("""{"videoFile":null}""")))
+        assertEquals(
+            RoomEvent.RoomData("/uploads/1__x.mp4", null),
+            parse("room-data", JSONObject("""{"videoFile":"/uploads/1__x.mp4","position":null}""")),
+        )
         assertEquals(RoomEvent.VideoChanged("/uploads/2__y.mp4"), parse("video-changed", JSONObject("""{"videoFile":"/uploads/2__y.mp4"}""")))
+    }
+
+    @Test
+    fun roomDataConLaPosicionDondeVaLaSala() {
+        val data = JSONObject("""{"videoFile":"/uploads/1__x.mp4","subtitleFile":null,"position":{"time":125.4,"paused":false}}""")
+        val event = parse("room-data", data) as RoomEvent.RoomData
+        assertEquals(RoomPosition(timeMs = 125_400, paused = false), event.position)
+    }
+
+    @Test
+    fun syncDelHost() {
+        val play = parse("sync", JSONObject("""{"type":"play","time":12.5}""")) as RoomEvent.Sync
+        assertEquals(SyncMessage(SyncType.PLAY, 12_500, null), play.message)
+        val beat = parse("sync", JSONObject("""{"type":"heartbeat","time":60,"paused":true}""")) as RoomEvent.Sync
+        assertEquals(SyncMessage(SyncType.HEARTBEAT, 60_000, true), beat.message)
     }
 
     @Test
@@ -113,7 +139,9 @@ class RoomEventsTest {
         assertNull(parse("chat-message", "no soy un objeto"))
         assertNull(parse("viewer-count", "tres"))
         assertNull(parse("room-error"))
-        assertNull(parse("sync", JSONObject("""{"type":"heartbeat","time":1}""")))
+        assertNull(parse("sync", "no soy un objeto"))
+        assertNull(parse("sync", JSONObject("""{"type":"heartbeat"}""")))
+        assertNull(parse("reaction", JSONObject("""{"emoji":"x"}""")))
         assertNull(parse("evento-desconocido"))
     }
 }
