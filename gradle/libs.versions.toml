@@ -13,7 +13,9 @@ socketIoClient = "2.1.2"
 coroutines = "1.9.0"
 navigationCompose = "2.8.9"
 orgJson = "20240303"
-media3 = "1.11.1"
+# Media3 1.11.x se compila con Kotlin 2.2; este proyecto usa Kotlin 2.0.21 (no puede leerlo y el compilador
+# falla con "Internal compiler error"). Quedarse en 1.10.x hasta subir Kotlin.
+media3 = "1.10.1"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
