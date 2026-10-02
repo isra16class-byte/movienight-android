@@ -83,6 +83,10 @@ dependencies {
     implementation(libs.socketio.client) {
         exclude(group = "org.json", module = "json")
     }
+    // Fase 3: reproductor. exoplayer trae media3-common; ui trae el PlayerView (se usa sin sus controles:
+    // los botones son de Compose, porque en la sala el host manda y los demás no pueden mover el video).
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
     testImplementation(libs.junit)
     // org.json real para los tests unitarios: el de android.jar viene "mockeado" y no parsea nada.
     testImplementation(libs.org.json)

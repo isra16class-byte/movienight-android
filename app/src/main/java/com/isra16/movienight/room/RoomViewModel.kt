@@ -20,6 +20,7 @@ import com.isra16.movienight.net.Viewer
 import com.isra16.movienight.net.apiErrorMessage
 import com.isra16.movienight.net.isRoomPasswordError
 import com.isra16.movienight.net.parseJsonObject
+import com.isra16.movienight.net.resolveVideoUrl
 import com.isra16.movienight.net.serverErrorMessage
 import com.isra16.movienight.net.videoDisplayName
 import kotlinx.coroutines.Job
@@ -48,7 +49,7 @@ sealed interface RoomPhase {
  * estado del chat. Vive mientras la pantalla esté en la pila de navegación: al salir, [onCleared]
  * cierra el socket y el server anuncia que la persona salió.
  *
- * El reproductor de video no está todavía (Fase 3): acá solo se muestra el nombre de la cinta.
+ * El video lo reproduce [player] (Fase 3A: como espectadora, sin sincronizar con el host todavía).
  */
 class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : AndroidViewModel(app) {
 
@@ -65,6 +66,9 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     // Los callbacks de Socket.IO llegan en hilos de la librería: pasan por un canal y se procesan en orden en el principal.
     private val events = Channel<RoomEvent>(Channel.UNLIMITED)
     private val roomSocket = RoomSocket(container.socketClient) { events.trySend(it) }
+
+    /** El reproductor de la sala: vive acá para sobrevivir a rotar el teléfono y se libera en [onCleared]. */
+    val player = RoomPlayer(app)
 
     private var passwordProtected = false
     private var lastTypingSentAt = 0L
@@ -162,6 +166,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.RoomError -> {
                 roomSocket.disconnect()
+                player.clear()
                 isConnected = false
                 phase = if (passwordProtected && isRoomPasswordError(event.message)) {
                     RoomPhase.AskPassword(event.message)
@@ -186,9 +191,15 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.RoomData -> {
                 videoName = videoDisplayName(event.videoFile)
+                // También llega al reconectar tras un corte de red: si el video ya es ese no se recarga.
+                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false)
                 markJoined()
             }
-            is RoomEvent.VideoChanged -> videoName = videoDisplayName(event.videoFile)
+            is RoomEvent.VideoChanged -> {
+                // El host cambió la cinta: se recarga siempre y arranca en pausa desde el principio.
+                videoName = videoDisplayName(event.videoFile)
+                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = true)
+            }
             is RoomEvent.MuteStatus -> isMuted = event.muted
             is RoomEvent.ViewerCount -> viewerCount = event.count
             is RoomEvent.ViewerList -> viewers = event.viewers
@@ -196,6 +207,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             is RoomEvent.ChatRateLimited -> showNotice(event.message, clearAfterMs = NOTICE_MS)
             RoomEvent.Kicked -> {
                 roomSocket.disconnect()
+                player.clear()
                 isConnected = false
                 phase = RoomPhase.Failed("El host te sacó de la sala.", canRetry = false)
             }
@@ -230,6 +242,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     override fun onCleared() {
+        player.release()
         roomSocket.disconnect()
         events.close()
         super.onCleared()

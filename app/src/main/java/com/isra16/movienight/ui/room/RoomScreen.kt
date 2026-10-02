@@ -1,5 +1,8 @@
 package com.isra16.movienight.ui.room
 
+import android.content.Context
+import android.content.ContextWrapper
+import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,6 +16,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -30,19 +34,29 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.ui.PlayerView
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.room.RoomPhase
+import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
@@ -51,6 +65,8 @@ import com.isra16.movienight.ui.auth.PrimaryButton
 /** Una sala: según la fase muestra la comprobación, el pedido de contraseña, un error o el chat. */
 @Composable
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
+    // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada).
+    PauseWhenAppStops(onStop = vm.player::pause)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         RoomHeader(vm = vm, onLeave = onLeave)
         HorizontalDivider()
@@ -179,29 +195,7 @@ private fun RoomContent(vm: RoomViewModel) {
     Column(Modifier.fillMaxSize()) {
         // Con el teclado abierto se esconde el recuadro del video: en un teléfono chico dejaría el chat aplastado.
         val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-        if (!keyboardOpen) {
-            // El reproductor llega en la Fase 3: por ahora solo se ve qué cinta tiene la sala.
-            Surface(
-                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f),
-                color = MaterialTheme.colorScheme.surfaceVariant,
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            if (vm.videoName.isNotEmpty()) vm.videoName else "Sin cinta",
-                            style = MaterialTheme.typography.titleMedium,
-                            textAlign = TextAlign.Center,
-                            maxLines = 2,
-                        )
-                        Text(
-                            "El reproductor llega en la próxima etapa.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
-        }
+        if (!keyboardOpen) RoomVideo(vm.player, videoName = vm.videoName)
 
         val banner = when {
             !vm.isConnected -> vm.notice ?: "Reconectando…"
@@ -310,4 +304,89 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
             }
         }
     }
+}
+
+/**
+ * El video de la sala (Fase 3A: espectadora, play/pause local). Los botones van debajo del video y no
+ * encima: así no hay nada dibujado sobre la `SurfaceView` del `PlayerView`.
+ */
+@Composable
+private fun RoomVideo(rp: RoomPlayer, videoName: String) {
+    Column(Modifier.fillMaxWidth()) {
+        Box(
+            Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
+            contentAlignment = Alignment.Center,
+        ) {
+            val exo = rp.player
+            val error = rp.error
+            when {
+                !rp.hasVideo -> Text("Sin cinta", style = MaterialTheme.typography.titleMedium, color = Color.White)
+                error != null -> Column(
+                    Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Text(error, style = MaterialTheme.typography.bodyMedium, color = Color.White, textAlign = TextAlign.Center)
+                    OutlinedButton(onClick = rp::retry) { Text("Reintentar") }
+                }
+                exo != null -> {
+                    // El reproductor vive más que esta vista (teclado que la esconde, girar el teléfono): hay que
+                    // soltarlo del PlayerView al salir, o cada PlayerView viejo seguiría escuchándolo.
+                    val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
+                    DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
+                    AndroidView(
+                        factory = { context ->
+                            PlayerView(context).apply { useController = false }.also { viewHolder[0] = it }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        update = { view ->
+                            view.player = exo
+                            view.keepScreenOn = rp.showsPause // que la pantalla no se apague a mitad de la peli
+                        },
+                    )
+                }
+                else -> Unit
+            }
+        }
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedButton(onClick = rp::togglePlay, enabled = rp.hasVideo && rp.error == null) {
+                Text(if (rp.showsPause) "Pausar" else "Reproducir")
+            }
+            if (rp.isBuffering) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+            Text(
+                if (videoName.isNotEmpty()) videoName else "Sin cinta",
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+            )
+        }
+    }
+}
+
+/**
+ * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla...), pero no cuando la
+ * actividad solo se recrea por girar el teléfono: ahí el video tiene que seguir.
+ */
+@Composable
+private fun PauseWhenAppStops(onStop: () -> Unit) {
+    val activity = LocalContext.current.findActivity()
+    val currentOnStop by rememberUpdatedState(onStop)
+    DisposableEffect(activity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP && activity?.isChangingConfigurations != true) currentOnStop()
+        }
+        activity?.lifecycle?.addObserver(observer)
+        onDispose { activity?.lifecycle?.removeObserver(observer) }
+    }
+}
+
+private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
+    is ComponentActivity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
 }
