@@ -5,6 +5,26 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-02 — Fase 3A probada en emulador (el video de la sala carga)
+
+- **Funciona** (checklist completo en el emulador Medium Phone API 36.1): el video de la sala se ve y
+  suena, arrancando en pausa y en el segundo 0; play/pause local; al terminar, Reproducir vuelve a
+  empezar; funciona en salas creadas desde la app y desde la web; se pausa al pasar a segundo plano;
+  sigue por donde iba al girar el teléfono; `video-changed` lo recarga en pausa y desde 0; el corte de
+  red no lo recarga de cero; al salir de la sala el sonido se corta; si falla, muestra el error con
+  reintento.
+- **Arreglo de versión**: la 3A fallaba al compilar con "Internal compiler error" en `MainActivity.kt`
+  (`FirIncompatibleClassExpressionChecker`, "source must not be null"). Causa: Media3 `1.11.x` se
+  compila con Kotlin 2.2 y el proyecto usa Kotlin 2.0.21. Se fijó Media3 en `1.10.1` (Kotlin 2.0.20).
+  Subir Media3 requiere subir Kotlin (y el plugin de Compose) antes.
+- **Entorno**: se actualizó Android Studio (instalador nuevo). Pide elegir "Use JVM 21" para Gradle 8.13
+  (Java 25 no es compatible). Se dejaron de versionar `.idea/` y `.kotlin/` (ahora van al `.gitignore`).
+- **Plan**: tildado "Integrar Media3/ExoPlayer" y dividida la Fase 3 en 3A / 3B / 3C.
+  `video-changed` hecho; `subtitle-changed` queda para la 3C.
+- **Siguiente**: Fase 3B (seguir a la sala: escuchar `sync`, controles propios, seek bloqueado a invitados).
+
+---
+
 ## 2026-10-02 — Fase 2, Sesión B probada en emulador
 
 - **Primer build real**: la Sesión B (escrita sin Android SDK) sincronizó y compiló en Android

@@ -40,8 +40,10 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **UI**: Jetpack Compose (plantilla "Empty Activity" de Android Studio).
 - **Package**: `com.isra16.movienight`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
-- **Reproductor de video**: Media3 (ExoPlayer) — planeado, todavía no
-  integrado (ver Fase 3 del plan).
+- **Reproductor de video**: Media3 (ExoPlayer) `1.10.1`, integrado en la Fase 3A (la app reproduce
+  el video de la sala; sincronización con el host en 3B/3C). **No subir Media3 a 1.11.x**: se compila
+  con Kotlin 2.2 y este proyecto usa 2.0.21, el compilador falla con "Internal compiler error" (error
+  en `MainActivity.kt`, sin mencionar la librería). Se puede subir cuando se suba Kotlin.
 - **Navegación** (2026-10-02): Navigation Compose `2.8.9` (elegida sin poder resolver
   dependencias en el entorno del asistente: si el sync de Gradle falla, es lo primero a revisar)
   con rutas de texto (sin la
@@ -78,7 +80,7 @@ movienight-android/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
         home/HomeScreen.kt      # unirse por código/link + biblioteca + diálogo de crear sala
-        room/RoomScreen.kt      # sala: cabecera, contraseña, error, chat (el reproductor es la Fase 3)
+        room/RoomScreen.kt      # sala: cabecera, contraseña, error, chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
@@ -178,6 +180,19 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 3A hecha y probada en el emulador (2026-10-02).** La app reproduce el video de la sala con
+Media3 (`room/RoomPlayer.kt`, `net/VideoUrl.kt`): carga en pausa y en el segundo 0, play/pause local,
+se pausa al pasar a segundo plano, sigue donde iba al girar el teléfono, recarga al llegar
+`video-changed` y no se recarga de cero al reconectar. Probado con éxito el checklist completo de la
+3A (carga, play/pause, fin del video, sala creada en la app y en la web, segundo plano, giro, cambio
+de video desde la web, corte de red, salir de la sala y error con reintento). **Todavía no escucha ni
+emite `sync`**: eso es la 3B y la 3C.
+**Gotcha de versiones:** el primer build de la 3A falló por Media3 `1.11.1` (Kotlin 2.2 vs el 2.0.21
+del proyecto); se fijó en `1.10.1`. Detalle en el apartado de Reproductor de video.
+Siguiente: **Fase 3B** (seguir a la sala): escuchar `sync` (play, pause, seek y heartbeat de 4 s del
+host), controles propios con el seek bloqueado a invitados, sin re-emitir lo que llega del server.
+Antes de escribir código, verificar en `server.js` la forma exacta de `sync` y `host-status`.
+
 **Fase 2, Sesión B hecha y probada en el emulador (2026-10-02).** Quedaron hechos:
 biblioteca (`GET /api/uploads`), crear sala (`POST /create-room-from-upload`), unirse por código o
 link, y la sala con chat (comprobar sala, contraseña, mensajes, "escribiendo…", lista de conectados,
@@ -191,9 +206,7 @@ chat en ambos sentidos con la web; salir de la sala; cortar y devolver la red de
 **Sin prueba explícita todavía** (necesitan un host que los dispare o un reinicio del server): "te sacó de
 la sala", chat bloqueado al silenciar y el aviso `server-restarting`.
 Sigue pendiente (no bloquea): recuperar contraseña de punta a punta (el server no tiene emails configurados).
-Siguiente: **Fase 3** (reproductor Media3 sincronizado). Antes de escribir código, revisar en `server.js`
-cómo llegan `sync`, `video-changed` y `subtitle-changed`, y cómo se sirve el video (`/uploads/...` en
-disco o URL pública de R2).
+(La Sesión B quedó cerrada; lo siguiente está arriba, en la Fase 3B.)
 
 **Fase 1 completada (2026-09-28), salvo probar `reaction`.** El spike corre en un
 dispositivo Android real contra el servidor de producción: login por cookie, sesión

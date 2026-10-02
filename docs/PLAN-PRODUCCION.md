@@ -152,7 +152,14 @@ del servidor.
 
 ## Fase 3 — Reproductor sincronizado (la parte crítica)
 
-- [ ] Integrar Media3/ExoPlayer.
+> **Se hace en 3 sesiones**, cada una con un objetivo que se puede probar solo.
+> **3A** = el video carga (la app es espectadora, sin sincronizar). **3B** = seguir a la sala
+> (escuchar `sync`, controles propios, seek bloqueado a invitados). **3C** = ser host (emitir `sync`,
+> `subtitle-changed`, `buffering-status`).
+
+- [x] Integrar Media3/ExoPlayer. *(3A, probado en el emulador el 2026-10-02: el video de la sala se
+      ve y suena, con play/pause local; `/uploads/...` en disco o URL absoluta de R2. **Media3
+      fijado en 1.10.1**: la 1.11.x se compila con Kotlin 2.2 y este proyecto usa 2.0.21.)*
 - [ ] Escuchar `sync` (play/pause/seek + heartbeat cada 4s del host) y
       aplicarlo al `ExoPlayer`.
 - [ ] Emitir `sync` solo si el rol actual es host (confirmado por
@@ -160,7 +167,8 @@ del servidor.
 - [ ] UI de controles propia (no la nativa de ExoPlayer) para poder bloquear
       el seek en invitados, igual que hace `room.html` con
       `video.controls = false`.
-- [ ] Manejar `video-changed` y `subtitle-changed`.
+- [ ] Manejar `video-changed` y `subtitle-changed`. *(`video-changed` hecho y probado en la 3A: la
+      app recarga el video en pausa y desde 0. Falta `subtitle-changed`, que va en la 3C.)*
 - [ ] Reportar `buffering-status` — tener en cuenta que buffering
       intermitente con archivos grandes servidos desde R2 es **esperable**
       (confirmado como tráfico real en `movienight/docs/MEMORIA.md`,
