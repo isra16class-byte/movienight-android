@@ -34,6 +34,13 @@ necesitar la fase siguiente para tener sentido.
       es la versión vieja (sin `/auth/*`) y no sirve para esta app. Confirmado el 2026-09-28
       leyendo `server.js` de ambas ramas. Además el servidor necesita `DATABASE_URL`
       (Postgres) para que `/auth/*` esté habilitado.
+- [x] **¿La app permite usar salas sin cuenta (invitado anónimo)?** → **No: la app exige
+      cuenta** *(decidido el 2026-10-02)*. Sin sesión iniciada solo se muestra login/registro,
+      y también hace falta cuenta para unirse a una sala. Consecuencias: la app no maneja el
+      flujo anónimo (no guarda ni manda `hostToken` en `join-room`, `change-video-from-upload`
+      ni `upload-subtitle`), toda sala creada desde la app tiene dueño y el host se reconoce
+      solo por la cookie. La web sigue aceptando invitados anónimos (el servidor no se toca).
+      El `userId` persistente sigue haciendo falta (mute y reconexión).
 - [x] **¿Un solo repo o repos separados?** → **Repos separados.**
       `movienight` (web + servidor) y `movienight-android` (esta app) no
       comparten código ni historial de git — solo se comunican por red, igual
@@ -113,11 +120,16 @@ del servidor.
 
 ## Fase 2 — Pantallas base (CRUD estándar)
 
-- [ ] Login / registro (`/auth/register`, `/auth/login`, `/auth/logout`).
-- [ ] Recuperación de contraseña (`/auth/forgot-password`,
-      `/auth/reset-password`) — evaluar si conviene resolverlo con un
-      WebView apuntando a `reset-password.html` en vez de reconstruir la
-      pantalla nativa, dado que es un flujo de uso raro (una vez cada tanto).
+> **Se hace en 2 sesiones** (la app exige cuenta, ver Fase 0). **Sesión A** = cimientos y
+> autenticación (login, registro, logout, recuperar contraseña). **Sesión B** = biblioteca,
+> crear sala y entrar a sala (chat), más la limpieza del spike.
+
+- [ ] Login / registro (`/auth/register`, `/auth/login`, `/auth/logout`). *(Sesión A: código
+      y tests unitarios listos el 2026-10-02; **falta probarlo en dispositivo** antes de
+      tildar.)*
+- [ ] Recuperación de contraseña (`/auth/forgot-password`). *(Sesión A: pantalla nativa de un
+      campo; el link del email se abre en el navegador y `reset-password.html` hace el reseteo,
+      sin reconstruir esa pantalla en la app. Falta probarlo en dispositivo.)*
 - [ ] Crear sala reusando un video de la biblioteca
       (`POST /create-room-from-upload`).
 - [ ] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve

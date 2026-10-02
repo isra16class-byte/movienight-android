@@ -42,6 +42,9 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
 - **Reproductor de video**: Media3 (ExoPlayer) — planeado, todavía no
   integrado (ver Fase 3 del plan).
+- **Navegación** (2026-10-02): Navigation Compose `2.8.9` con rutas de texto (sin la
+  serialización de rutas tipadas, para no sumar otro plugin). **Sin Hilt**: los objetos
+  compartidos viven en `AppContainer`, creado por `MovieNightApp`.
 - **Networking** (decidido 2026-09-28): OkHttp `4.12.0` + `io.socket:socket.io-client:2.1.2`
   (serie 2.x = compatible con Socket.IO 3.x/4.x del server) + coroutines. Sin Retrofit por
   ahora. Las dos comparten un `PersistentCookieJar` (cookie de sesión en SharedPreferences,
@@ -54,14 +57,30 @@ movienight-android/
   app/
     build.gradle.kts       # applicationId, minSdk, targetSdk, dependencias de red
     src/main/java/com/isra16/movienight/
-      MainActivity.kt       # monta SpikeScreen
-      SpikeScreen.kt        # UI descartable de pruebas de la Fase 1 (formulario + log)
-      SpikeViewModel.kt     # estado del spike y orquestación de la red
+      MovieNightApp.kt      # Application: crea el AppContainer
+      AppContainer.kt       # singletons: CookieJar, OkHttpClient, MovieNightApi, SessionManager
+      MainActivity.kt       # monta AppRoot
+      SpikeScreen.kt        # (descartable, ya sin usar) UI de pruebas de la Fase 1 — se borra en la Sesión B
+      SpikeViewModel.kt     # (descartable, ya sin usar) — se borra en la Sesión B
+      auth/                 # sesión y cuenta, sin UI salvo los ViewModels
+        SessionState.kt         # Loading / LoggedOut / LoggedIn / Unreachable, y AuthResult
+        SessionManager.kt       # /auth/me, login, registro (+login), forgot-password, logout
+        AuthValidation.kt       # reglas de email/contraseña (las mismas del server), JVM puro
+        SessionViewModel.kt     # estado de sesión para la raíz
+        AuthViewModel.kt        # estado de las pantallas de login/registro/recuperar
+      ui/
+        AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
+        auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
+        home/HomeScreen.kt      # home provisional (email + cerrar sesión)
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP (health, login, me, logout)
         RoomSocket.kt           # wrapper de Socket.IO (join-room, chat, eventos del server)
         UrlUtils.kt             # normalizeBaseUrl()
+        AuthErrors.kt           # authErrorMessage(): código HTTP -> mensaje para la persona
+        JsonUtils.kt            # parseJsonObject(), serverErrorMessage()
+    src/test/                # tests unitarios (JVM puro): validación, mapeo de errores, URL
+  local.properties.example   # plantilla de movienight.baseUrl (local.properties no se sube)
     src/debug/              # solo builds debug: permite HTTP sin TLS (pruebas locales)
   build.gradle.kts
   settings.gradle.kts
@@ -83,6 +102,13 @@ movienight-android/
 - Solo Android por ahora, nativo (no Flutter/React Native, no wrapper web).
 - Media3/ExoPlayer para el reproductor.
 - Repos separados (web y Android no comparten código ni historial de git).
+- **La app exige cuenta** (decidido 2026-10-02): sin sesión solo hay login/registro; también
+  hace falta cuenta para unirse a una sala. No hay flujo anónimo ni `hostToken` en la app.
+- **La URL del servidor es fija por build** (`BuildConfig.BASE_URL`), leída de
+  `local.properties` (`movienight.baseUrl`, y opcional `movienight.baseUrl.debug`). Ya no hay
+  campo de texto como en el spike. Sin configurar queda `https://movienight.invalid`.
+- **`POST /auth/register` no deja sesión**: la app registra y después hace login.
+- Si el `POST /auth/logout` falla por red, la sesión se cierra igual en el dispositivo.
 
 ## Cómo se trabaja en este repo
 
@@ -109,6 +135,13 @@ Mismo flujo que ya usa `movienight` (la web):
   esencial) y como entrada nueva en `docs/CHANGELOG.md`.
 
 ## Por dónde seguir
+
+**Fase 2, Sesión A hecha (2026-10-02), sin probar en dispositivo.** Login, registro, recuperar
+contraseña, logout y sesión persistente (código + 22 tests unitarios pasando; la UI no se pudo
+compilar en el entorno del asistente, así que el primer build real es el tuyo). **Antes de
+compilar**: crear `local.properties` con `movienight.baseUrl` (ver `local.properties.example`).
+Siguiente: **Sesión B** (biblioteca, crear sala, entrar a sala con chat, `userId` persistente,
+borrar el spike) — arranca verificando en `server.js` la forma exacta de `GET /api/uploads`.
 
 **Fase 1 completada (2026-09-28), salvo probar `reaction`.** El spike corre en un
 dispositivo Android real contra el servidor de producción: login por cookie, sesión

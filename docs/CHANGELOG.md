@@ -5,6 +5,38 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-02 — Fase 2, Sesión A: cuenta obligatoria, login, registro y sesión
+
+- **Decisión nueva: la app exige cuenta** (también para unirse a una sala). Sin sesión solo se
+  ve login/registro; no hay flujo anónimo ni `hostToken`. Registrada en `MEMORIA.md` y en la
+  Fase 0 del plan.
+- **Verificado en `server.js` (`plan-produccion`)**: `POST /auth/register` responde `201` pero
+  **no deja sesión** (la app hace login después); los errores son `{ error: "..." }` en español;
+  reglas: email `^[^\s@]+@[^\s@]+\.[^\s@]+$` y contraseña de mínimo 8. Corregido en
+  `API-CONTRATO.md` (incluye `/auth/reset-password`, que antes figuraba sin detallar).
+- **Nuevo**: Navigation Compose; `AppContainer` + `MovieNightApp`; `SessionManager`
+  (`/auth/me`, login, registro+login, forgot-password, logout); pantallas de login, registro y
+  recuperar contraseña; home provisional con el email y "Cerrar sesión". La raíz usa un
+  `NavHost` distinto por estado de sesión, así la pila se reinicia sola al entrar o salir.
+- **Estado extra `Unreachable`** además de cargando / sin sesión / con sesión: si `/auth/me` no
+  se puede consultar (sin red, servidor caído) se ofrece "Reintentar" en vez de mandar a login.
+- **URL del servidor fija por build** (`buildConfigField`, leída de `local.properties`); se
+  quita el campo de texto del spike. **Hay que crear `local.properties`** (ver
+  `local.properties.example`).
+- **Login con la cookie no guardada** (ej. server HTTP sin `SESSION_COOKIE_INSECURE=1`): se
+  avisa con un mensaje claro en vez de simular un login.
+- **Tests unitarios**: `AuthValidationTest` y `AuthErrorsTest` (18 casos), más los 4 de
+  `UrlUtilsTest`. Ejecutados con `kotlinc` 2.0.21 + un mini-runner: 22 de 22 pasan. Corriendo
+  esa compilación apareció (y se corrigió) un bug real: `/auth/*` dentro de un KDoc abre un
+  comentario anidado en Kotlin y rompía la compilación.
+- **No verificado**: la parte de UI/Compose y la integración con OkHttp no se pudieron
+  compilar en el entorno del asistente (sin SDK ni Maven). Solo se pasó por el parser de
+  `kotlinc` (sin errores de sintaxis). **Falta el primer build y la prueba en dispositivo**
+  (registro, login, cerrar y reabrir, logout, credenciales malas, sin red).
+- `SpikeScreen`/`SpikeViewModel` quedan sin usar; se borran en la Sesión B.
+
+---
+
 ## 2026-09-28 — Fase 1 completada: spike probado en dispositivo real
 
 - El spike compila y corre en un teléfono Android real contra el servidor de producción

@@ -45,12 +45,17 @@ de Engine.IO deja la request colgada ~25 s y con el timeout por defecto de OkHtt
 
 | Ruta | Método | Body | Respuesta | Notas |
 |---|---|---|---|---|
-| `/auth/register` | POST | `{ email, password }` | `201 { id, email }` | 400 si falta algo o formato inválido; 409 si el email ya existe (case-insensitive); 404 si el server no tiene cuentas habilitadas (`DATABASE_URL` no configurada) |
+| `/auth/register` | POST | `{ email, password }` | `201 { id, email }` — **no deja sesión iniciada**: el cliente tiene que hacer `/auth/login` después | 400 si falta algo o formato inválido; 409 si el email ya existe (case-insensitive); 404 si el server no tiene cuentas habilitadas (`DATABASE_URL` no configurada) |
 | `/auth/login` | POST | `{ email, password }` | `200 { id, email }` + `Set-Cookie: movienight.sid` | 401 con mensaje genérico si el email no existe O la contraseña está mal (no distingue, a propósito); 429 tras 3 intentos fallidos (bloqueo 15 min, clave ip+email) |
 | `/auth/logout` | POST | — | `200 { ok: true }` | Borra la sesión en Redis y expira la cookie. No requiere estar logueado. |
 | `/auth/me` | GET | — | `200 { loggedIn: bool, id?, email? }` | Única forma de que el cliente sepa el estado de sesión (la cookie es httpOnly, no legible desde código) |
-| `/auth/forgot-password` | POST | `{ email }` | `200` siempre el mismo mensaje genérico | No confirma si el email existe o no (anti-enumeración) |
-| `/auth/reset-password` | POST | *(ver server.js si se implementa este flujo — no detallado acá todavía)* | — | Evaluado en el plan usar un WebView a `reset-password.html` en vez de reconstruirlo nativo |
+| `/auth/forgot-password` | POST | `{ email }` | `200 { ok, message }` siempre el mismo mensaje genérico (también si el email no existe, si hay límite de pedidos —3 por hora por ip+email— o ante un error interno) | 400 `{ error }` solo si falta el email. No confirma si el email existe (anti-enumeración). El email trae un link `<APP_BASE_URL>/reset-password.html?token=...` (vence en 1 h) |
+| `/auth/reset-password` | POST | `{ token, password }` | `200 { ok: true }` | 400 `{ error }` si falta algo, la contraseña tiene menos de 8 caracteres o el token venció / ya se usó. **La app no lo llama:** el link del email se abre en el navegador y `reset-password.html` lo resuelve |
+
+**Forma de los errores de `/auth/*`** *(verificado en `server.js` el 2026-10-02)*: siempre
+`{ "error": "mensaje en español" }`. Reglas de validación: email = `^[^\s@]+@[^\s@]+\.[^\s@]+$`
+(el server hace `trim()`), contraseña de mínimo **8 caracteres** (sin `trim()`). El 429 de
+`/auth/login` trae además `lockedMinutes` (a veces solo el mensaje, con "15 min" fijo).
 
 ---
 
