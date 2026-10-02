@@ -1,0 +1,10 @@
+## Copiá este archivo como `local.properties` (ya está en .gitignore) y completá la URL.
+## Android Studio agrega `sdk.dir` solo; no lo borres.
+
+# URL del servidor MovieNight (rama plan-produccion), sin barra final. Usada en debug y release.
+movienight.baseUrl=https://sala.tu-dominio.uk
+
+# Opcional: pisa la anterior SOLO en builds debug. Útil para probar contra un server local.
+# 10.0.2.2 = la PC vista desde el emulador. Por HTTP el server tiene que arrancar con
+# SESSION_COOKIE_INSECURE=1 (la cookie de sesión sale con secure:true).
+# movienight.baseUrl.debug=http://10.0.2.2:3000
