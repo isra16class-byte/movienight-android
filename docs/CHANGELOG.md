@@ -5,6 +5,35 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-02 — Fase 2, Sesión B: biblioteca, crear sala y sala con chat (sin probar en emulador)
+
+- **Verificado en `server.js` (`plan-produccion`)** antes de escribir código: `GET /api/uploads`
+  responde `[{ filename, displayName, size, mtime }]` (ya ordenado, con sesión no pide contraseña);
+  `POST /create-room-from-upload` toma `{ filename, password? }` y responde `{ roomId, hostToken }`;
+  `chat-message` y `viewer-list` tienen la forma que usa la app. Los ids de sala son 6 hex.
+  Documentado en `API-CONTRATO.md`.
+- **Nuevo**: pantalla principal con la biblioteca (cargando / error con reintento / vacía / lista con
+  tamaño y fecha), diálogo "Crear sala" con contraseña opcional, y "Unirse a una sala" por código
+  o link pegado (`extractRoomId`).
+- **Nuevo**: pantalla de sala. Comprueba que la sala exista (`GET /api/room/:id`), pide la contraseña si
+  la tiene (y la vuelve a pedir si es incorrecta o está bloqueada), abre el socket y muestra el chat
+  (historial, mensajes propios a la derecha, avisos del sistema, citas, "escribiendo…"), la cantidad
+  de conectados con su lista, "Sos el host", reconexión automática con aviso, silenciado, expulsión
+  y servidor reiniciando. El video es un recuadro con el nombre de la cinta: el reproductor es la Fase 3.
+- **`userId` persistente** por instalación (`UserIdStore`), como en la web; excluido de los backups.
+- **`RoomSocket` refactorizado**: en vez de loguear texto emite `RoomEvent` tipados
+  (`parseServerEvent`). Cliente de Socket.IO con `readTimeout` de 60 s en el `AppContainer`.
+- **Una llamada con 401 manda a login** (el `SessionManager` vuelve a consultar `/auth/me`).
+- **Borrado el spike** (`SpikeScreen.kt`, `SpikeViewModel.kt`).
+- **Tests**: 5 archivos nuevos (errores de API, ids de sala, nombre de usuario, parsers de biblioteca
+  y de eventos de sala); en el entorno del asistente pasan los 59 tests del proyecto. Se suma
+  `testImplementation(org.json:json:20240303)` porque el `org.json` de `android.jar` no sirve en tests unitarios.
+- **No verificado**: la UI Compose, los ViewModels y `RoomSocket` no se compilaron (sin Android SDK). Puede
+  haber errores de compilación al sincronizar Gradle, y falta toda la prueba en el emulador (ver
+  "Por dónde seguir" en `MEMORIA.md`).
+
+---
+
 ## 2026-10-02 — Fase 2, Sesión A probada en emulador
 
 - **Primer build real y prueba**: el proyecto sincroniza y compila sin cambios (Navigation

@@ -23,16 +23,21 @@ import androidx.navigation.compose.rememberNavController
 import com.isra16.movienight.auth.AuthViewModel
 import com.isra16.movienight.auth.SessionState
 import com.isra16.movienight.auth.SessionViewModel
+import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ForgotPasswordScreen
 import com.isra16.movienight.ui.auth.LoginScreen
 import com.isra16.movienight.ui.auth.RegisterScreen
 import com.isra16.movienight.ui.home.HomeScreen
+import com.isra16.movienight.ui.room.RoomScreen
 
 private object Routes {
     const val LOGIN = "login"
     const val REGISTER = "register"
     const val FORGOT_PASSWORD = "forgot-password"
     const val HOME = "home"
+    const val ROOM = "room/{${RoomViewModel.ROOM_ID_ARG}}"
+
+    fun room(roomId: String) = "room/$roomId"
 }
 
 /**
@@ -81,10 +86,18 @@ private fun AuthNavHost() {
 @Composable
 private fun MainNavHost(session: SessionState.LoggedIn, isLoggingOut: Boolean, onLogout: () -> Unit) {
     val nav = rememberNavController()
-    // Sesión B: acá se suman biblioteca, crear sala y sala.
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(email = session.email, isLoggingOut = isLoggingOut, onLogout = onLogout)
+            HomeScreen(
+                email = session.email,
+                isLoggingOut = isLoggingOut,
+                onLogout = onLogout,
+                onOpenRoom = { roomId -> nav.navigate(Routes.room(roomId)) },
+            )
+        }
+        // El id va como argumento de la ruta: RoomViewModel lo lee del SavedStateHandle.
+        composable(Routes.ROOM) {
+            RoomScreen(onLeave = { nav.popBackStack() })
         }
     }
 }

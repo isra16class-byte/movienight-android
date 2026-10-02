@@ -84,6 +84,8 @@ dependencies {
         exclude(group = "org.json", module = "json")
     }
     testImplementation(libs.junit)
+    // org.json real para los tests unitarios: el de android.jar viene "mockeado" y no parsea nada.
+    testImplementation(libs.org.json)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))

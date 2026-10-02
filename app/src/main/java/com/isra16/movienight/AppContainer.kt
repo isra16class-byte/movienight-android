@@ -2,10 +2,13 @@ package com.isra16.movienight
 
 import android.content.Context
 import com.isra16.movienight.auth.SessionManager
+import com.isra16.movienight.auth.UserIdStore
 import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.PersistentCookieJar
 import com.isra16.movienight.net.normalizeBaseUrl
+import com.isra16.movienight.room.RoomPasswordCache
 import okhttp3.OkHttpClient
+import java.util.concurrent.TimeUnit
 
 /**
  * Objetos compartidos de toda la app (una sola instancia por proceso): el CookieJar y el cliente HTTP
@@ -19,6 +22,16 @@ class AppContainer(context: Context) {
 
     val cookieJar = PersistentCookieJar(context)
     val httpClient: OkHttpClient = OkHttpClient.Builder().cookieJar(cookieJar).build()
+
+    /**
+     * Cliente para Socket.IO: comparte CookieJar y pool con [httpClient], pero con `readTimeout` largo.
+     * El long-polling de Engine.IO deja la request colgada ~25 s esperando datos; con el timeout por
+     * defecto de OkHttp (10 s) se cortaría solo.
+     */
+    val socketClient: OkHttpClient = httpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).build()
+
     val api = MovieNightApi(httpClient)
     val session = SessionManager(api, cookieJar, baseUrl)
+    val userIds = UserIdStore(context)
+    val roomPasswords = RoomPasswordCache()
 }

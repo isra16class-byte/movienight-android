@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- Reglas de Auto Backup para Android 11 e inferiores (ver data_extraction_rules.xml para 12+).
-     La cookie de sesión (movienight.sid) no debe salir del dispositivo. -->
+     La cookie de sesión (movienight.sid) no debe salir del dispositivo, ni el userId por dispositivo. -->
 <full-backup-content>
     <exclude domain="sharedpref" path="movienight_cookies.xml" />
+    <exclude domain="sharedpref" path="movienight_identity.xml" />
 </full-backup-content>

@@ -71,7 +71,7 @@ de Engine.IO deja la request colgada ~25 s y con el timeout por defecto de OkHtt
 | `/room/:id/upload-subtitle` | POST | dueño/host de la sala (no pasa por `requireUploadAuth`) | `multipart/form-data`: campo de archivo **`subtitle`** + campo `hostToken` (solo salas anónimas). Sube un `.srt`/`.vtt`, validado por estructura real. Responde `{ ok, subtitleFile }`. |
 | `/room/:id` | GET | — | Devuelve la página HTML de la sala (no aplica a la app, es para el navegador) |
 | `/api/room/:id` | GET | — | **Solo** `{ passwordProtected: bool }` (404 `{ error: 'not found' }` si la sala no existe). Sirve para saber si pedir contraseña antes de unirse; no devuelve video ni título. |
-| `/api/uploads` | GET | `requireLibraryAuth` (sesión o `LIBRARY_PASSWORD`) | Lista videos de la biblioteca compartida. Con sesión no hace falta la contraseña; sin sesión se manda en el header `x-library-password`. |
+| `/api/uploads` | GET | `requireLibraryAuth` (sesión o `LIBRARY_PASSWORD`) | Lista videos de la biblioteca compartida. Con sesión no hace falta la contraseña; sin sesión se manda en el header `x-library-password`. Responde un array `[{ filename, displayName, size, mtime }]` (`size` en bytes, `mtime` en ms con posibles decimales), ya ordenado de más nuevo a más viejo; `filename` es un identificador opaco (nombre en disco o key de R2) que se reenvía tal cual a `/create-room-from-upload`. *(Verificado en `server.js` el 2026-10-02.)* |
 | `/api/uploads/:filename` | DELETE | `requireLibraryAuth` | Borra un video de la biblioteca |
 | `/health` (alias `/healthz`) | GET | — | Útil para un chequeo de conectividad desde la app antes de intentar conectar |
 
@@ -112,7 +112,7 @@ una sala sin cuenta).
 | `room-data` | `{ videoFile, subtitleFile, position }` | Al hacer join — el estado actual del video para sincronizarse |
 | `mute-status` | `{ muted: bool }` | Al ser muteado/desmuteado |
 | `viewer-count` | number | Cada vez que entra/sale alguien |
-| `viewer-list` | *(lista completa de viewers con nombre, host, muted, buffering)* | Se re-emite en varios eventos (join, mute, buffering, etc.) |
+| `viewer-list` | `Array<{ id, username, isHost, muted, buffering }>` *(verificado en `server.js`)* | Se re-emite en varios eventos (join, mute, buffering, etc.) |
 | `sync` | igual shape que el `sync` que manda el host | Retransmitido a todos menos al propio host |
 | `video-changed` | *(nuevo videoFile)* | Al cambiar de cinta |
 | `subtitle-changed` | *(nuevo subtitleFile)* | Al subir un subtítulo nuevo |

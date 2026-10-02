@@ -60,28 +60,37 @@ movienight-android/
     build.gradle.kts       # applicationId, minSdk, targetSdk, dependencias de red
     src/main/java/com/isra16/movienight/
       MovieNightApp.kt      # Application: crea el AppContainer
-      AppContainer.kt       # singletons: CookieJar, OkHttpClient, MovieNightApi, SessionManager
+      AppContainer.kt       # singletons: CookieJar, OkHttpClient (+ socketClient), MovieNightApi, SessionManager, UserIdStore, RoomPasswordCache
       MainActivity.kt       # monta AppRoot
-      SpikeScreen.kt        # (descartable, ya sin usar) UI de pruebas de la Fase 1 — se borra en la Sesión B
-      SpikeViewModel.kt     # (descartable, ya sin usar) — se borra en la Sesión B
       auth/                 # sesión y cuenta, sin UI salvo los ViewModels
         SessionState.kt         # Loading / LoggedOut / LoggedIn / Unreachable, y AuthResult
         SessionManager.kt       # /auth/me, login, registro (+login), forgot-password, logout
         AuthValidation.kt       # reglas de email/contraseña (las mismas del server), JVM puro
         SessionViewModel.kt     # estado de sesión para la raíz
         AuthViewModel.kt        # estado de las pantallas de login/registro/recuperar
+        Username.kt             # nombre en el chat = parte local del email, JVM puro
+        UserIdStore.kt          # userId por instalación (UUID en SharedPreferences)
+      home/HomeViewModel.kt     # biblioteca, crear sala, unirse por código o link
+      room/                     # una sala
+        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat
+        RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
       ui/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
-        home/HomeScreen.kt      # home provisional (email + cerrar sesión)
+        home/HomeScreen.kt      # unirse por código/link + biblioteca + diálogo de crear sala
+        room/RoomScreen.kt      # sala: cabecera, contraseña, error, chat (el reproductor es la Fase 3)
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
-        MovieNightApi.kt        # llamadas HTTP (health, login, me, logout)
-        RoomSocket.kt           # wrapper de Socket.IO (join-room, chat, eventos del server)
+        MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
+        RoomSocket.kt           # wrapper de Socket.IO: join-room y eventos del server como RoomEvent
+        RoomEvents.kt           # RoomEvent, ChatMessage, Viewer y parseServerEvent() (JVM + org.json)
+        LibraryParsing.kt       # parseLibrary(), parseCreatedRoomId(), formatFileSize()
+        RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
+        ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
         AuthErrors.kt           # authErrorMessage(): código HTTP -> mensaje para la persona
         JsonUtils.kt            # parseJsonObject(), serverErrorMessage()
-    src/test/                # tests unitarios (JVM puro): validación, mapeo de errores, URL
+    src/test/                # tests unitarios (JVM): validación, errores, URL, ids de sala, parsers de JSON
   local.properties.example   # plantilla de movienight.baseUrl (local.properties no se sube)
     src/debug/              # solo builds debug: permite HTTP sin TLS (pruebas locales)
   build.gradle.kts
@@ -117,6 +126,18 @@ movienight-android/
   `secure:true`), la app lo avisa en vez de simular un login.
 - **`POST /auth/register` no deja sesión**: la app registra y después hace login.
 - Si el `POST /auth/logout` falla por red, la sesión se cierra igual en el dispositivo.
+- **`userId` por instalación** (Sesión B): un UUID generado una vez (`UserIdStore`, prefs
+  `movienight_identity`, excluido de los backups), igual que `getPersistentUserId()` de la web. Es
+  por dispositivo, no el `id` de la cuenta. El nombre en el chat es la parte local del email.
+- **La contraseña de una sala recién creada viaja solo en memoria** (`RoomPasswordCache`, nunca en la
+  ruta de navegación): el server pide la contraseña en `join-room` incluso a la dueña.
+- **Entrar a una sala**: primero `GET /api/room/:id` (404 = "no existe"; `passwordProtected` decide si
+  pedir contraseña) y recién después el socket. Un `room-error` de contraseña vuelve al pedido de
+  contraseña; cualquier otro `room-error` es un error final. Se distingue por el texto del mensaje.
+- **401 en una llamada de datos = sesión vencida en el server**: se le pide al `SessionManager` que
+  vuelva a consultar `/auth/me` y la app cae sola en el login.
+- **La biblioteca de la app es solo lectura** por ahora (listar y crear sala). Subir va en la Fase 4;
+  borrar videos (`DELETE /api/uploads/:filename`) no está planeado todavía.
 
 ## Cómo se trabaja en este repo
 
@@ -148,19 +169,29 @@ No hay SDK ni Maven en su entorno, así que la UI/Compose y OkHttp no se pueden 
 Lo que sí hace: bajar `kotlinc` 2.0.21 desde las releases de GitHub (el mismo Kotlin del
 proyecto), compilar y ejecutar los archivos de lógica pura (sin imports de Android: `auth/AuthValidation.kt`,
 `net/AuthErrors.kt`, `net/UrlUtils.kt`) con un mini-runner que imita JUnit, y pasar el resto por el
-parser para detectar errores de sintaxis. **Mantener la lógica testeable sin dependencias de
+parser para detectar errores de sintaxis. Desde la Sesión B también se instala un JDK (`apt-get update && apt-get install openjdk-21-jdk-headless`) para
+compilar `org.json` desde `stleary/JSON-java` y poder probar los parsers de JSON; en Gradle el equivalente es
+`testImplementation(libs.org.json)` (el `org.json` de `android.jar` está "mockeado" en tests unitarios y no parsea).
+**Mantener la lógica testeable sin dependencias de
 Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre un comentario
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
-**Fase 2, Sesión A hecha y probada (2026-10-02).** Login, registro, logout y sesión persistente
-funcionan en el emulador (Medium Phone API 36.1) contra el servidor real; también el aviso
-"Reintentar" sin red. **Única excepción: recuperar contraseña** — el servidor aún no tiene
-`RESEND_API_KEY`/`EMAIL_FROM`/`APP_BASE_URL`, así que falta confirmar que llegue el email y que
-el link abra `reset-password.html`. No bloquea la Sesión B.
-Siguiente: **Sesión B** (biblioteca, crear sala, entrar a sala con chat, `userId` persistente,
-borrar el spike) — arranca verificando en `server.js` la forma exacta de `GET /api/uploads`.
+**Fase 2, Sesión B escrita (2026-10-02), todavía sin probar en el emulador.** Quedaron hechos:
+biblioteca (`GET /api/uploads`), crear sala (`POST /create-room-from-upload`), unirse por código o
+link, y la sala con chat (comprobar sala, contraseña, mensajes, "escribiendo…", lista de conectados,
+estados de host / silenciado / expulsado / servidor reiniciando), más el `userId` persistente. El spike
+se borró. La forma de `GET /api/uploads` se verificó en `server.js`: `[{ filename, displayName, size, mtime }]`.
+**Qué está verificado y qué no:** la lógica pura y los parsers de JSON tienen tests y pasan en el entorno
+del asistente (59 tests); la UI Compose, los ViewModels y `RoomSocket` **no se pudieron compilar** sin el
+SDK, así que el primer sync/build en Android Studio puede mostrar algún error de compilación a corregir.
+**A probar en el emulador:** que la biblioteca liste los videos reales; crear una sala (con y sin
+contraseña) y que la app quede como host; unirse desde la app a una sala creada en la web (con y sin
+contraseña, probando también una contraseña mala); chat en ambos sentidos con la web; "Salir" y que la
+web vea "salió de la sala"; cortar y devolver la red dentro de la sala; sesión vencida → login.
+Sigue pendiente (no bloquea): recuperar contraseña de punta a punta (el server no tiene emails configurados).
+Siguiente: probar la Sesión B y pasar a la **Fase 3** (reproductor Media3 sincronizado).
 
 **Fase 1 completada (2026-09-28), salvo probar `reaction`.** El spike corre en un
 dispositivo Android real contra el servidor de producción: login por cookie, sesión

@@ -135,12 +135,17 @@ del servidor.
       `APP_BASE_URL`), así que no se pudo comprobar que llegue el correo ni que el link abra
       `reset-password.html`.)*
 - [ ] Crear sala reusando un video de la biblioteca
-      (`POST /create-room-from-upload`).
+      (`POST /create-room-from-upload`). *(Sesión B: código escrito el 2026-10-02, diálogo con
+      contraseña opcional; **falta probarlo en el emulador**.)*
 - [ ] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve
       `{ passwordProtected }`, sirve para decidir si pedir contraseña, no para
-      mostrar título/video (eso llegaría por `room-data` al unirse por socket).
+      mostrar título/video (eso llegaría por `room-data` al unirse por socket). *(Sesión B:
+      código escrito; la pantalla de la sala usa `/api/room/:id` para saber si existe y pedir
+      contraseña, y el nombre de la cinta llega por `room-data`. **Falta probarlo en el emulador**,
+      junto con el chat, que también se hizo en esta sesión.)*
 - [ ] Listar biblioteca (`GET /api/uploads`, alcanza con sesión iniciada,
-      sin necesitar `LIBRARY_PASSWORD`).
+      sin necesitar `LIBRARY_PASSWORD`). *(Sesión B: código escrito, forma de la respuesta
+      verificada en `server.js`; **falta probarlo en el emulador**.)*
 
 ---
 
@@ -180,14 +185,18 @@ del servidor.
 
 - [ ] Consumir `make-host`, `kick-user`, `toggle-mute` (eventos ya existen en
       el server, del lado Android solo hay que dispararlos/escucharlos).
-- [ ] Reaccionar a `kicked`, `mute-status`, `room-error`.
+- [ ] Reaccionar a `kicked`, `mute-status`, `room-error`. *(Adelantado en la Sesión B, sin probar:
+      la app ya muestra "te sacó de la sala", bloquea el chat si te silencian y vuelve a pedir la
+      contraseña ante un `room-error` de contraseña. Falta la parte de **host**: disparar
+      `make-host` / `kick-user` / `toggle-mute`.)*
 
 ---
 
 ## Fase 6 — Extras (no bloqueante, evaluar más adelante)
 
 - [ ] Manejar `server-restarting` (graceful shutdown del backend) con un
-      aviso en pantalla, igual que hace `room.html`.
+      aviso en pantalla, igual que hace `room.html`. *(Adelantado en la Sesión B, sin probar: aviso
+      en la sala y reconexión automática de Socket.IO.)*
 - [ ] Evaluar si tiene sentido un acceso al panel de administración
       (`/admin/*`) desde la app — no es prioritario, el panel web ya cubre
       ese caso de uso.
