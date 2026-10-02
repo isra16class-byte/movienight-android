@@ -154,10 +154,11 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
-**Fase 2, Sesión A hecha (2026-10-02), sin probar en dispositivo.** Login, registro, recuperar
-contraseña, logout y sesión persistente (código + 22 tests unitarios pasando; la UI no se pudo
-compilar en el entorno del asistente, así que el primer build real es el tuyo). **Antes de
-compilar**: crear `local.properties` con `movienight.baseUrl` (ver `local.properties.example`).
+**Fase 2, Sesión A hecha y probada (2026-10-02).** Login, registro, logout y sesión persistente
+funcionan en el emulador (Medium Phone API 36.1) contra el servidor real; también el aviso
+"Reintentar" sin red. **Única excepción: recuperar contraseña** — el servidor aún no tiene
+`RESEND_API_KEY`/`EMAIL_FROM`/`APP_BASE_URL`, así que falta confirmar que llegue el email y que
+el link abra `reset-password.html`. No bloquea la Sesión B.
 Siguiente: **Sesión B** (biblioteca, crear sala, entrar a sala con chat, `userId` persistente,
 borrar el spike) — arranca verificando en `server.js` la forma exacta de `GET /api/uploads`.
 

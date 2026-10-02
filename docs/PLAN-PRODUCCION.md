@@ -124,12 +124,16 @@ del servidor.
 > autenticación (login, registro, logout, recuperar contraseña). **Sesión B** = biblioteca,
 > crear sala y entrar a sala (chat), más la limpieza del spike.
 
-- [ ] Login / registro (`/auth/register`, `/auth/login`, `/auth/logout`). *(Sesión A: código
-      y tests unitarios listos el 2026-10-02; **falta probarlo en dispositivo** antes de
-      tildar.)*
+- [x] Login / registro (`/auth/register`, `/auth/login`, `/auth/logout`). *(Sesión A: código
+      y tests unitarios listos el 2026-10-02; probado en el emulador Medium Phone API 36.1
+      contra el servidor real el 2026-10-02: registro, login, sesión persistente al cerrar y
+      reabrir, logout y modo sin red funcionaron bien.)*
 - [ ] Recuperación de contraseña (`/auth/forgot-password`). *(Sesión A: pantalla nativa de un
       campo; el link del email se abre en el navegador y `reset-password.html` hace el reseteo,
-      sin reconstruir esa pantalla en la app. Falta probarlo en dispositivo.)*
+      sin reconstruir esa pantalla en la app. **Pendiente de probar de punta a punta:** el
+      servidor todavía no tiene configurado el envío de emails (`RESEND_API_KEY`, `EMAIL_FROM`,
+      `APP_BASE_URL`), así que no se pudo comprobar que llegue el correo ni que el link abra
+      `reset-password.html`.)*
 - [ ] Crear sala reusando un video de la biblioteca
       (`POST /create-room-from-upload`).
 - [ ] Ver detalle de una sala (`GET /api/room/:id`) — **ojo:** hoy solo devuelve

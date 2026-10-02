@@ -5,6 +5,21 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-02 — Fase 2, Sesión A probada en emulador
+
+- **Primer build real y prueba**: el proyecto sincroniza y compila sin cambios (Navigation
+  Compose `2.8.9` resolvió bien) y corre en el emulador Medium Phone API 36.1, con
+  `movienight.baseUrl` apuntando al servidor real.
+- **Funciona**: registro, login, sesión persistente (cerrar y reabrir la app), logout y el
+  estado `Unreachable` con "Reintentar" sin red. El home muestra el email de la sesión.
+- **Pendiente (no bloquea la Sesión B)**: recuperar contraseña de punta a punta. El servidor
+  todavía no tiene el envío de emails configurado (`RESEND_API_KEY`, `EMAIL_FROM`,
+  `APP_BASE_URL`), así que no se verificó que llegue el correo ni que el link abra
+  `reset-password.html`. La app sí llama a `/auth/forgot-password` y muestra el mensaje genérico.
+- Checkboxes de login/registro tildados en el plan; el de recuperar contraseña sigue abierto.
+
+---
+
 ## 2026-10-02 — Fase 2, Sesión A: cuenta obligatoria, login, registro y sesión
 
 - **Decisión nueva: la app exige cuenta** (también para unirse a una sala). Sin sesión solo se
