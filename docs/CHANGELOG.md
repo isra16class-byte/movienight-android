@@ -32,7 +32,10 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 - **No verificado**: la parte de UI/Compose y la integración con OkHttp no se pudieron
   compilar en el entorno del asistente (sin SDK ni Maven). Solo se pasó por el parser de
   `kotlinc` (sin errores de sintaxis). **Falta el primer build y la prueba en dispositivo**
-  (registro, login, cerrar y reabrir, logout, credenciales malas, sin red).
+  (registro, login, cerrar y reabrir, logout, credenciales malas, 3 intentos fallidos para ver
+  el bloqueo 429, recuperar contraseña —llega el email y el link abre en el navegador— y sin
+  red / modo avioneta al abrir). Si Gradle falla al sincronizar, sospechar primero de
+  Navigation Compose `2.8.9` (versión elegida sin poder resolver dependencias).
 - `SpikeScreen`/`SpikeViewModel` quedan sin usar; se borran en la Sesión B.
 
 ---

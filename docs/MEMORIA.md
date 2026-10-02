@@ -42,7 +42,9 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
 - **Reproductor de video**: Media3 (ExoPlayer) — planeado, todavía no
   integrado (ver Fase 3 del plan).
-- **Navegación** (2026-10-02): Navigation Compose `2.8.9` con rutas de texto (sin la
+- **Navegación** (2026-10-02): Navigation Compose `2.8.9` (elegida sin poder resolver
+  dependencias en el entorno del asistente: si el sync de Gradle falla, es lo primero a revisar)
+  con rutas de texto (sin la
   serialización de rutas tipadas, para no sumar otro plugin). **Sin Hilt**: los objetos
   compartidos viven en `AppContainer`, creado por `MovieNightApp`.
 - **Networking** (decidido 2026-09-28): OkHttp `4.12.0` + `io.socket:socket.io-client:2.1.2`
@@ -107,6 +109,12 @@ movienight-android/
 - **La URL del servidor es fija por build** (`BuildConfig.BASE_URL`), leída de
   `local.properties` (`movienight.baseUrl`, y opcional `movienight.baseUrl.debug`). Ya no hay
   campo de texto como en el spike. Sin configurar queda `https://movienight.invalid`.
+- **Estado de sesión `Unreachable`**: si `/auth/me` no se puede consultar (sin red, servidor
+  caído, respuesta que no es JSON) se muestra "Reintentar", no login: con una sesión guardada,
+  mandar a login sería engañoso.
+- **Login con cookie no guardada**: si `/auth/login` da 200 pero el CookieJar no tiene
+  `movienight.sid` (típico: server por HTTP sin `SESSION_COOKIE_INSECURE=1`, la cookie sale
+  `secure:true`), la app lo avisa en vez de simular un login.
 - **`POST /auth/register` no deja sesión**: la app registra y después hace login.
 - Si el `POST /auth/logout` falla por red, la sesión se cierra igual en el dispositivo.
 
@@ -133,6 +141,16 @@ Mismo flujo que ya usa `movienight` (la web):
   PowerShell (confirmado el 2026-09-26).
 - Cada cambio importante se refleja acá (`docs/MEMORIA.md`, si cambia algo
   esencial) y como entrada nueva en `docs/CHANGELOG.md`.
+
+## Cómo verifica el asistente sin Android SDK
+
+No hay SDK ni Maven en su entorno, así que la UI/Compose y OkHttp no se pueden compilar ahí.
+Lo que sí hace: bajar `kotlinc` 2.0.21 desde las releases de GitHub (el mismo Kotlin del
+proyecto), compilar y ejecutar los archivos de lógica pura (sin imports de Android: `auth/AuthValidation.kt`,
+`net/AuthErrors.kt`, `net/UrlUtils.kt`) con un mini-runner que imita JUnit, y pasar el resto por el
+parser para detectar errores de sintaxis. **Mantener la lógica testeable sin dependencias de
+Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre un comentario
+anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
