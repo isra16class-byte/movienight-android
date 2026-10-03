@@ -1,6 +1,7 @@
 package com.isra16.movienight.room
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -13,6 +14,7 @@ import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
 import com.isra16.movienight.net.RoomPosition
 import com.isra16.movienight.net.SyncMessage
+import com.isra16.movienight.net.SyncType
 import com.isra16.movienight.net.planSync
 import com.isra16.movienight.net.playbackErrorMessage
 import com.isra16.movienight.net.shouldLoadVideo
@@ -38,6 +40,9 @@ class RoomPlayer(private val context: Context) {
 
     private var exo: ExoPlayer? = null
     private var loadedUrl: String? = null
+
+    /** Momento (reloj del sistema) del último salto por heartbeat; 0 = ninguno. Ver `planSync`. */
+    private var lastHardSeekAt = 0L
 
     private var playWhenReady by mutableStateOf(false)
     private var playbackState by mutableIntStateOf(Player.STATE_IDLE)
@@ -94,6 +99,7 @@ class RoomPlayer(private val context: Context) {
         if (!shouldLoadVideo(loadedUrl, url, force)) return
         loadedUrl = url
         error = null
+        lastHardSeekAt = 0L
         positionMs = 0L
         durationMs = 0L
         if (url == null) {
@@ -120,8 +126,17 @@ class RoomPlayer(private val context: Context) {
     fun applySync(msg: SyncMessage) {
         val p = exo ?: return
         if (!hasVideo || error != null) return
-        val plan = planSync(msg, p.currentPosition)
-        plan.seekToMs?.let { p.seekTo(it) }
+        val sinceHardSeek = if (lastHardSeekAt == 0L) Long.MAX_VALUE else SystemClock.elapsedRealtime() - lastHardSeekAt
+        val plan = planSync(
+            msg,
+            localPositionMs = p.currentPosition,
+            playerReady = p.playbackState == Player.STATE_READY,
+            msSinceLastHardSeek = sinceHardSeek,
+        )
+        plan.seekToMs?.let {
+            if (msg.type == SyncType.HEARTBEAT) lastHardSeekAt = SystemClock.elapsedRealtime()
+            p.seekTo(it)
+        }
         if (p.playbackParameters.speed != plan.speed) p.setPlaybackSpeed(plan.speed)
         when (plan.play) {
             true -> {

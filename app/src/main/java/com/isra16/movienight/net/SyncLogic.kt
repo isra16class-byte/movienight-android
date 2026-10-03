@@ -78,22 +78,34 @@ fun parseRoomPosition(obj: JSONObject?): RoomPosition? {
 
 // --- Corrección de desfase -------------------------------------------------------------------
 //
-// Mismos umbrales que `room.html` (así la app y la web se comportan igual ante el mismo host).
 // "Desfase" = posición del host menos posición local: positivo = la app va atrasada.
 //
 //  Heartbeat con el host reproduciendo:
 //    |desfase| <= 0.5 s  -> velocidad 1.0 (dentro de lo tolerable: no se toca nada)
-//    0.5 < |desfase| <= 4 s -> sin saltar; velocidad 1.06 si va atrasada / 0.94 si va adelantada
-//                          (saltar corta el buffer y provoca un "se queda cargando")
-//    |desfase| > 4 s     -> salto (seek) a la posición del host, velocidad 1.0
-//  Heartbeat con el host en pausa: acá no hay nada que "alcanzar" con la velocidad, así que si
-//    |desfase| > 0.5 s se salta (con el video quieto el salto no se nota). (La web solo ajusta la
-//    velocidad en este caso; la diferencia es intencional.)
+//    0.5 < |desfase| <= 1.5 s -> sin saltar; velocidad 1.06 si va atrasada / 0.94 si va adelantada
+//    |desfase| > 1.5 s   -> salto (seek) a la posición del host, velocidad 1.0
+//  Cambio respecto a la 3B inicial (y a room.html, que salta recién a los 4 s): en la prueba en el
+//  emulador un desfase de 2-3 s tras un seek del host o al entrar con el video en marcha tardaba
+//  30-40 s en cerrarse solo con 6 % de velocidad. Saltar es barato cuando la app va atrasada (lo que
+//  falta ya está en el buffer); lo caro es saltar en cadena, y eso lo evitan las dos reglas siguientes.
+//  - Si el reproductor no está listo (cargando, recargando tras un seek) el desfase que se mide no es
+//    real: se espera al próximo heartbeat en vez de saltar encima de un buffering.
+//  - Después de un salto por heartbeat hay una pausa de 8 s sin nuevos saltos (solo velocidad), para
+//    que una conexión lenta no entre en un ciclo "salto -> recarga -> sigo atrasada -> salto". Un
+//    desfase de más de 10 s se corrige igual, pausa o no.
+//  Heartbeat con el host en pausa: no hay nada que "alcanzar" con la velocidad, así que si
+//    |desfase| > 0.5 s se salta (con el video quieto el salto no se nota).
 //  play / pause / seek (acciones puntuales del host): se salta solo si |desfase| > 1 s (misma
 //    regla que la web), y la velocidad vuelve a 1.0.
 
 /** Desfase a partir del cual, con el host reproduciendo, se salta en vez de ajustar la velocidad. */
-const val HARD_SEEK_THRESHOLD_MS = 4_000L
+const val HARD_SEEK_THRESHOLD_MS = 1_500L
+
+/** Tras un salto por heartbeat, tiempo durante el cual no se vuelve a saltar por heartbeat (salvo desfase enorme). */
+const val HARD_SEEK_COOLDOWN_MS = 8_000L
+
+/** Desfase a partir del cual se salta aunque haya una pausa de saltos en curso. */
+const val HARD_SEEK_COOLDOWN_OVERRIDE_MS = 10_000L
 
 /** Desfase tolerado: por debajo no se corrige; por encima se acelera/frena (o se salta si el host está en pausa). */
 const val SOFT_DRIFT_THRESHOLD_MS = 500L
@@ -110,8 +122,17 @@ const val SPEED_SLOW_DOWN = 0.94f
  */
 data class SyncPlan(val seekToMs: Long?, val speed: Float, val play: Boolean?)
 
-/** Decide cómo aplicar [msg] sabiendo que el reproductor local está en [localPositionMs]. */
-fun planSync(msg: SyncMessage, localPositionMs: Long): SyncPlan {
+/**
+ * Decide cómo aplicar [msg] sabiendo que el reproductor local está en [localPositionMs].
+ * [playerReady] = el reproductor está reproduciendo con normalidad (no cargando). [msSinceLastHardSeek]
+ * = cuánto pasó desde el último salto por heartbeat (`Long.MAX_VALUE` si nunca hubo).
+ */
+fun planSync(
+    msg: SyncMessage,
+    localPositionMs: Long,
+    playerReady: Boolean = true,
+    msSinceLastHardSeek: Long = Long.MAX_VALUE,
+): SyncPlan {
     val drift = msg.timeMs - localPositionMs
     val absDrift = abs(drift)
     val play = msg.hostPaused?.not()
@@ -130,8 +151,13 @@ fun planSync(msg: SyncMessage, localPositionMs: Long): SyncPlan {
             play = false,
         )
     }
+    // Reproduciendo (o sin decir): con el reproductor cargando el desfase no es real, no se corrige.
+    if (!playerReady) return SyncPlan(null, 1f, play)
+
+    val cooldownActive = msSinceLastHardSeek < HARD_SEEK_COOLDOWN_MS
+    val mayHardSeek = !cooldownActive || absDrift > HARD_SEEK_COOLDOWN_OVERRIDE_MS
     return when {
-        absDrift > HARD_SEEK_THRESHOLD_MS -> SyncPlan(msg.timeMs, 1f, play)
+        absDrift > HARD_SEEK_THRESHOLD_MS && mayHardSeek -> SyncPlan(msg.timeMs, 1f, play)
         absDrift > SOFT_DRIFT_THRESHOLD_MS ->
             SyncPlan(null, if (drift > 0) SPEED_CATCH_UP else SPEED_SLOW_DOWN, play)
         else -> SyncPlan(null, 1f, play)
