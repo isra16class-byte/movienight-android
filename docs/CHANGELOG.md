@@ -5,6 +5,34 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-03 — Fase 3B probada en emulador (la app sigue a la sala)
+
+- **Funciona** (emulador Medium Phone API 36.1, app como invitada y la web como host): play, pausa y seek
+  desde la web se reflejan en la app; entrando con el video en marcha arranca cerca del minuto del host; la
+  barra de progreso del invitado es de solo lectura (sin play/pause ni seek). La app todavía no emite nada.
+- **Nuevo** (`net/SyncLogic.kt`, JVM puro, con tests): parser de `sync` y de `room-data.position`, `planSync`
+  (corrección de desfase), `HostReference` / `planReadyResync`. Forma de los eventos verificada en `server.js`:
+  el server retransmite `sync` tal cual y sin validar, así que el parser es estricto.
+- **Desfase — se ajustó tres veces** a partir de la prueba: el primer diseño copiaba los umbrales de la web
+  (salto a 4 s, solo velocidad entre 0.5 y 4 s) y un desfase de 2-3 s tardaba 30-40 s en cerrarse.
+  (1) Salto desde 1.5 s, sin corregir con el reproductor cargando y con 8 s sin nuevos saltos tras uno.
+  (2) Al quedar lista tras un salto o la carga, una corrección única a donde se estima que está el host ahora;
+  el umbral de salto baja a 1 s. (3) La pausa deja el video exacto (150 ms) y se agrega log de diagnóstico
+  (`MovieNightSync` en Logcat).
+- **Queda así a propósito**: un desfase residual de **1 a 2 s** tras un seek del host o al entrar con el
+  video en marcha, que se corrige solo en unos segundos. Al entrar, la `position` de `room-data` puede tener
+  hasta 4 s de antigüedad y no hay evento para pedir la actual.
+- **Sin probar**: la app como host (solo controla su copia local, con un aviso; el control real es la 3C),
+  red lenta con muchos saltos, y el último ajuste (pausa exacta a 150 ms): tras el anterior la pausa se veía
+  "un poco retrasada" y no se volvió a confirmar.
+- **Evitar bucles**: ningún listener del ExoPlayer emite; lo que viene del server entra solo por
+  `RoomPlayer.applySync`. Hay que volver a probarlo en la 3C, cuando la app empiece a emitir.
+- **Plan**: tildados "Escuchar `sync`" y "UI de controles propia", con la nota del desfase residual.
+  Siguen sin tildar "Emitir `sync` solo si es host", `subtitle-changed` y `buffering-status` (3C).
+- **Siguiente**: Fase 3C (ser host).
+
+---
+
 ## 2026-10-02 — Fase 3A probada en emulador (el video de la sala carga)
 
 - **Funciona** (checklist completo en el emulador Medium Phone API 36.1): el video de la sala se ve y

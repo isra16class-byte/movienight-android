@@ -160,13 +160,20 @@ del servidor.
 - [x] Integrar Media3/ExoPlayer. *(3A, probado en el emulador el 2026-10-02: el video de la sala se
       ve y suena, con play/pause local; `/uploads/...` en disco o URL absoluta de R2. **Media3
       fijado en 1.10.1**: la 1.11.x se compila con Kotlin 2.2 y este proyecto usa 2.0.21.)*
-- [ ] Escuchar `sync` (play/pause/seek + heartbeat cada 4s del host) y
-      aplicarlo al `ExoPlayer`.
+- [x] Escuchar `sync` (play/pause/seek + heartbeat cada 4s del host) y
+      aplicarlo al `ExoPlayer`. *(3B, probado en el emulador el 2026-10-03 con la app como invitada y
+      la web como host: play, pausa y seek desde la web se reflejan en la app. **Queda un desfase
+      residual de 1 a 2 s** tras un seek del host o al entrar con el video en marcha, que se corrige
+      solo en unos segundos; se dejó así a propósito. Lógica en `net/SyncLogic.kt`, umbrales
+      documentados ahí. Último ajuste —la pausa deja el video exacto (150 ms)— no se probó por
+      separado: no confirmado.)*
 - [ ] Emitir `sync` solo si el rol actual es host (confirmado por
       `host-status`).
-- [ ] UI de controles propia (no la nativa de ExoPlayer) para poder bloquear
+- [x] UI de controles propia (no la nativa de ExoPlayer) para poder bloquear
       el seek en invitados, igual que hace `room.html` con
-      `video.controls = false`.
+      `video.controls = false`. *(3B, probado en el emulador: el invitado ve una barra de progreso de
+      solo lectura, sin play/pause ni seek. Quien es host conserva el play/pause local de la 3A, que
+      todavía no llega a la sala: **la app como host no se probó** y su control real va en la 3C.)*
 - [ ] Manejar `video-changed` y `subtitle-changed`. *(`video-changed` hecho y probado en la 3A: la
       app recarga el video en pausa y desde 0. Falta `subtitle-changed`, que va en la 3C.)*
 - [ ] Reportar `buffering-status` — tener en cuenta que buffering

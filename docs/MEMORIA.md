@@ -41,7 +41,7 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **Package**: `com.isra16.movienight`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
 - **Reproductor de video**: Media3 (ExoPlayer) `1.10.1`, integrado en la Fase 3A (la app reproduce
-  el video de la sala; sincronización con el host en 3B/3C). **No subir Media3 a 1.11.x**: se compila
+  el video de la sala y sigue al host desde la 3B; ser host va en la 3C). **No subir Media3 a 1.11.x**: se compila
   con Kotlin 2.2 y este proyecto usa 2.0.21, el compilador falla con "Internal compiler error" (error
   en `MainActivity.kt`, sin mencionar la librería). Se puede subir cuando se suba Kotlin.
 - **Navegación** (2026-10-02): Navigation Compose `2.8.9` (elegida sin poder resolver
@@ -76,6 +76,7 @@ movienight-android/
       room/                     # una sala
         RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat
         RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
+        RoomPlayer.kt           # ExoPlayer de la sala: carga el video y sigue al host (applySync); Fase 3A/3B
       ui/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
@@ -88,6 +89,8 @@ movienight-android/
         RoomEvents.kt           # RoomEvent, ChatMessage, Viewer y parseServerEvent() (JVM + org.json)
         LibraryParsing.kt       # parseLibrary(), parseCreatedRoomId(), formatFileSize()
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
+        VideoUrl.kt             # resolveVideoUrl(), shouldLoadVideo(), playbackErrorMessage()
+        SyncLogic.kt            # sync del host: parser, planSync (corrección de desfase), HostReference, tiempos (JVM puro)
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
         AuthErrors.kt           # authErrorMessage(): código HTTP -> mensaje para la persona
@@ -180,18 +183,44 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 3B hecha y probada en el emulador (2026-10-03).** Con la app como invitada y la web como host,
+play, pausa y seek desde la web se reflejan en la app, y la barra de progreso del invitado es de solo
+lectura (sin play/pause ni seek). La app todavía **no emite nada** (eso es la 3C).
+**Cómo sigue al host** (`net/SyncLogic.kt` + `room/RoomPlayer.kt`): lo que viene del server entra solo
+por `RoomPlayer.applySync` (y por `load` con la `position` de `room-data`); lo que hace la persona va por
+`togglePlay`. Ningún listener del ExoPlayer emite hacia el server, así no hace falta una bandera
+`ignoreSync` y en la 3C el emitir se engancha solo al camino de la persona. Forma de los eventos
+(verificada en `server.js`): `sync` = `{ type: play|pause|seek|heartbeat, time (segundos), paused? }`, que el
+server retransmite tal cual y sin validar, por eso el parser es estricto; `room-data.position` =
+`{ time, paused }`; `host-status` = `{ isHost, hostToken }`.
+**Corrección de desfase** (umbrales en `SyncLogic.kt`, distintos a propósito de `room.html`, que salta a los 4 s):
+heartbeat con el host reproduciendo → hasta 0.5 s no se toca, entre 0.5 y 1 s velocidad 1.06 / 0.94, más de 1 s
+salto; `play` salta si hay más de 1 s; con el host en pausa (`pause`, `seek`, heartbeat con `paused`) el video
+se alinea si hay más de 150 ms. Dos reglas contra los saltos en cadena: con el reproductor cargando el heartbeat
+no corrige, y tras un salto por heartbeat hay 8 s sin nuevos saltos (salvo desfase de más de 10 s). Al volver a
+estar lista tras un salto o la carga, una corrección única (`planReadyResync`) salta a donde se estima que está
+el host ahora.
+**Estado de la prueba:** quedó un desfase residual de **1 a 2 s** tras un seek del host o al entrar con el video en
+marcha, que se corrige solo en unos segundos; se aceptó así. Tras el ajuste de la corrección al quedar lista la
+persona notó la pausa "un poco retrasada"; el último ajuste (pausa exacta a 150 ms + log) **no se confirmó en el
+emulador**: se dejó así. **No se probó** la app como host (en la 3B solo controla su copia local, con un aviso), ni red lenta con muchos saltos. Si el desfase
+molesta: Logcat filtrado por `MovieNightSync` muestra cada `sync` recibido (posición del host y local) y qué
+decidió la app. Límite conocido: al entrar con el video en marcha, la `position` de `room-data` puede tener hasta
+4 s de antigüedad (el server la guarda en cada heartbeat) y no hay evento para pedir la actual; el siguiente
+heartbeat la corrige.
+Siguiente: **Fase 3C** (ser host): emitir `sync` solo si `host-status` dice que somos host, `subtitle-changed` y
+`buffering-status`. Ahí hay que **probar que un seek que viene del server no se re-emita** (en la 3B es imposible
+porque la app no emite). Antes de escribir código, verificar en `server.js` lo que se vaya a emitir.
+
 **Fase 3A hecha y probada en el emulador (2026-10-02).** La app reproduce el video de la sala con
 Media3 (`room/RoomPlayer.kt`, `net/VideoUrl.kt`): carga en pausa y en el segundo 0, play/pause local,
 se pausa al pasar a segundo plano, sigue donde iba al girar el teléfono, recarga al llegar
 `video-changed` y no se recarga de cero al reconectar. Probado con éxito el checklist completo de la
 3A (carga, play/pause, fin del video, sala creada en la app y en la web, segundo plano, giro, cambio
-de video desde la web, corte de red, salir de la sala y error con reintento). **Todavía no escucha ni
-emite `sync`**: eso es la 3B y la 3C.
+de video desde la web, corte de red, salir de la sala y error con reintento). (En la 3A no escuchaba
+`sync`; desde la 3B sí, ver arriba.)
 **Gotcha de versiones:** el primer build de la 3A falló por Media3 `1.11.1` (Kotlin 2.2 vs el 2.0.21
 del proyecto); se fijó en `1.10.1`. Detalle en el apartado de Reproductor de video.
-Siguiente: **Fase 3B** (seguir a la sala): escuchar `sync` (play, pause, seek y heartbeat de 4 s del
-host), controles propios con el seek bloqueado a invitados, sin re-emitir lo que llega del server.
-Antes de escribir código, verificar en `server.js` la forma exacta de `sync` y `host-status`.
 
 **Fase 2, Sesión B hecha y probada en el emulador (2026-10-02).** Quedaron hechos:
 biblioteca (`GET /api/uploads`), crear sala (`POST /create-room-from-upload`), unirse por código o
