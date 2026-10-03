@@ -12,10 +12,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import com.isra16.movienight.net.HostReference
 import com.isra16.movienight.net.RoomPosition
 import com.isra16.movienight.net.SyncMessage
 import com.isra16.movienight.net.SyncType
+import com.isra16.movienight.net.hostReferenceFrom
+import com.isra16.movienight.net.planReadyResync
 import com.isra16.movienight.net.planSync
+import com.isra16.movienight.net.updateHostReference
 import com.isra16.movienight.net.playbackErrorMessage
 import com.isra16.movienight.net.shouldLoadVideo
 
@@ -43,6 +47,12 @@ class RoomPlayer(private val context: Context) {
 
     /** Momento (reloj del sistema) del último salto por heartbeat; 0 = ninguno. Ver `planSync`. */
     private var lastHardSeekAt = 0L
+
+    /** Lo último que se supo del host, para estimar dónde está ahora (ver `planReadyResync`). */
+    private var hostRef: HostReference? = null
+
+    /** Hay un salto o una carga reciente: al quedar lista, corregir una vez con `planReadyResync`. */
+    private var resyncPending = false
 
     private var playWhenReady by mutableStateOf(false)
     private var playbackState by mutableIntStateOf(Player.STATE_IDLE)
@@ -77,6 +87,10 @@ class RoomPlayer(private val context: Context) {
     private val listener = object : Player.Listener {
         override fun onPlaybackStateChanged(playbackState: Int) {
             this@RoomPlayer.playbackState = playbackState
+            if (playbackState == Player.STATE_READY && resyncPending) {
+                resyncPending = false
+                resyncToHost()
+            }
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -100,6 +114,8 @@ class RoomPlayer(private val context: Context) {
         loadedUrl = url
         error = null
         lastHardSeekAt = 0L
+        hostRef = start?.let { hostReferenceFrom(it, SystemClock.elapsedRealtime()) }
+        resyncPending = start != null
         positionMs = 0L
         durationMs = 0L
         if (url == null) {
@@ -126,6 +142,7 @@ class RoomPlayer(private val context: Context) {
     fun applySync(msg: SyncMessage) {
         val p = exo ?: return
         if (!hasVideo || error != null) return
+        hostRef = updateHostReference(hostRef, msg, SystemClock.elapsedRealtime())
         val sinceHardSeek = if (lastHardSeekAt == 0L) Long.MAX_VALUE else SystemClock.elapsedRealtime() - lastHardSeekAt
         val plan = planSync(
             msg,
@@ -135,6 +152,7 @@ class RoomPlayer(private val context: Context) {
         )
         plan.seekToMs?.let {
             if (msg.type == SyncType.HEARTBEAT) lastHardSeekAt = SystemClock.elapsedRealtime()
+            resyncPending = true
             p.seekTo(it)
         }
         if (p.playbackParameters.speed != plan.speed) p.setPlaybackSpeed(plan.speed)
@@ -147,6 +165,16 @@ class RoomPlayer(private val context: Context) {
             false -> p.pause()
             null -> Unit
         }
+    }
+
+    /**
+     * Una sola corrección al quedar lista tras un salto o la carga: salta a donde estima que está el host
+     * ahora. No arma otra corrección (`resyncPending` ya está en false), así que no puede encadenarse.
+     */
+    private fun resyncToHost() {
+        val p = exo ?: return
+        val target = planReadyResync(hostRef, p.currentPosition, SystemClock.elapsedRealtime()) ?: return
+        p.seekTo(target)
     }
 
     /** Vuelve la velocidad a 1.0 (por ejemplo al pasar a ser host, que ya no sigue a nadie). */

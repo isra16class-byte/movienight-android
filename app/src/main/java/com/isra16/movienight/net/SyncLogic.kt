@@ -82,8 +82,8 @@ fun parseRoomPosition(obj: JSONObject?): RoomPosition? {
 //
 //  Heartbeat con el host reproduciendo:
 //    |desfase| <= 0.5 s  -> velocidad 1.0 (dentro de lo tolerable: no se toca nada)
-//    0.5 < |desfase| <= 1.5 s -> sin saltar; velocidad 1.06 si va atrasada / 0.94 si va adelantada
-//    |desfase| > 1.5 s   -> salto (seek) a la posición del host, velocidad 1.0
+//    0.5 < |desfase| <= 1 s -> sin saltar; velocidad 1.06 si va atrasada / 0.94 si va adelantada
+//    |desfase| > 1 s     -> salto (seek) a la posición del host, velocidad 1.0
 //  Cambio respecto a la 3B inicial (y a room.html, que salta recién a los 4 s): en la prueba en el
 //  emulador un desfase de 2-3 s tras un seek del host o al entrar con el video en marcha tardaba
 //  30-40 s en cerrarse solo con 6 % de velocidad. Saltar es barato cuando la app va atrasada (lo que
@@ -93,13 +93,18 @@ fun parseRoomPosition(obj: JSONObject?): RoomPosition? {
 //  - Después de un salto por heartbeat hay una pausa de 8 s sin nuevos saltos (solo velocidad), para
 //    que una conexión lenta no entre en un ciclo "salto -> recarga -> sigo atrasada -> salto". Un
 //    desfase de más de 10 s se corrige igual, pausa o no.
+//  - Corrección al terminar de cargar (planReadyResync): tras un salto o al entrar, el video tarda en
+//    cargar y el host sigue avanzando, así que la app queda atrasada justo lo que duró la carga (1-2 s
+//    en el emulador). Al volver a estar lista se estima dónde está el host AHORA (su última posición
+//    conocida más el tiempo transcurrido, si estaba reproduciendo) y se salta ahí, una sola vez por
+//    salto: lo que acaba de cargarse cubre ese tramo, así que el segundo salto es casi instantáneo.
 //  Heartbeat con el host en pausa: no hay nada que "alcanzar" con la velocidad, así que si
 //    |desfase| > 0.5 s se salta (con el video quieto el salto no se nota).
 //  play / pause / seek (acciones puntuales del host): se salta solo si |desfase| > 1 s (misma
 //    regla que la web), y la velocidad vuelve a 1.0.
 
 /** Desfase a partir del cual, con el host reproduciendo, se salta en vez de ajustar la velocidad. */
-const val HARD_SEEK_THRESHOLD_MS = 1_500L
+const val HARD_SEEK_THRESHOLD_MS = 1_000L
 
 /** Tras un salto por heartbeat, tiempo durante el cual no se vuelve a saltar por heartbeat (salvo desfase enorme). */
 const val HARD_SEEK_COOLDOWN_MS = 8_000L
@@ -162,6 +167,40 @@ fun planSync(
             SyncPlan(null, if (drift > 0) SPEED_CATCH_UP else SPEED_SLOW_DOWN, play)
         else -> SyncPlan(null, 1f, play)
     }
+}
+
+// --- Dónde está el host ahora ------------------------------------------------------------------
+
+/**
+ * Lo último que se sabe del host: estaba en [timeMs] cuando se recibió ([atMs], reloj monotónico del
+ * dispositivo, en ms) y [playing] = reproduciendo / en pausa / `null` si todavía no se sabe.
+ */
+data class HostReference(val timeMs: Long, val atMs: Long, val playing: Boolean?)
+
+/** Actualiza la referencia con un `sync`; si el mensaje no dice si el host reproduce (seek), conserva lo anterior. */
+fun updateHostReference(prev: HostReference?, msg: SyncMessage, nowMs: Long): HostReference =
+    HostReference(msg.timeMs, nowMs, msg.hostPaused?.not() ?: prev?.playing)
+
+/** Referencia inicial a partir de `room-data.position`. */
+fun hostReferenceFrom(position: RoomPosition, nowMs: Long): HostReference =
+    HostReference(position.timeMs, nowMs, !position.paused)
+
+/** Dónde estima que está el host en [nowMs]: avanza con el reloj solo si estaba reproduciendo. */
+fun estimateHostPosition(ref: HostReference, nowMs: Long): Long =
+    if (ref.playing == true) ref.timeMs + (nowMs - ref.atMs).coerceAtLeast(0L) else ref.timeMs
+
+/** Diferencia a partir de la cual la corrección al terminar de cargar salta. */
+const val READY_RESYNC_THRESHOLD_MS = 500L
+
+/**
+ * Corrección de una sola vez cuando el reproductor vuelve a estar listo tras un salto o la carga
+ * inicial: a dónde saltar ([localPositionMs] ya es la posición actual), o `null` si no hace falta o
+ * no se sabe si el host reproduce.
+ */
+fun planReadyResync(ref: HostReference?, localPositionMs: Long, nowMs: Long): Long? {
+    if (ref == null || ref.playing == null) return null
+    val target = estimateHostPosition(ref, nowMs)
+    return if (abs(target - localPositionMs) > READY_RESYNC_THRESHOLD_MS) target else null
 }
 
 // --- Barra de progreso de solo lectura (invitados) ---------------------------------------------

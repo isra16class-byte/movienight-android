@@ -4,6 +4,8 @@ import com.isra16.movienight.net.EVENT_SEEK_THRESHOLD_MS
 import com.isra16.movienight.net.HARD_SEEK_COOLDOWN_MS
 import com.isra16.movienight.net.HARD_SEEK_COOLDOWN_OVERRIDE_MS
 import com.isra16.movienight.net.HARD_SEEK_THRESHOLD_MS
+import com.isra16.movienight.net.HostReference
+import com.isra16.movienight.net.READY_RESYNC_THRESHOLD_MS
 import com.isra16.movienight.net.RoomPosition
 import com.isra16.movienight.net.SOFT_DRIFT_THRESHOLD_MS
 import com.isra16.movienight.net.SPEED_CATCH_UP
@@ -11,7 +13,11 @@ import com.isra16.movienight.net.SPEED_SLOW_DOWN
 import com.isra16.movienight.net.SyncMessage
 import com.isra16.movienight.net.SyncPlan
 import com.isra16.movienight.net.SyncType
+import com.isra16.movienight.net.estimateHostPosition
 import com.isra16.movienight.net.formatPlaybackTime
+import com.isra16.movienight.net.hostReferenceFrom
+import com.isra16.movienight.net.planReadyResync
+import com.isra16.movienight.net.updateHostReference
 import com.isra16.movienight.net.parseRoomPosition
 import com.isra16.movienight.net.parseSyncMessage
 import com.isra16.movienight.net.planSync
@@ -109,7 +115,7 @@ class SyncLogicTest {
 
     @Test
     fun umbralesDocumentados() {
-        assertEquals(1_500L, HARD_SEEK_THRESHOLD_MS)
+        assertEquals(1_000L, HARD_SEEK_THRESHOLD_MS)
         assertEquals(8_000L, HARD_SEEK_COOLDOWN_MS)
         assertEquals(10_000L, HARD_SEEK_COOLDOWN_OVERRIDE_MS)
         assertEquals(500L, SOFT_DRIFT_THRESHOLD_MS)
@@ -129,14 +135,14 @@ class SyncLogicTest {
         assertEquals(SyncPlan(null, SPEED_CATCH_UP, true), planSync(beat(60_000), localPositionMs = 59_000))
         // La app va adelantada 1 s -> frena.
         assertEquals(SyncPlan(null, SPEED_SLOW_DOWN, true), planSync(beat(60_000), localPositionMs = 61_000))
-        // Justo pasado el umbral chico (501 ms) ya corrige; justo en el umbral de salto (1.5 s) todavía no salta.
+        // Justo pasado el umbral chico (501 ms) ya corrige; justo en el umbral de salto (1 s) todavía no salta.
         assertEquals(SyncPlan(null, SPEED_CATCH_UP, true), planSync(beat(60_000), localPositionMs = 59_499))
-        assertEquals(SyncPlan(null, SPEED_CATCH_UP, true), planSync(beat(60_000), localPositionMs = 58_500))
+        assertEquals(SyncPlan(null, SPEED_CATCH_UP, true), planSync(beat(60_000), localPositionMs = 59_000))
     }
 
     @Test
     fun heartbeatConDesfaseGrandeSalta() {
-        assertEquals(SyncPlan(60_000, 1f, true), planSync(beat(60_000), localPositionMs = 58_499)) // atrasada, recién pasado el umbral
+        assertEquals(SyncPlan(60_000, 1f, true), planSync(beat(60_000), localPositionMs = 58_999)) // atrasada, recién pasado el umbral
         assertEquals(SyncPlan(60_000, 1f, true), planSync(beat(60_000), localPositionMs = 70_000)) // adelantada
         assertEquals(SyncPlan(60_000, 1f, true), planSync(beat(60_000), localPositionMs = 0))
     }
@@ -221,6 +227,67 @@ class SyncLogicTest {
         assertEquals(1f, planSync(SyncMessage(SyncType.PAUSE, 5_000, null), 5_000).speed)
         assertEquals(1f, planSync(SyncMessage(SyncType.PLAY, 5_000, null), 5_000).speed)
         assertEquals(1f, planSync(SyncMessage(SyncType.SEEK, 50_000, null), 5_000).speed)
+    }
+
+    // --- dónde está el host ahora / corrección al terminar de cargar ---
+
+    @Test
+    fun laReferenciaDelHostRecuerdaSiReproducia() {
+        val play = updateHostReference(null, SyncMessage(SyncType.PLAY, 10_000, null), nowMs = 500)
+        assertEquals(HostReference(10_000, 500, true), play)
+        // Un seek no dice si el host reproduce: conserva lo anterior.
+        val seek = updateHostReference(play, SyncMessage(SyncType.SEEK, 90_000, null), nowMs = 800)
+        assertEquals(HostReference(90_000, 800, true), seek)
+        val pause = updateHostReference(seek, SyncMessage(SyncType.PAUSE, 95_000, null), nowMs = 900)
+        assertEquals(HostReference(95_000, 900, false), pause)
+        assertEquals(false, updateHostReference(pause, SyncMessage(SyncType.SEEK, 5_000, null), 950).playing)
+        // Sin referencia previa, un seek deja "no se sabe".
+        assertNull(updateHostReference(null, SyncMessage(SyncType.SEEK, 5_000, null), 0).playing)
+        // El heartbeat sí lo dice.
+        assertEquals(true, updateHostReference(pause, beat(1_000, paused = false), 0).playing)
+    }
+
+    @Test
+    fun referenciaInicialDesdeRoomData() {
+        assertEquals(HostReference(125_400, 7, true), hostReferenceFrom(RoomPosition(125_400, false), 7))
+        assertEquals(HostReference(0, 7, false), hostReferenceFrom(RoomPosition(0, true), 7))
+    }
+
+    @Test
+    fun laPosicionEstimadaAvanzaSoloSiElHostReproducia() {
+        assertEquals(13_000L, estimateHostPosition(HostReference(10_000, 1_000, true), nowMs = 4_000))
+        assertEquals(10_000L, estimateHostPosition(HostReference(10_000, 1_000, false), nowMs = 4_000))
+        assertEquals(10_000L, estimateHostPosition(HostReference(10_000, 1_000, null), nowMs = 4_000))
+        assertEquals(10_000L, estimateHostPosition(HostReference(10_000, 5_000, true), nowMs = 4_000)) // reloj hacia atrás: no retrocede
+    }
+
+    @Test
+    fun alQuedarListaSaltaADondeEstaElHostAhora() {
+        // El host estaba en 60 s hace 1.5 s (lo que tardó en cargar la app): ahora va por 61.5 s; la app quedó en 60 s.
+        val ref = HostReference(60_000, 1_000, true)
+        assertEquals(61_500L, planReadyResync(ref, localPositionMs = 60_000, nowMs = 2_500))
+    }
+
+    @Test
+    fun alQuedarListaNoSaltaSiYaEstaCerca() {
+        val ref = HostReference(60_000, 1_000, true)
+        assertNull(planReadyResync(ref, localPositionMs = 61_400, nowMs = 2_500))
+        assertNull(planReadyResync(ref, localPositionMs = 61_000, nowMs = 2_500)) // justo en el umbral (500 ms)
+        assertEquals(61_500L, planReadyResync(ref, localPositionMs = 60_999, nowMs = 2_500))
+    }
+
+    @Test
+    fun alQuedarListaConElHostEnPausaVaALaPosicionDeLaPausa() {
+        val ref = HostReference(60_000, 1_000, false)
+        assertEquals(60_000L, planReadyResync(ref, localPositionMs = 58_000, nowMs = 9_000))
+        assertNull(planReadyResync(ref, localPositionMs = 60_300, nowMs = 9_000))
+    }
+
+    @Test
+    fun alQuedarListaSinSaberSiElHostReproduceONoHayReferenciaNoHaceNada() {
+        assertNull(planReadyResync(null, 0, 1_000))
+        assertNull(planReadyResync(HostReference(60_000, 0, null), 0, 1_000))
+        assertEquals(500L, READY_RESYNC_THRESHOLD_MS)
     }
 
     // --- barra de solo lectura ---
