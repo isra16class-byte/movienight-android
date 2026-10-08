@@ -86,6 +86,22 @@ class RoomSocket(
         socket?.emit("typing")
     }
 
+    /**
+     * Emite un `sync` del host. No hace nada si el socket no está conectado: socket.io dejaría el
+     * mensaje en cola y lo soltaría al reconectar, con una posición vieja y antes del `join-room`.
+     * Quien llama decide si corresponde (ver `canEmitSync`).
+     */
+    fun sendSync(msg: SyncMessage) {
+        val s = socket?.takeIf { it.connected() } ?: return
+        s.emit("sync", toSyncPayload(msg))
+    }
+
+    /** `buffering-status` (booleano plano). Igual que [sendSync], no se encola si no hay conexión. */
+    fun sendBuffering(buffering: Boolean) {
+        val s = socket?.takeIf { it.connected() } ?: return
+        s.emit("buffering-status", buffering)
+    }
+
     private fun emitJoin(s: Socket, join: JoinParams) {
         val payload = JSONObject()
             .put("roomId", join.roomId)

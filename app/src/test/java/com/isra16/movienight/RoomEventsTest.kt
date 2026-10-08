@@ -144,4 +144,37 @@ class RoomEventsTest {
         assertNull(parse("reaction", JSONObject("""{"emoji":"x"}""")))
         assertNull(parse("evento-desconocido"))
     }
+
+    // --- Fase 3C: subtítulos ---
+
+    @Test
+    fun subtituloNuevo() {
+        assertEquals(
+            RoomEvent.SubtitleChanged("/uploads/ab12cd34.vtt"),
+            parse("subtitle-changed", JSONObject("""{"subtitleFile":"/uploads/ab12cd34.vtt"}""")),
+        )
+    }
+
+    @Test
+    fun subtituloConFormaRaraSeDescarta() {
+        assertNull(parse("subtitle-changed", JSONObject("""{"subtitleFile":null}""")))
+        assertNull(parse("subtitle-changed", JSONObject("""{"subtitleFile":""}""")))
+        assertNull(parse("subtitle-changed", JSONObject("""{}""")))
+        assertNull(parse("subtitle-changed", "/uploads/ab12cd34.vtt")) // el server manda un objeto, no un texto plano
+    }
+
+    @Test
+    fun datosDeLaSalaTraenElSubtitulo() {
+        val data = JSONObject("""{"videoFile":"/uploads/1__x.mp4","subtitleFile":"/uploads/ab12cd34.vtt","position":{"time":12.5,"paused":false}}""")
+        assertEquals(
+            RoomEvent.RoomData("/uploads/1__x.mp4", RoomPosition(12_500, paused = false), "/uploads/ab12cd34.vtt"),
+            parse("room-data", data),
+        )
+        assertNull((parse("room-data", JSONObject("""{"videoFile":"/uploads/1__x.mp4","subtitleFile":null}""")) as RoomEvent.RoomData).subtitleFile)
+    }
+
+    @Test
+    fun subtitleChangedEstaEntreLosEventosEscuchados() {
+        assertTrue("subtitle-changed" in com.isra16.movienight.net.HANDLED_SERVER_EVENTS)
+    }
 }

@@ -33,6 +33,12 @@ fun resolveVideoUrl(baseUrl: String, videoFile: String?): String? {
 }
 
 /**
+ * URL absoluta del subtítulo (`room.subtitleFile`). El server siempre lo guarda en disco como
+ * `/uploads/<hex>.vtt` (a diferencia del video, nunca va a R2), pero se resuelve con la misma regla.
+ */
+fun resolveSubtitleUrl(baseUrl: String, subtitleFile: String?): String? = resolveVideoUrl(baseUrl, subtitleFile)
+
+/**
  * ¿Hay que (re)cargar el video en el reproductor? Misma regla que la web:
  *  - `room-data` llega en cada `join-room`, o sea también al reconectar tras un corte de red: si el
  *    video ya es ese, no se toca (recargar lo mandaría al segundo 0 sin motivo) -> [force] = false;

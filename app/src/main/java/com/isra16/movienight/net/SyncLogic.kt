@@ -16,7 +16,9 @@ import kotlin.math.abs
  */
 
 /** Tipos de `sync` que manda el host (los mismos que `room.html`). */
-enum class SyncType { PLAY, PAUSE, SEEK, HEARTBEAT }
+enum class SyncType(val wire: String) {
+    PLAY("play"), PAUSE("pause"), SEEK("seek"), HEARTBEAT("heartbeat")
+}
 
 /**
  * Un `sync` ya interpretado. [timeMs] = posición del host en milisegundos (el server la manda en
@@ -54,13 +56,8 @@ private fun secondsToMs(value: Any?): Long? {
  * se lleva a 0. Un `paused` que no sea booleano se ignora (queda `null`).
  */
 fun parseSyncMessage(obj: JSONObject): SyncMessage? {
-    val type = when (obj.opt("type")) {
-        "play" -> SyncType.PLAY
-        "pause" -> SyncType.PAUSE
-        "seek" -> SyncType.SEEK
-        "heartbeat" -> SyncType.HEARTBEAT
-        else -> return null
-    }
+    val wireType = obj.opt("type")
+    val type = SyncType.entries.firstOrNull { it.wire == wireType } ?: return null
     val timeMs = secondsToMs(obj.opt("time")) ?: return null
     val paused = if (type == SyncType.HEARTBEAT) obj.opt("paused") as? Boolean else null
     return SyncMessage(type, timeMs, paused)
@@ -218,3 +215,41 @@ fun formatPlaybackTime(ms: Long): String {
 /** Qué fracción (0..1) del video va por [positionMs]; 0 si no se conoce la duración. */
 fun progressFraction(positionMs: Long, durationMs: Long): Float =
     if (durationMs <= 0L) 0f else (positionMs.toDouble() / durationMs).toFloat().coerceIn(0f, 1f)
+
+// --- Ser host: emitir (Fase 3C) ---------------------------------------------------------------
+//
+// Forma verificada en `server.js` (rama plan-produccion): el handler de `sync` solo actúa si
+// `socket.isHost`; guarda `time` (si es número) y `paused` (solo del heartbeat) y retransmite el
+// objeto TAL CUAL a los demás. `room.html` manda `{ type, time }` para play/pause/seek (time en
+// segundos, con decimales) y `{ type: 'heartbeat', time, paused }` cada 4 s.
+
+/** Cada cuánto manda el host su posición (igual que `room.html`). */
+const val HEARTBEAT_INTERVAL_MS = 4_000L
+
+/** Payload de un `sync` que emite el host: `time` en segundos; `paused` solo en el heartbeat. */
+fun toSyncPayload(msg: SyncMessage): JSONObject {
+    val payload = JSONObject()
+        .put("type", msg.type.wire)
+        .put("time", msg.timeMs.coerceAtLeast(0L) / 1000.0)
+    if (msg.type == SyncType.HEARTBEAT && msg.paused != null) payload.put("paused", msg.paused)
+    return payload
+}
+
+/**
+ * ¿Se puede emitir un `sync` ahora? Solo si el server confirmó el rol de host (`host-status`) y el
+ * socket está conectado: un socket recién reconectado todavía no es host para el server (descarta
+ * lo que mande) y los emits no se dejan en cola para no mandar posiciones viejas al reconectar.
+ */
+fun canEmitSync(isHost: Boolean, isConnected: Boolean): Boolean = isHost && isConnected
+
+/** A qué segundo (ms) lleva una fracción 0..1 de la barra de un video de [durationMs]; 0 si no se conoce la duración. */
+fun seekTargetMs(fraction: Float, durationMs: Long): Long =
+    if (durationMs <= 0L) 0L else (fraction.coerceIn(0f, 1f).toDouble() * durationMs).toLong()
+
+/**
+ * ¿Hay que avisar `buffering-status = true`? Equivale al `waiting` del `<video>` de la web: el video
+ * quiere reproducir ([playWhenReady]) pero se quedó sin datos. Cargar en pausa (la sala está en pausa)
+ * no cuenta: nadie está esperando.
+ */
+fun shouldReportBuffering(hasVideo: Boolean, hasError: Boolean, playWhenReady: Boolean, isBufferingState: Boolean): Boolean =
+    hasVideo && !hasError && playWhenReady && isBufferingState

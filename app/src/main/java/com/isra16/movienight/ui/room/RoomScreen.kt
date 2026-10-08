@@ -31,6 +31,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,6 +61,7 @@ import kotlinx.coroutines.delay
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.progressFraction
+import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
 import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
@@ -71,7 +73,7 @@ import com.isra16.movienight.ui.auth.PrimaryButton
 @Composable
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada).
-    PauseWhenAppStops(onStop = vm.player::pause)
+    PauseWhenAppStops(onStop = vm::onAppStopped)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         RoomHeader(vm = vm, onLeave = onLeave)
         HorizontalDivider()
@@ -200,7 +202,13 @@ private fun RoomContent(vm: RoomViewModel) {
     Column(Modifier.fillMaxSize()) {
         // Con el teclado abierto se esconde el recuadro del video: en un teléfono chico dejaría el chat aplastado.
         val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-        if (!keyboardOpen) RoomVideo(vm.player, videoName = vm.videoName, isHost = vm.isHost)
+        if (!keyboardOpen) RoomVideo(
+                vm.player,
+                videoName = vm.videoName,
+                isHost = vm.isHost,
+                onTogglePlay = vm::hostTogglePlay,
+                onSeek = vm::hostSeekTo,
+            )
 
         val banner = when {
             !vm.isConnected -> vm.notice ?: "Reconectando…"
@@ -315,12 +323,18 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
  * El video de la sala. Los controles van debajo del video y no encima: así no hay nada dibujado sobre
  * la `SurfaceView` del `PlayerView` (que además no usa los controles nativos de Media3).
  *
- * Fase 3B: quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto:
- * la sala la maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host
- * conserva el play/pause local de la 3A, que todavía no llega a la sala (eso es la 3C).
+ * Quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto: la sala la
+ * maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host (confirmado por el
+ * server) tiene play/pausa y una barra con la que puede saltar; todo eso llega a la sala (Fase 3C).
  */
 @Composable
-private fun RoomVideo(rp: RoomPlayer, videoName: String, isHost: Boolean) {
+private fun RoomVideo(
+    rp: RoomPlayer,
+    videoName: String,
+    isHost: Boolean,
+    onTogglePlay: () -> Unit,
+    onSeek: (Float) -> Unit,
+) {
     // La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe.
     LaunchedEffect(rp, rp.hasVideo) {
         while (true) {
@@ -371,7 +385,7 @@ private fun RoomVideo(rp: RoomPlayer, videoName: String, isHost: Boolean) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             if (isHost) {
-                OutlinedButton(onClick = rp::togglePlay, enabled = rp.hasVideo && rp.error == null) {
+                OutlinedButton(onClick = onTogglePlay, enabled = rp.hasVideo && rp.error == null) {
                     Text(if (rp.showsPause) "Pausar" else "Reproducir")
                 }
             }
@@ -384,16 +398,45 @@ private fun RoomVideo(rp: RoomPlayer, videoName: String, isHost: Boolean) {
                 maxLines = 1,
             )
         }
-        if (isHost) {
-            Text(
-                "Sos el host, pero la app todavía no controla la sala: lo que hagas acá no lo ven los demás.",
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        } else if (rp.hasVideo && rp.error == null) {
-            GuestProgressBar(positionMs = rp.positionMs, durationMs = rp.durationMs)
+        if (rp.hasVideo && rp.error == null) {
+            if (isHost) {
+                HostSeekBar(positionMs = rp.positionMs, durationMs = rp.durationMs, onSeek = onSeek)
+            } else {
+                GuestProgressBar(positionMs = rp.positionMs, durationMs = rp.durationMs)
+            }
         }
+    }
+}
+
+/**
+ * Barra con la que el host salta en el video. Mientras se arrastra solo se mueve la barra; al soltar se
+ * salta (un solo `seek` hacia la sala, no uno por cada pixel del arrastre, como el `seeked` de la web).
+ */
+@Composable
+private fun HostSeekBar(positionMs: Long, durationMs: Long, onSeek: (Float) -> Unit) {
+    var dragFraction by remember { mutableStateOf<Float?>(null) }
+    val shown = dragFraction ?: progressFraction(positionMs, durationMs)
+    val shownMs = if (dragFraction != null) seekTargetMs(shown, durationMs) else positionMs
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Slider(
+            value = shown,
+            onValueChange = { dragFraction = it },
+            onValueChangeFinished = {
+                dragFraction?.let(onSeek)
+                dragFraction = null
+            },
+            modifier = Modifier.weight(1f),
+            enabled = durationMs > 0L,
+        )
+        Text(
+            "${formatPlaybackTime(shownMs)} / ${if (durationMs > 0L) formatPlaybackTime(durationMs) else "--:--"}",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 

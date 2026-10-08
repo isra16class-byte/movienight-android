@@ -218,4 +218,14 @@ class VideoUrlTest {
         }
         assertNotEquals(generic, playbackErrorMessage(2001))
     }
+
+    @Test
+    fun urlDelSubtituloEnDisco() {
+        assertEquals(
+            "https://sala.ejemplo.uk/uploads/ab12cd34.vtt",
+            com.isra16.movienight.net.resolveSubtitleUrl("https://sala.ejemplo.uk/", "/uploads/ab12cd34.vtt"),
+        )
+        assertNull(com.isra16.movienight.net.resolveSubtitleUrl("https://sala.ejemplo.uk", null))
+        assertNull(com.isra16.movienight.net.resolveSubtitleUrl("https://sala.ejemplo.uk", "file:///x.vtt"))
+    }
 }

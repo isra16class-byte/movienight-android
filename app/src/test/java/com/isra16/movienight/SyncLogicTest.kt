@@ -26,6 +26,13 @@ import org.json.JSONObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import com.isra16.movienight.net.HEARTBEAT_INTERVAL_MS
+import com.isra16.movienight.net.toSyncPayload
+import com.isra16.movienight.net.canEmitSync
+import com.isra16.movienight.net.seekTargetMs
+import com.isra16.movienight.net.shouldReportBuffering
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 
 class SyncLogicTest {
 
@@ -310,5 +317,90 @@ class SyncLogicTest {
         assertEquals(0.25f, progressFraction(25_000, 100_000))
         assertEquals(1f, progressFraction(150_000, 100_000)) // posición pasada de la duración: se acota
         assertEquals(0f, progressFraction(-10, 100_000))
+    }
+
+    // --- Fase 3C: lo que emite el host ---
+
+    @Test
+    fun nombresDeTipoSonLosDeLaWeb() {
+        assertEquals(listOf("play", "pause", "seek", "heartbeat"), SyncType.entries.map { it.wire })
+    }
+
+    @Test
+    fun playPauseYSeekSeEmitenConTipoYSegundosSinPaused() {
+        val play = toSyncPayload(SyncMessage(SyncType.PLAY, 90_250, null))
+        assertEquals(setOf("type", "time"), play.keySet())
+        assertEquals("play", play.getString("type"))
+        assertEquals(90.25, play.getDouble("time"), 0.0)
+        assertEquals("pause", toSyncPayload(SyncMessage(SyncType.PAUSE, 3_000, null)).getString("type"))
+        assertEquals(600.0, toSyncPayload(SyncMessage(SyncType.SEEK, 600_000, null)).getDouble("time"), 0.0)
+    }
+
+    @Test
+    fun elHeartbeatSeEmiteConPaused() {
+        val reproduciendo = toSyncPayload(SyncMessage(SyncType.HEARTBEAT, 10_500, paused = false))
+        assertEquals(setOf("type", "time", "paused"), reproduciendo.keySet())
+        assertEquals(false, reproduciendo.getBoolean("paused"))
+        assertEquals(10.5, reproduciendo.getDouble("time"), 0.0)
+        assertEquals(true, toSyncPayload(SyncMessage(SyncType.HEARTBEAT, 0, paused = true)).getBoolean("paused"))
+        // Sin dato de pausa no se inventa uno.
+        assertFalse(toSyncPayload(SyncMessage(SyncType.HEARTBEAT, 0, paused = null)).has("paused"))
+    }
+
+    @Test
+    fun paused_soloViajaEnElHeartbeat() {
+        // El server solo lee `paused` del heartbeat; en los demás tipos no se manda aunque venga cargado.
+        assertFalse(toSyncPayload(SyncMessage(SyncType.PLAY, 1_000, paused = false)).has("paused"))
+    }
+
+    @Test
+    fun loQueEmiteLaAppLoEntiendeElParserDeLaApp() {
+        // Mismo formato de ida y vuelta: lo que emite un host Android es lo que parsea un invitado Android.
+        val mensajes = listOf(
+            SyncMessage(SyncType.PLAY, 90_250, null),
+            SyncMessage(SyncType.PAUSE, 0, null),
+            SyncMessage(SyncType.SEEK, 5_400_123, null),
+            SyncMessage(SyncType.HEARTBEAT, 12_345, false),
+            SyncMessage(SyncType.HEARTBEAT, 12_345, true),
+        )
+        for (m in mensajes) assertEquals(m, parseSyncMessage(toSyncPayload(m)))
+    }
+
+    @Test
+    fun tiempoNegativoSeEmiteComoCero() {
+        assertEquals(0.0, toSyncPayload(SyncMessage(SyncType.SEEK, -50, null)).getDouble("time"), 0.0)
+    }
+
+    @Test
+    fun elHeartbeatEsCadaCuatroSegundos() {
+        assertEquals(4_000L, HEARTBEAT_INTERVAL_MS)
+    }
+
+    @Test
+    fun soloSeEmiteSiEsHostYHayConexion() {
+        assertTrue(canEmitSync(isHost = true, isConnected = true))
+        assertFalse(canEmitSync(isHost = true, isConnected = false)) // reconectando: no se encola
+        assertFalse(canEmitSync(isHost = false, isConnected = true)) // invitado, o rol sin confirmar
+        assertFalse(canEmitSync(isHost = false, isConnected = false))
+    }
+
+    @Test
+    fun saltoDeLaBarraDelHost() {
+        assertEquals(0L, seekTargetMs(0f, 100_000))
+        assertEquals(25_000L, seekTargetMs(0.25f, 100_000))
+        assertEquals(100_000L, seekTargetMs(1f, 100_000))
+        assertEquals(100_000L, seekTargetMs(1.7f, 100_000)) // fuera de rango: se acota
+        assertEquals(0L, seekTargetMs(-0.2f, 100_000))
+        assertEquals(0L, seekTargetMs(0.5f, 0)) // duración desconocida: no hay a dónde saltar
+    }
+
+    @Test
+    fun bufferingSoloSiQuiereReproducirYSeQuedoSinDatos() {
+        assertTrue(shouldReportBuffering(hasVideo = true, hasError = false, playWhenReady = true, isBufferingState = true))
+        // Cargando con la sala en pausa: nadie está esperando.
+        assertFalse(shouldReportBuffering(true, false, playWhenReady = false, isBufferingState = true))
+        assertFalse(shouldReportBuffering(true, false, true, isBufferingState = false))
+        assertFalse(shouldReportBuffering(hasVideo = false, hasError = false, playWhenReady = true, isBufferingState = true))
+        assertFalse(shouldReportBuffering(true, hasError = true, playWhenReady = true, isBufferingState = true))
     }
 }
