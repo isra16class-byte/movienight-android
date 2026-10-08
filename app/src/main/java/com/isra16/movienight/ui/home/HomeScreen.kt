@@ -1,5 +1,7 @@
 package com.isra16.movienight.ui.home
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -20,12 +22,14 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -40,15 +45,19 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isra16.movienight.home.HomeViewModel
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.LibraryItem
+import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
+import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
+import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
+import com.isra16.movienight.net.progressLabel
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
 import java.text.DateFormat
 import java.util.Date
 
 /**
- * Pantalla principal: unirse a una sala por código o link, y la biblioteca de videos para crear una
- * sala nueva. Subir videos todavía no se puede desde la app (se hace desde la web).
+ * Pantalla principal: unirse a una sala por código o link, subir un video del teléfono a la biblioteca
+ * y la biblioteca de videos para crear una sala nueva.
  */
 @Composable
 fun HomeScreen(
@@ -60,6 +69,21 @@ fun HomeScreen(
 ) {
     var selected by remember { mutableStateOf<LibraryItem?>(null) }
 
+    // Selector de documentos del sistema (SAF): no pide permisos de almacenamiento, la persona le da
+    // acceso a ESE archivo al elegirlo. "video/*" muestra solo videos; el tipo exacto se valida después.
+    val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        vm.onVideoPicked(uri)
+    }
+
+    // Mientras sube, la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
+    val uploadState = vm.upload
+    val uploadRunning = uploadState is UploadState.Preparing || uploadState is UploadState.Uploading
+    val view = LocalView.current
+    DisposableEffect(uploadRunning) {
+        view.keepScreenOn = uploadRunning
+        onDispose { view.keepScreenOn = false }
+    }
+
     Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
         LazyColumn(
             modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
@@ -68,6 +92,15 @@ fun HomeScreen(
         ) {
             item { Header(email, isLoggingOut, onLogout) }
             item { JoinCard(vm, onOpenRoom) }
+            item {
+                UploadCard(
+                    state = uploadState,
+                    onPick = { pickVideo.launch(arrayOf("video/*")) },
+                    onCancel = vm::cancelUpload,
+                    onRetry = vm::retryUpload,
+                    onDismiss = vm::dismissUpload,
+                )
+            }
             item {
                 Row(
                     Modifier.fillMaxWidth(),
@@ -95,7 +128,7 @@ fun HomeScreen(
                 is LibraryState.Loaded -> if (state.items.isEmpty()) {
                     item {
                         Text(
-                            "La biblioteca está vacía. Subí un video desde la web para poder crear una sala.",
+                            "La biblioteca está vacía. Subí un video desde acá o desde la web para poder crear una sala.",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -188,6 +221,82 @@ private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
                 keyboardActions = KeyboardActions(onGo = { join() }),
             )
             Button(onClick = ::join, enabled = code.isNotBlank()) { Text("Unirme") }
+        }
+    }
+}
+
+@Composable
+private fun UploadCard(
+    state: UploadState,
+    onPick: () -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Subir un video", style = MaterialTheme.typography.titleMedium)
+            when (state) {
+                UploadState.Idle -> {
+                    val formats = UPLOAD_VIDEO_EXTENSIONS.joinToString(", ") { it.removePrefix(".").uppercase() }
+                    Text(
+                        "Elegí un video del teléfono ($formats; hasta $MAX_SIMPLE_PUT_LABEL). " +
+                            "Se sube directo a la nube y queda en la biblioteca.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Button(onClick = onPick) { Text("Elegir video") }
+                }
+                is UploadState.Preparing -> {
+                    if (state.fileName.isNotBlank()) Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("Preparando la subida…", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    OutlinedButton(onClick = onCancel) { Text("Cancelar") }
+                }
+                is UploadState.Uploading -> {
+                    Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                    LinearProgressIndicator(progress = { state.fraction }, modifier = Modifier.fillMaxWidth())
+                    Text(
+                        if (state.sentBytes >= state.totalBytes) {
+                            "Terminando… esperando que la nube confirme."
+                        } else {
+                            progressLabel(state.sentBytes, state.totalBytes)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(
+                        "Dejá la app abierta mientras sube.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    OutlinedButton(onClick = onCancel) { Text("Cancelar") }
+                }
+                is UploadState.Done -> {
+                    Text(
+                        "Listo: ${state.fileName} ya está en la biblioteca.",
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(onClick = onPick) { Text("Subir otro") }
+                        TextButton(onClick = onDismiss) { Text("Cerrar") }
+                    }
+                }
+                is UploadState.Failed -> {
+                    if (state.fileName.isNotBlank()) Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+                    ErrorText(state.message)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (state.canRetry) {
+                            Button(onClick = onRetry) { Text("Reintentar") }
+                            OutlinedButton(onClick = onDismiss) { Text("Descartar") }
+                        } else {
+                            Button(onClick = onPick) { Text("Elegir otro video") }
+                            TextButton(onClick = onDismiss) { Text("Cerrar") }
+                        }
+                    }
+                }
+            }
         }
     }
 }

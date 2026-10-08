@@ -5,6 +5,7 @@ import com.isra16.movienight.auth.SessionManager
 import com.isra16.movienight.auth.UserIdStore
 import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.PersistentCookieJar
+import com.isra16.movienight.net.VideoUploader
 import com.isra16.movienight.net.normalizeBaseUrl
 import com.isra16.movienight.room.RoomPasswordCache
 import okhttp3.OkHttpClient
@@ -30,7 +31,21 @@ class AppContainer(context: Context) {
      */
     val socketClient: OkHttpClient = httpClient.newBuilder().readTimeout(60, TimeUnit.SECONDS).build()
 
+    /**
+     * Cliente para el PUT de subida de video directo al bucket (R2). Va SIN CookieJar a propósito: la
+     * sesión del servidor no tiene nada que hacer en otro dominio. `callTimeout` queda en 0 (sin tope):
+     * subir varios GB puede tardar horas. `writeTimeout` es por operación de escritura (si la red no
+     * deja avanzar ni un bloque en 60 s, se da por cortada) y `readTimeout` es la espera de la respuesta
+     * del bucket después del último byte.
+     */
+    val uploadClient: OkHttpClient = OkHttpClient.Builder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .writeTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.MINUTES)
+        .build()
+
     val api = MovieNightApi(httpClient)
+    val uploader = VideoUploader(uploadClient, context.applicationContext.contentResolver)
     val session = SessionManager(api, cookieJar, baseUrl)
     val userIds = UserIdStore(context)
     val roomPasswords = RoomPasswordCache()
