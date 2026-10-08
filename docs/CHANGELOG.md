@@ -5,6 +5,17 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-08 — Docs: se archiva el detalle viejo de MEMORIA.md
+
+- Las entradas de "Por dónde seguir" de la Fase 1, la Sesión B y las Fases 3A y 3B pasaron, **sin
+  cambios de texto**, a `docs/historico/MEMORIA-fases-1-a-3B.md` (con un índice en
+  `docs/historico/README.md`).
+- `docs/MEMORIA.md` queda con la 3C como último estado, un resumen de una línea por fase, los datos de las
+  fases viejas que siguen vigentes y la lista de pendientes que se arrastran. Pasó de ~21,7 KB a ~18,5 KB.
+- No cambia código ni decisiones.
+
+---
+
 ## 2026-10-08 — Fase 3C probada en emulador (la app como host)
 
 - **Funciona** (emulador, app como host y la web como invitada; según la persona, todas las pruebas de la
