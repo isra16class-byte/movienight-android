@@ -5,6 +5,24 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-08 — Fase 4A probada en emulador (subir un video a la biblioteca)
+
+- **Funciona** (checklist completo en el emulador Medium Phone API 36.1, contra el servidor real con R2):
+  elegir un video con el selector del sistema, barra de progreso, aparece en la biblioteca de la app y de la
+  web, se puede crear una sala con él y reproducirlo; cancelar corta la subida sin dejar un video a medias;
+  con modo avión muestra el error y **Reintentar** vuelve a subir desde cero; nombre con tilde y espacio;
+  pantalla encendida durante la subida.
+- **Cómo se probó**: sin videos en el emulador, se generaron dos con ffmpeg (un patrón de prueba de 90 s y
+  ~47 MB, y uno de 15 s y 1,7 MB con tilde en el nombre) y se copiaron a Descargas del emulador.
+- **Sin probar**: un archivo real de cientos de MB o GB, el límite de 5 GiB con un archivo de ese tamaño (solo
+  tests unitarios) y el proceso muerto en segundo plano (límite aceptado: la subida se pierde).
+- **Docs**: `MEMORIA.md` incorpora la 4A, `UploadLogic.kt` y `VideoUploader.kt` al árbol de archivos y deja de
+  decir que la biblioteca es solo lectura; el plan divide la Fase 4 en 4A / 4B y deja el fallback multipart
+  fuera de alcance mientras R2 funcione.
+- **Siguiente**: Fase 4B (crear sala y cambiar el video de una sala con lo subido).
+
+---
+
 ## 2026-10-08 — Docs: se archiva el detalle viejo de MEMORIA.md
 
 - Las entradas de "Por dónde seguir" de la Fase 1, la Sesión B y las Fases 3A y 3B pasaron, **sin

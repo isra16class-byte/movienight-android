@@ -91,6 +91,8 @@ movienight-android/
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
         VideoUrl.kt             # resolveVideoUrl(), resolveSubtitleUrl(), shouldLoadVideo(), playbackErrorMessage()
         SyncLogic.kt            # sync: parser, planSync (desfase), HostReference, planRejoin; emitir: toSyncPayload, canEmitSync (JVM puro)
+        UploadLogic.kt         # subida: validar extensión y tamaño, nombre sin tildes, parsear presign, mensajes de error, progreso
+        VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
         AuthErrors.kt           # authErrorMessage(): código HTTP -> mensaje para la persona
@@ -140,8 +142,8 @@ movienight-android/
   contraseña; cualquier otro `room-error` es un error final. Se distingue por el texto del mensaje.
 - **401 en una llamada de datos = sesión vencida en el server**: se le pide al `SessionManager` que
   vuelva a consultar `/auth/me` y la app cae sola en el login.
-- **La biblioteca de la app es solo lectura** por ahora (listar y crear sala). Subir va en la Fase 4;
-  borrar videos (`DELETE /api/uploads/:filename`) no está planeado todavía.
+- **La biblioteca de la app lista, crea sala y sube videos** (4A). Borrar videos
+  (`DELETE /api/uploads/:filename`) no está planeado todavía.
 
 ## Cómo se trabaja en este repo
 
@@ -185,6 +187,31 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 4A hecha y probada en el emulador (2026-10-08).** La app sube un video del teléfono a la biblioteca:
+selector del sistema (`OpenDocument`, sin permisos de almacenamiento), `POST /api/uploads/presign`
+(`{ filename, contentType }` → `{ key, uploadUrl, expiresIn }`) y `PUT` directo al bucket de R2, leyendo el
+archivo en streaming (bloques de 64 KB, nunca entero en memoria), con barra de progreso, cancelar y reintentar.
+Código en `net/UploadLogic.kt` (lógica pura con tests), `net/VideoUploader.kt`, `HomeViewModel` y `HomeScreen`.
+**Cómo funciona / decisiones:**
+- La URL prefirmada firma solo el header `host`; el `PUT` manda el mismo `Content-Type`, como la web. Después
+  del `PUT` **no hay confirmación**: `GET /api/uploads` lista el bucket filtrando por extensión, así que el
+  video aparece solo. El contenido recién se valida al crear una sala con él.
+- Extensiones aceptadas: mp4, mkv, mov, webm, avi, m4v. Límite: 5 GiB − 5 MiB (el del `PUT` simple de R2).
+  El nombre se manda sin tildes.
+- El `PUT` va por un cliente HTTP aparte (sin CookieJar y sin tope de duración de llamada). **Reintentar pide
+  una URL nueva y sube desde cero.**
+- La pantalla se mantiene encendida mientras sube. La subida es una corrutina del `HomeViewModel`, sin
+  servicio en primer plano: sigue mientras Android mantenga vivo el proceso; **si lo mata, hay que empezar de
+  nuevo** (un `PUT` simple cortado no deja objeto en el bucket). Es un límite aceptado, no un bug.
+**Qué se probó:** el checklist completo de la 4A (selector, progreso, aparece en la biblioteca de la app y de
+la web, crear sala con ese video y reproducirlo, cancelar sin dejar un video a medias, error y reintento con
+modo avión, nombre con tilde y espacio, pantalla encendida y segundo plano) con un video de prueba de ~47 MB y
+uno corto de 1,7 MB, generados con ffmpeg. **No se probó:** un archivo de cientos de MB o de GB, ni el límite
+de 5 GiB con un archivo real (solo tests unitarios), ni el proceso muerto en segundo plano.
+Siguiente: **Fase 4B** (usar lo subido en una sala): crear sala y cambiar el video de una sala desde la app.
+Antes de escribir código, verificar en `server.js` `/create-room-from-upload` y
+`/room/:id/change-video-from-upload` (qué reciben, quién puede llamarlas y qué evento dispara el cambio).
+
 **Fase 3C hecha y probada en el emulador (2026-10-08). La Fase 3 queda completa.** Con la app como host y la
 web como invitada, la web sigue la reproducción: play, pausa y seek de la app (un solo `seek` al soltar la
 barra) y un heartbeat cada 4 s. Según la persona, todas las pruebas de la lista de la sesión funcionaron
@@ -216,7 +243,7 @@ reconectar. **No hay log de los `sync` que RECIBE:** una versión anterior de es
 **Buffering con R2:** en la prueba, buffering solo tras un salto a una zona sin descargar (unos 3,5 s); en más de
 5 minutos de reproducción continua no hubo ninguno espontáneo. Sin señal de un bug de la app; con archivos
 grandes desde R2 sigue siendo esperable (`movienight/docs/MEMORIA.md`, 2026-09-10).
-Siguiente: **Fase 4** (subida de video) de `docs/PLAN-PRODUCCION.md`.
+(La Fase 4 empezó: lo siguiente está arriba, en la 4B.)
 
 ---
 
@@ -237,7 +264,8 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   hasta 0.5 s no se toca, entre 0.5 y 1 s velocidad 1.06 / 0.94, más de 1 s salto; con el host en pausa se
   alinea si hay más de 150 ms. Quedó un desfase residual de 1 a 2 s tras un seek del host, que se corrige
   solo y se aceptó.
-- **Fase 3C (2026-10-08):** la app como host (ver arriba, es lo último que se hizo).
+- **Fase 3C (2026-10-08):** la app como host: emite `sync`, `subtitle-changed` y `buffering-status`.
+- **Fase 4A (2026-10-08):** subir un video a la biblioteca (ver arriba, es lo último que se hizo).
 
 ## Datos que siguen vigentes de las fases viejas
 
@@ -248,7 +276,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   `MainActivity.kt` sin nombrar la librería). Ver "Stack".
 - Con Android Studio nuevo, Gradle 8.13 pide "Use JVM 21" (Java 25 no es compatible).
 
-## Pendientes que arrastramos (no bloquean la Fase 4)
+## Pendientes que arrastramos (no bloquean la 4B)
 
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
@@ -256,3 +284,5 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   `server-restarting` (necesitan un host que los dispare o reiniciar el server). Tampoco se probó la
   reacción (`reaction`) ni la red lenta con muchos saltos de sincronización.
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
+- **Subida de video (4A):** no probada con un archivo grande real (cientos de MB o GB) ni cerca del límite de
+  5 GiB; si Android mata la app durante una subida, se pierde (límite aceptado, ver la entrada de la 4A).
