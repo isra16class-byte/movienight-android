@@ -29,6 +29,7 @@ import org.junit.Test
 import com.isra16.movienight.net.HEARTBEAT_INTERVAL_MS
 import com.isra16.movienight.net.toSyncPayload
 import com.isra16.movienight.net.canEmitSync
+import com.isra16.movienight.net.planRejoin
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.net.shouldReportBuffering
 import org.junit.Assert.assertFalse
@@ -402,5 +403,34 @@ class SyncLogicTest {
         assertFalse(shouldReportBuffering(true, false, true, isBufferingState = false))
         assertFalse(shouldReportBuffering(hasVideo = false, hasError = false, playWhenReady = true, isBufferingState = true))
         assertFalse(shouldReportBuffering(true, hasError = true, playWhenReady = true, isBufferingState = true))
+    }
+
+    // --- Reconexión con el video ya cargado ---
+
+    @Test
+    fun hostQueVuelveSeAlineaConLaSala() {
+        // Caso real: la app se fue pausada en 192 s, otro host llevó la sala a 3347 s reproduciendo.
+        val plan = planRejoin(RoomPosition(timeMs = 3_347_948, paused = false), localPositionMs = 192_175)
+        assertEquals(3_347_948L, plan.seekToMs)
+        assertTrue(plan.playWhenReady)
+    }
+
+    @Test
+    fun siYaEstaCercaNoSalta() {
+        assertNull(planRejoin(RoomPosition(10_300, paused = false), localPositionMs = 10_000).seekToMs)
+        assertEquals(10_501L, planRejoin(RoomPosition(10_501, paused = true), localPositionMs = 10_000).seekToMs)
+    }
+
+    @Test
+    fun laSalaEnPausaDejaElVideoEnPausa() {
+        val plan = planRejoin(RoomPosition(5_000, paused = true), localPositionMs = 90_000)
+        assertEquals(5_000L, plan.seekToMs)
+        assertFalse(plan.playWhenReady)
+    }
+
+    @Test
+    fun tambienSeAlineaHaciaAtras() {
+        // Si la sala retrocedió (otro host saltó atrás), la app no la empuja hacia adelante.
+        assertEquals(1_000L, planRejoin(RoomPosition(1_000, paused = false), localPositionMs = 90_000).seekToMs)
     }
 }

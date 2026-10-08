@@ -21,6 +21,7 @@ import com.isra16.movienight.net.SyncMessage
 import com.isra16.movienight.net.SyncType
 import com.isra16.movienight.net.hostReferenceFrom
 import com.isra16.movienight.net.planReadyResync
+import com.isra16.movienight.net.planRejoin
 import com.isra16.movienight.net.planSync
 import com.isra16.movienight.net.shouldReportBuffering
 import com.isra16.movienight.net.updateHostReference
@@ -134,7 +135,11 @@ class RoomPlayer(private val context: Context) {
      * `url = null` quita la cinta.
      */
     fun load(url: String?, force: Boolean, start: RoomPosition? = null) {
-        if (!shouldLoadVideo(loadedUrl, url, force)) return
+        if (!shouldLoadVideo(loadedUrl, url, force)) {
+            // Reconexión con el mismo video: ver [alignToRoom].
+            if (url != null && start != null) alignToRoom(start)
+            return
+        }
         loadedUrl = url
         error = null
         lastHardSeekAt = 0L
@@ -157,6 +162,23 @@ class RoomPlayer(private val context: Context) {
         p.setMediaItem(buildMediaItem(url), start?.timeMs ?: 0L)
         p.prepare()
         hasVideo = true
+    }
+
+    /**
+     * `room-data` con el video ya cargado (reconexión): se pone el reproductor donde está la sala. Vale para
+     * invitados y para el host (ver `planRejoin`); el host no guarda referencia porque él es la referencia.
+     */
+    private fun alignToRoom(start: RoomPosition) {
+        val p = exo ?: return
+        if (!hasVideo || error != null) return
+        val plan = planRejoin(start, p.currentPosition)
+        plan.seekToMs?.let {
+            p.seekTo(it)
+            positionMs = it
+        }
+        p.playWhenReady = plan.playWhenReady
+        hostRef = if (isHostRole) null else hostReferenceFrom(start, SystemClock.elapsedRealtime())
+        Log.d(TAG, "reconecto: sala en ${start.timeMs}ms paused=${start.paused}, salto a ${plan.seekToMs}")
     }
 
     private fun buildMediaItem(url: String): MediaItem {

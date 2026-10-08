@@ -41,7 +41,7 @@ fun resolveSubtitleUrl(baseUrl: String, subtitleFile: String?): String? = resolv
 /**
  * ¿Hay que (re)cargar el video en el reproductor? Misma regla que la web:
  *  - `room-data` llega en cada `join-room`, o sea también al reconectar tras un corte de red: si el
- *    video ya es ese, no se toca (recargar lo mandaría al segundo 0 sin motivo) -> [force] = false;
+ *    video ya es ese, no se recarga (lo mandaría al segundo 0 sin motivo; solo se alinea la posición) -> [force] = false;
  *  - `video-changed` es el host cambiando la cinta: se recarga siempre, aunque la URL sea la misma
  *    (el server también vuelve la posición a 0) -> [force] = true.
  * Sin URL nueva solo hay algo que hacer si había un video cargado (quitarlo).

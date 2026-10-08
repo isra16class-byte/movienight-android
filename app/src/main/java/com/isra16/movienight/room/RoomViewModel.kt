@@ -245,7 +245,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 // de uno que cambió mientras no había conexión).
                 player.setSubtitle(resolveSubtitleUrl(baseUrl, event.subtitleFile))
                 // También llega al reconectar tras un corte de red: si el video ya es ese no se recarga
-                // (y entonces la posición se ignora: el próximo heartbeat del host lo realinea).
+                // (y entonces el reproductor se alinea con la posición de la sala, ver RoomPlayer.alignToRoom).
                 player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false, start = event.position)
                 markJoined()
             }

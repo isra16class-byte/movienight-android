@@ -200,6 +200,22 @@ fun planReadyResync(ref: HostReference?, localPositionMs: Long, nowMs: Long): Lo
     return if (abs(target - localPositionMs) > READY_RESYNC_THRESHOLD_MS) target else null
 }
 
+/** Qué hacer con un video YA cargado cuando `room-data` llega otra vez: a dónde saltar (`null` = ya está ahí) y si reproducir. */
+data class RejoinPlan(val seekToMs: Long?, val playWhenReady: Boolean)
+
+/**
+ * Al reconectar a una sala con el MISMO video ya cargado, el reproductor sigue donde se quedó la app,
+ * pero la sala pudo avanzar (o retroceder) mientras tanto, incluso con otro host. [roomPosition] es la
+ * última posición que guardó el server (su último heartbeat, de hace como mucho unos 4 s). Se alinea
+ * con ella tanto si volvemos de invitado como de host: un host que no se alineara empujaría a la sala,
+ * con su propio heartbeat, a la posición vieja con la que se fue.
+ */
+fun planRejoin(roomPosition: RoomPosition, localPositionMs: Long): RejoinPlan =
+    RejoinPlan(
+        seekToMs = roomPosition.timeMs.takeIf { abs(it - localPositionMs) > READY_RESYNC_THRESHOLD_MS },
+        playWhenReady = !roomPosition.paused,
+    )
+
 // --- Barra de progreso de solo lectura (invitados) ---------------------------------------------
 
 /** `m:ss`, o `h:mm:ss` si pasa de la hora (igual que `formatTime` de `room.html`). Negativos valen 0. */
