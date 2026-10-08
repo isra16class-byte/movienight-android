@@ -41,7 +41,7 @@ tocarlo. Repo: `https://github.com/isra16class-byte/movienight-android`.
 - **Package**: `com.isra16.movienight`.
 - **Min SDK**: 26 (Android 8.0) — **Target SDK**: 36.
 - **Reproductor de video**: Media3 (ExoPlayer) `1.10.1`, integrado en la Fase 3A (la app reproduce
-  el video de la sala y sigue al host desde la 3B; ser host va en la 3C). **No subir Media3 a 1.11.x**: se compila
+  el video de la sala, sigue al host desde la 3B y lo maneja si es host desde la 3C). **No subir Media3 a 1.11.x**: se compila
   con Kotlin 2.2 y este proyecto usa 2.0.21, el compilador falla con "Internal compiler error" (error
   en `MainActivity.kt`, sin mencionar la librería). Se puede subir cuando se suba Kotlin.
 - **Navegación** (2026-10-02): Navigation Compose `2.8.9` (elegida sin poder resolver
@@ -74,9 +74,9 @@ movienight-android/
         UserIdStore.kt          # userId por instalación (UUID en SharedPreferences)
       home/HomeViewModel.kt     # biblioteca, crear sala, unirse por código o link
       room/                     # una sala
-        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat
+        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat; emite sync si es host (3C)
         RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
-        RoomPlayer.kt           # ExoPlayer de la sala: carga el video y sigue al host (applySync); Fase 3A/3B
+        RoomPlayer.kt           # ExoPlayer de la sala: carga el video, sigue al host (applySync) o lo maneja si es host; subtítulos y buffering; Fase 3
       ui/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
@@ -85,12 +85,12 @@ movienight-android/
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
-        RoomSocket.kt           # wrapper de Socket.IO: join-room y eventos del server como RoomEvent
+        RoomSocket.kt           # wrapper de Socket.IO: join-room, eventos del server como RoomEvent, sendSync / sendBuffering
         RoomEvents.kt           # RoomEvent, ChatMessage, Viewer y parseServerEvent() (JVM + org.json)
         LibraryParsing.kt       # parseLibrary(), parseCreatedRoomId(), formatFileSize()
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
-        VideoUrl.kt             # resolveVideoUrl(), shouldLoadVideo(), playbackErrorMessage()
-        SyncLogic.kt            # sync del host: parser, planSync (corrección de desfase), HostReference, tiempos (JVM puro)
+        VideoUrl.kt             # resolveVideoUrl(), resolveSubtitleUrl(), shouldLoadVideo(), playbackErrorMessage()
+        SyncLogic.kt            # sync: parser, planSync (desfase), HostReference, planRejoin; emitir: toSyncPayload, canEmitSync (JVM puro)
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
         AuthErrors.kt           # authErrorMessage(): código HTTP -> mensaje para la persona
@@ -171,21 +171,57 @@ Mismo flujo que ya usa `movienight` (la web):
 ## Cómo verifica el asistente sin Android SDK
 
 No hay SDK ni Maven en su entorno, así que la UI/Compose y OkHttp no se pueden compilar ahí.
-Lo que sí hace: bajar `kotlinc` 2.0.21 desde las releases de GitHub (el mismo Kotlin del
+Lo que sí hace (el arnés no está en el repo, se rehace cada sesión): bajar `kotlinc` 2.0.21 desde las releases de GitHub (el mismo Kotlin del
 proyecto), compilar y ejecutar los archivos de lógica pura (sin imports de Android: `auth/AuthValidation.kt`,
 `net/AuthErrors.kt`, `net/UrlUtils.kt`) con un mini-runner que imita JUnit, y pasar el resto por el
 parser para detectar errores de sintaxis. Desde la Sesión B también se instala un JDK (`apt-get update && apt-get install openjdk-21-jdk-headless`) para
 compilar `org.json` desde `stleary/JSON-java` y poder probar los parsers de JSON; en Gradle el equivalente es
 `testImplementation(libs.org.json)` (el `org.json` de `android.jar` está "mockeado" en tests unitarios y no parsea).
-**Mantener la lógica testeable sin dependencias de
+Gotchas del entorno (2026-10-08): `apt-get update` falla con 403 por el repositorio de nodesource, se
+soluciona moviendo `/etc/apt/sources.list.d/nodesource.sources` antes de actualizar; las fuentes de
+`org.json` están en `JSON-java/src/main/java/org/json/`; el mini-JUnit necesita las sobrecargas con mensaje
+(`assertNotNull(String, Object)`, etc.). **Mantener la lógica testeable sin dependencias de
 Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre un comentario
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 3C hecha y probada en el emulador (2026-10-08). La Fase 3 queda completa.** Con la app como host y la
+web como invitada, la web sigue la reproducción: play, pausa y seek de la app (un solo `seek` al soltar la
+barra) y un heartbeat cada 4 s. Según la persona, todas las pruebas de la lista de la sesión funcionaron
+(cambio de host, corte de red, segundo plano, subtítulos, buffering, la app como invitada).
+**Cómo emite** (`RoomViewModel`, `RoomPlayer`, `net/SyncLogic.kt`): lo que hace la persona entra por
+`RoomPlayer.togglePlay` / `seekTo` / `pause`, que DEVUELVEN el `sync` a emitir; el único que emite es
+`RoomViewModel.emitSync`, y exige `canEmitSync` (rol de host confirmado por `host-status` + socket conectado).
+Lo que viene del server entra solo por `applySync`, `load`/`alignToRoom` y `setSubtitle`, y ninguno emite: un
+seek del server no puede rebotar. Forma emitida (verificada en `server.js`): `{ type, time (segundos) }` y, solo
+en el heartbeat, `paused`. **Decisiones:** (1) al desconectarse el rol se da por perdido (`isHost = false`)
+hasta el `host-status` del nuevo join; sin conexión no se encola nada (socket.io soltaría posiciones viejas al
+reconectar). (2) El heartbeat no se manda sin un video sano: con la cinta caída le pondría la sala en 0 y en
+pausa a todos. (3) Al pasar la app a segundo plano el host emite `pause`. (4) Quien pasa a ser host pierde la
+referencia del seguimiento (`setHostRole`), para que un `resync` viejo nunca mueva su video. (5) `buffering-status`
+lo reportan todos los roles, solo en cambios y solo si el video quiere reproducir y se quedó sin datos
+(`shouldReportBuffering`); se reenvía en cada `host-status` porque el server empieza de cero con cada socket.
+(6) Subtítulos: `subtitle-changed` (objeto `{ subtitleFile }`, solo server→cliente) y `room-data.subtitleFile`; se
+carga como `SubtitleConfiguration` WebVTT; cambiarlo con un video cargado lo vuelve a preparar en la posición
+actual. El subtítulo persiste al cambiar de video, como en el server.
+**Bug encontrado en la prueba, corregido:** si la app volvía a la sala con el mismo video ya cargado (p. ej. tras
+pasarse el host a la web y volver), `load()` ignoraba la posición de `room-data`; como host no tenía a quién
+seguir y su heartbeat devolvía a la sala a la posición vieja. Ahora `alignToRoom` / `planRejoin` la alinea con la
+sala (de host o de invitado). **Límite conocido:** esa posición es la del último heartbeat guardado en el server
+(hasta unos 4 s de antigüedad), así que la app puede quedar un poco atrás.
+**Logcat** (`adb logcat -s MovieNightSync`): hay log de lo que la app EMITE (`emito ...`), de los cambios de
+buffering (con `bufferedAhead`, para distinguir red lenta de un fallo de la app) y de la alineación al
+reconectar. **No hay log de los `sync` que RECIBE:** una versión anterior de este archivo y el CHANGELOG de la
+3B decían que sí, pero ese log nunca estuvo en el código.
+**Buffering con R2:** en la prueba, buffering solo tras un salto a una zona sin descargar (unos 3,5 s); en más de
+5 minutos de reproducción continua no hubo ninguno espontáneo. Sin señal de un bug de la app; con archivos
+grandes desde R2 sigue siendo esperable (`movienight/docs/MEMORIA.md`, 2026-09-10).
+Siguiente: **Fase 4** (subida de video) de `docs/PLAN-PRODUCCION.md`.
+
 **Fase 3B hecha y probada en el emulador (2026-10-03).** Con la app como invitada y la web como host,
 play, pausa y seek desde la web se reflejan en la app, y la barra de progreso del invitado es de solo
-lectura (sin play/pause ni seek). La app todavía **no emite nada** (eso es la 3C).
+lectura (sin play/pause ni seek). En la 3B la app todavía no emitía nada (desde la 3C emite si es host, ver arriba).
 **Cómo sigue al host** (`net/SyncLogic.kt` + `room/RoomPlayer.kt`): lo que viene del server entra solo
 por `RoomPlayer.applySync` (y por `load` con la `position` de `room-data`); lo que hace la persona va por
 `togglePlay`. Ningún listener del ExoPlayer emite hacia el server, así no hace falta una bandera
@@ -203,14 +239,12 @@ el host ahora.
 **Estado de la prueba:** quedó un desfase residual de **1 a 2 s** tras un seek del host o al entrar con el video en
 marcha, que se corrige solo en unos segundos; se aceptó así. Tras el ajuste de la corrección al quedar lista la
 persona notó la pausa "un poco retrasada"; el último ajuste (pausa exacta a 150 ms + log) **no se confirmó en el
-emulador**: se dejó así. **No se probó** la app como host (en la 3B solo controla su copia local, con un aviso), ni red lenta con muchos saltos. Si el desfase
-molesta: Logcat filtrado por `MovieNightSync` muestra cada `sync` recibido (posición del host y local) y qué
-decidió la app. Límite conocido: al entrar con el video en marcha, la `position` de `room-data` puede tener hasta
+emulador**: se dejó así. No se probó en la 3B la app como host (se probó en la 3C), ni red lenta con muchos saltos. Si el desfase
+molesta, ojo: esta versión del archivo decía que Logcat con `MovieNightSync` mostraba cada `sync` recibido, pero
+ese log nunca estuvo en el código (ver 3C arriba); habría que agregarlo. Límite conocido: al entrar con el video en marcha, la `position` de `room-data` puede tener hasta
 4 s de antigüedad (el server la guarda en cada heartbeat) y no hay evento para pedir la actual; el siguiente
 heartbeat la corrige.
-Siguiente: **Fase 3C** (ser host): emitir `sync` solo si `host-status` dice que somos host, `subtitle-changed` y
-`buffering-status`. Ahí hay que **probar que un seek que viene del server no se re-emita** (en la 3B es imposible
-porque la app no emite). Antes de escribir código, verificar en `server.js` lo que se vaya a emitir.
+(Lo que seguía de la 3B —ser host, `subtitle-changed`, `buffering-status`— se hizo en la 3C, ver arriba.)
 
 **Fase 3A hecha y probada en el emulador (2026-10-02).** La app reproduce el video de la sala con
 Media3 (`room/RoomPlayer.kt`, `net/VideoUrl.kt`): carga en pausa y en el segundo 0, play/pause local,

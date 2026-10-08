@@ -5,6 +5,41 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-08 — Fase 3C probada en emulador (la app como host)
+
+- **Funciona** (emulador, app como host y la web como invitada; según la persona, todas las pruebas de la
+  lista de la sesión): play, pausa y seek de la app los sigue la web (un solo `seek` al soltar la barra);
+  heartbeat cada 4 s; cambio de host; corte de red; pausa al pasar a segundo plano; `subtitle-changed`; la
+  app como invitada sigue igual que en la 3B. El log de Logcat de la sesión lo respalda: heartbeats cada 4,0 s
+  con la posición avanzando ~4000 ms por latido, una sola línea `emito` por cada acción de la persona y
+  ninguna que no hubiera provocado.
+- **Nuevo**: la app emite `sync` (play, pause, seek, heartbeat) solo si `host-status` confirma el rol de host y
+  el socket está conectado (`canEmitSync`); el rol se da por perdido al desconectarse. Barra de salto para el
+  host (un `seek` al soltar). `subtitle-changed` y `room-data.subtitleFile` (WebVTT como `SubtitleConfiguration`;
+  cambiarlo con video cargado lo vuelve a preparar en la posición actual). `buffering-status` de todos los roles
+  (`shouldReportBuffering`: quiere reproducir y se quedó sin datos; solo cambios; se reenvía al reconectar).
+  Lógica pura en `net/SyncLogic.kt` (`toSyncPayload`, `canEmitSync`, `seekTargetMs`, `shouldReportBuffering`,
+  `planRejoin`) y `net/VideoUrl.kt` (`resolveSubtitleUrl`), con 19 tests nuevos (143 en total; en Gradle, 144
+  con `ExampleUnitTest`). Forma de los eventos verificada en `server.js` antes de escribir código.
+- **Bug encontrado en la prueba y corregido**: al volver a la sala con el mismo video ya cargado (el host había
+  pasado a la web y la sala avanzó), la app como host ignoraba la posición de `room-data` y su heartbeat
+  devolvía a la sala a la posición vieja con la que se había ido. Ahora se alinea con la sala (`alignToRoom` /
+  `planRejoin`), de host o de invitado.
+- **Corrección de docs anteriores**: la 3B y `MEMORIA.md` decían que Logcat con `MovieNightSync` mostraba cada
+  `sync` recibido; ese log nunca estuvo en el código. Desde la 3C hay log de lo que se emite, del buffering y
+  de la alineación al reconectar; **los `sync` recibidos siguen sin log.**
+- **Buffering con R2**: solo hubo buffering tras un salto a una zona sin descargar (~3,5 s); en más de 5 minutos
+  de reproducción continua, ninguno espontáneo. Sin señal de un bug de la app. Para distinguir red lenta de un
+  fallo, el log trae `bufferedAhead` (ojo: tras un salto es 0 por fuerza, no prueba nada).
+- **Queda así a propósito**: al reconectar, la posición de la sala puede tener hasta ~4 s de antigüedad (último
+  heartbeat guardado), así que la app puede quedar un poco atrás; cambiar el subtítulo con video cargado
+  produce un instante de carga.
+- **Plan**: tildados "Emitir `sync` solo si es host", "Manejar `video-changed` y `subtitle-changed`" y
+  "Reportar `buffering-status`". **La Fase 3 queda completa.**
+- **Siguiente**: Fase 4 (subida de video).
+
+---
+
 ## 2026-10-03 — Fase 3B probada en emulador (la app sigue a la sala)
 
 - **Funciona** (emulador Medium Phone API 36.1, app como invitada y la web como host): play, pausa y seek

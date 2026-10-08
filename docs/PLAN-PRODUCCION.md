@@ -156,6 +156,7 @@ del servidor.
 > **3A** = el video carga (la app es espectadora, sin sincronizar). **3B** = seguir a la sala
 > (escuchar `sync`, controles propios, seek bloqueado a invitados). **3C** = ser host (emitir `sync`,
 > `subtitle-changed`, `buffering-status`).
+> **Fase 3 completa y probada en el emulador (2026-10-08).**
 
 - [x] Integrar Media3/ExoPlayer. *(3A, probado en el emulador el 2026-10-02: el video de la sala se
       ve y suena, con play/pause local; `/uploads/...` en disco o URL absoluta de R2. **Media3
@@ -167,20 +168,36 @@ del servidor.
       solo en unos segundos; se dejó así a propósito. Lógica en `net/SyncLogic.kt`, umbrales
       documentados ahí. Último ajuste —la pausa deja el video exacto (150 ms)— no se probó por
       separado: no confirmado.)*
-- [ ] Emitir `sync` solo si el rol actual es host (confirmado por
-      `host-status`).
+- [x] Emitir `sync` solo si el rol actual es host (confirmado por
+      `host-status`). *(3C, probado en el emulador el 2026-10-08 con la app como host y la web como
+      invitada: play, pausa y seek de la app los sigue la web, y el heartbeat sale cada 4 s. Solo se emite
+      con el rol confirmado y el socket conectado; al desconectarse el rol se da por perdido hasta el
+      `host-status` del nuevo join, y sin conexión no se encola nada. El heartbeat no se manda sin un
+      video sano. Un `sync` que viene del server no se re-emite: ningún listener del ExoPlayer emite.
+      Al pasar la app a segundo plano el host emite `pause`. **Bug encontrado en la prueba y corregido:**
+      al volver a la sala con el mismo video cargado, la app como host ignoraba la posición de la sala y
+      su heartbeat la devolvía a la posición vieja; ahora se alinea con `room-data` (`planRejoin`).)*
 - [x] UI de controles propia (no la nativa de ExoPlayer) para poder bloquear
       el seek en invitados, igual que hace `room.html` con
       `video.controls = false`. *(3B, probado en el emulador: el invitado ve una barra de progreso de
-      solo lectura, sin play/pause ni seek. Quien es host conserva el play/pause local de la 3A, que
-      todavía no llega a la sala: **la app como host no se probó** y su control real va en la 3C.)*
-- [ ] Manejar `video-changed` y `subtitle-changed`. *(`video-changed` hecho y probado en la 3A: la
-      app recarga el video en pausa y desde 0. Falta `subtitle-changed`, que va en la 3C.)*
-- [ ] Reportar `buffering-status` — tener en cuenta que buffering
+      solo lectura, sin play/pause ni seek. Quien es host: ver 3C, justo abajo.)*
+      *(3C, probado el 2026-10-08: el host tiene play/pausa y una barra para saltar —un solo `seek` al
+      soltar— y ambos llegan a la sala. El invitado conserva la barra de solo lectura.)*
+- [x] Manejar `video-changed` y `subtitle-changed`. *(`video-changed` hecho y probado en la 3A: la
+      app recarga el video en pausa y desde 0. `subtitle-changed`, 3C, probado el 2026-10-08: el `.vtt`
+      se carga como subtítulo de Media3 (idioma "es", activo por defecto) y también se aplica el
+      `subtitleFile` de `room-data` al entrar o reconectar. Si cambia con un video ya cargado se vuelve a
+      preparar el mismo video en la posición actual: hay un instante de carga. El subtítulo sobrevive a
+      `video-changed`, igual que en el server. La app no sube subtítulos: llegan por HTTP desde la web.)*
+- [x] Reportar `buffering-status` — tener en cuenta que buffering
       intermitente con archivos grandes servidos desde R2 es **esperable**
       (confirmado como tráfico real en `movienight/docs/MEMORIA.md`,
       2026-09-10), no asumir que es un bug de la implementación Android antes
-      de descartar esa causa.
+      de descartar esa causa. *(3C, probado el 2026-10-08: lo reportan todos los roles, solo en cambios,
+      solo si el video quiere reproducir y se quedó sin datos (cargar en pausa no cuenta) y se reenvía al
+      reconectar. En el log, buffering solo tras un salto a una zona sin descargar (unos 3,5 s); en más de
+      5 minutos de reproducción continua no hubo ninguno espontáneo: sin señal de un bug de la app. Con
+      R2 sigue siendo esperable.)*
 
 ---
 
