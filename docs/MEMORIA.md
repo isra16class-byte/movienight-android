@@ -72,16 +72,18 @@ movienight-android/
         AuthViewModel.kt        # estado de las pantallas de login/registro/recuperar
         Username.kt             # nombre en el chat = parte local del email, JVM puro
         UserIdStore.kt          # userId por instalación (UUID en SharedPreferences)
-      home/HomeViewModel.kt     # biblioteca, crear sala, unirse por código o link
+      home/HomeViewModel.kt     # biblioteca, crear sala, subir y crear sala (4B), unirse por código o link; fetchLibrary()
       room/                     # una sala
-        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat; emite sync si es host (3C)
+        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat; emite sync si es host (3C); cambiar el video de la sala (4B)
         RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
         RoomPlayer.kt           # ExoPlayer de la sala: carga el video, sigue al host (applySync) o lo maneja si es host; subtítulos y buffering; Fase 3
       ui/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
-        home/HomeScreen.kt      # unirse por código/link + biblioteca + diálogo de crear sala
+        home/HomeScreen.kt      # unirse por código/link + subir (solo subir / subir y crear sala) + biblioteca + diálogo de crear sala
         room/RoomScreen.kt      # sala: cabecera, contraseña, error, chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
+        room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
+        upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
@@ -91,7 +93,9 @@ movienight-android/
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
         VideoUrl.kt             # resolveVideoUrl(), resolveSubtitleUrl(), shouldLoadVideo(), playbackErrorMessage()
         SyncLogic.kt            # sync: parser, planSync (desfase), HostReference, planRejoin; emitir: toSyncPayload, canEmitSync (JVM puro)
-        UploadLogic.kt         # subida: validar extensión y tamaño, nombre sin tildes, parsear presign, mensajes de error, progreso
+        UploadLogic.kt         # subida: validar extensión y tamaño, nombre sin tildes, parsear presign, mensajes de error, progreso, UploadState/UploadGoal
+        UploadFlow.kt          # subida de punta a punta (4A) + paso siguiente opcional (4B): cancelar, reintentar solo el paso siguiente
+        RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
@@ -142,8 +146,8 @@ movienight-android/
   contraseña; cualquier otro `room-error` es un error final. Se distingue por el texto del mensaje.
 - **401 en una llamada de datos = sesión vencida en el server**: se le pide al `SessionManager` que
   vuelva a consultar `/auth/me` y la app cae sola en el login.
-- **La biblioteca de la app lista, crea sala y sube videos** (4A). Borrar videos
-  (`DELETE /api/uploads/:filename`) no está planeado todavía.
+- **La biblioteca de la app lista, crea sala y sube videos** (4A), y el host puede cambiar el video de la
+  sala (4B). Borrar videos (`DELETE /api/uploads/:filename`) no está planeado todavía.
 
 ## Cómo se trabaja en este repo
 
@@ -187,6 +191,46 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 4B hecha y probada en el emulador (2026-10-08). La Fase 4 queda completa.** La app crea una sala con
+un video recién subido y el host puede cambiar el video de la sala:
+- **"Subir y crear sala"** (pantalla principal): contraseña opcional → selector del sistema → subida →
+  `POST /create-room-from-upload` con la key del presign → entra sola a la sala (solo si la pantalla estaba a
+  la vista; si no, queda el botón "Entrar a la sala"). También sigue "Solo subir", de la 4A.
+- **"Cambiar video"** (solo el host, en la fila de controles del video; `ui/room/ChangeVideoDialog.kt`): elegir
+  uno de la biblioteca (pide confirmar) o "Subir uno nuevo", que al terminar pasa a ser el video de la sala.
+  Usa `POST /room/:id/change-video-from-upload` con `{ filename, hostToken? }`. Si se oculta el cuadro durante
+  una subida, `RoomUploadBanner` muestra el avance.
+- **Quién ve el cambio:** el servidor emite `video-changed` a TODA la sala, a quien lo pidió también, pone la
+  posición en 0 y en pausa y manda un mensaje de sistema al chat. La app ya lo manejaba desde la 3A (recarga
+  forzada), así que no hubo que tocar el receptor.
+**Cómo funciona / decisiones:**
+- La subida de la 4A salió de `HomeViewModel` a `net/UploadFlow.kt`, compartida por la pantalla principal y la
+  sala, con un paso siguiente opcional (`UploadGoal`: `LIBRARY`, `CREATE_ROOM`, `CHANGE_ROOM_VIDEO`). Si la
+  subida sale bien y falla el paso siguiente, **Reintentar repite solo ese paso** (misma key, no resube). No se
+  puede cancelar durante el paso siguiente (es un POST de un instante y cortarlo dejaría en duda si la sala se
+  creó). La lógica pura está en `net/RoomVideoLogic.kt` y `net/UploadLogic.kt`, con tests.
+- **El servidor autoriza el cambio por el DUEÑO de la sala, no por quién es host** (`isRoomOwner`, en
+  `lib/hostAuth.js`). En una sala con dueño (creada con sesión: todas las que crea la app) solo vale la sesión
+  de esa cuenta y el `hostToken` se ignora. Un host por traspaso que no la creó recibe **403**, y la app lo
+  explica ("solo quien creó la sala puede cambiarle el video"). En una sala sin dueño (anónima de la web) vale
+  el `hostToken`, que el server manda al host en `host-status`: la app lo guarda solo en memoria
+  (`RoomEvent.HostStatus.hostToken`) y lo borra al dejar de ser host o al desconectarse.
+- Si cuando termina la subida ya no se es host (traspaso mientras subía), no se manda el cambio y el video
+  queda en la biblioteca.
+- El servidor valida el contenido del video recién en estas dos rutas y **borra de la biblioteca** el que no
+  pasa. Ante cualquier 400 la app recarga la lista.
+- La subida desde la sala es una corrutina de `RoomViewModel`: **si se sale de la sala mientras sube, se
+  corta** (mismo límite aceptado que en la 4A: sin servicio en primer plano). La pantalla se mantiene encendida
+  mientras sube.
+**Qué se probó:** la persona confirmó "todo funcionó" con el checklist de la sesión (crear con y sin
+contraseña; cambiar desde la biblioteca y subiendo uno nuevo con la web viendo el cambio; un host que no es el
+dueño; cancelar y ocultar el cuadro durante la subida; modo avión en el último paso con reintento sin resubir;
+repaso de la 4A), sin detallar caso por caso. **No se probó:** una sala sin dueño donde la app sea host (usa el
+`hostToken`; no estaba en el checklist), archivos de cientos de MB o GB, salir de la sala mientras sube, ni el
+proceso muerto en segundo plano.
+Siguiente: **Fase 5** (rol de host y moderación): disparar `make-host`, `kick-user` y `toggle-mute`. Antes de
+escribir código, verificar en `server.js` qué recibe cada uno, quién puede dispararlo y qué eventos emite.
+
 **Fase 4A hecha y probada en el emulador (2026-10-08).** La app sube un video del teléfono a la biblioteca:
 selector del sistema (`OpenDocument`, sin permisos de almacenamiento), `POST /api/uploads/presign`
 (`{ filename, contentType }` → `{ key, uploadUrl, expiresIn }`) y `PUT` directo al bucket de R2, leyendo el
@@ -208,9 +252,7 @@ la web, crear sala con ese video y reproducirlo, cancelar sin dejar un video a m
 modo avión, nombre con tilde y espacio, pantalla encendida y segundo plano) con un video de prueba de ~47 MB y
 uno corto de 1,7 MB, generados con ffmpeg. **No se probó:** un archivo de cientos de MB o de GB, ni el límite
 de 5 GiB con un archivo real (solo tests unitarios), ni el proceso muerto en segundo plano.
-Siguiente: **Fase 4B** (usar lo subido en una sala): crear sala y cambiar el video de una sala desde la app.
-Antes de escribir código, verificar en `server.js` `/create-room-from-upload` y
-`/room/:id/change-video-from-upload` (qué reciben, quién puede llamarlas y qué evento dispara el cambio).
+(Desde la 4B la subida vive en `net/UploadFlow.kt`; `HomeViewModel` solo la usa.)
 
 **Fase 3C hecha y probada en el emulador (2026-10-08). La Fase 3 queda completa.** Con la app como host y la
 web como invitada, la web sigue la reproducción: play, pausa y seek de la app (un solo `seek` al soltar la
@@ -243,7 +285,7 @@ reconectar. **No hay log de los `sync` que RECIBE:** una versión anterior de es
 **Buffering con R2:** en la prueba, buffering solo tras un salto a una zona sin descargar (unos 3,5 s); en más de
 5 minutos de reproducción continua no hubo ninguno espontáneo. Sin señal de un bug de la app; con archivos
 grandes desde R2 sigue siendo esperable (`movienight/docs/MEMORIA.md`, 2026-09-10).
-(La Fase 4 empezó: lo siguiente está arriba, en la 4B.)
+(La Fase 4 está completa: lo siguiente es la Fase 5, arriba.)
 
 ---
 
@@ -265,7 +307,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   alinea si hay más de 150 ms. Quedó un desfase residual de 1 a 2 s tras un seek del host, que se corrige
   solo y se aceptó.
 - **Fase 3C (2026-10-08):** la app como host: emite `sync`, `subtitle-changed` y `buffering-status`.
-- **Fase 4A (2026-10-08):** subir un video a la biblioteca (ver arriba, es lo último que se hizo).
+- **Fase 4A (2026-10-08):** subir un video a la biblioteca.
+- **Fase 4B (2026-10-08):** crear sala con un video recién subido y cambiar el video de la sala siendo host (ver
+  arriba, es lo último que se hizo).
 
 ## Datos que siguen vigentes de las fases viejas
 
@@ -276,7 +320,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   `MainActivity.kt` sin nombrar la librería). Ver "Stack".
 - Con Android Studio nuevo, Gradle 8.13 pide "Use JVM 21" (Java 25 no es compatible).
 
-## Pendientes que arrastramos (no bloquean la 4B)
+## Pendientes que arrastramos (no bloquean la Fase 5)
 
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
@@ -286,3 +330,6 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
 - **Subida de video (4A):** no probada con un archivo grande real (cientos de MB o GB) ni cerca del límite de
   5 GiB; si Android mata la app durante una subida, se pierde (límite aceptado, ver la entrada de la 4A).
+- **Cambiar el video (4B):** sin probar una sala sin dueño (anónima de la web) donde la app sea host (usa el
+  `hostToken`), ni salir de la sala mientras sube (la subida se corta). Un host que no creó la sala no puede
+  cambiar el video (403 del servidor, por diseño del servidor).

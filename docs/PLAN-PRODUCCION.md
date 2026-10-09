@@ -203,17 +203,18 @@ del servidor.
 
 ## Fase 4 — Subida de video
 
-> **Se hace en 2 sesiones.** **4A** = subir un video del teléfono a la biblioteca (presign + `PUT`).
-> **4B** = usar lo subido en una sala (crear sala y cambiar el video de una sala).
+> **Se hizo en 2 sesiones, las dos hechas y probadas.** **4A** = subir un video del teléfono a la biblioteca
+> (presign + `PUT`). **4B** = usar lo subido en una sala (crear sala y cambiar el video de una sala).
 > El servidor tiene R2 100% funcional, así que el fallback multipart queda fuera por ahora.
 
-- [ ] Camino con R2 (recomendado): `POST /api/uploads/presign` → `PUT`
+- [x] Camino con R2 (recomendado): `POST /api/uploads/presign` → `PUT`
       directo al bucket desde el dispositivo → confirmar con
       `/create-room-from-upload` o `/room/:id/change-video-from-upload`.
       *(4A hecha y probada en el emulador el 2026-10-08: presign + `PUT` en streaming, con progreso,
       cancelar y reintentar; el video aparece en la biblioteca de la app y de la web, y se reproduce en una
-      sala. **Falta la 4B**: crear sala y cambiar el video de una sala desde lo subido, sin pasar por la
-      biblioteca a mano.)*
+      sala. 4B hecha y probada el mismo día: "Subir y crear sala" desde la pantalla principal, y "Cambiar
+      video" dentro de la sala (biblioteca o subiendo uno nuevo) con la web viendo el cambio. Ojo: el
+      servidor autoriza el cambio por el dueño de la sala, no por quién es host; ver `MEMORIA.md`.)*
 - [ ] Fallback sin R2: `POST /create-room` / `/room/:id/change-video`
       (multipart directo) — mismo límite de `413` de Cloudflare que ya se
       conoce del lado web si se comparte por Tunnel proxied. *(Fuera de alcance mientras R2 funcione.)*

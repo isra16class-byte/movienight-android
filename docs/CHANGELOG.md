@@ -5,6 +5,36 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-08 — Fase 4B probada en emulador (crear sala con lo subido y cambiar el video de la sala)
+
+- **Funciona** (según la persona, "todo funcionó" con el checklist de la sesión, en el emulador contra el
+  servidor real con R2): "Subir y crear sala" con y sin contraseña (sube, crea la sala y entra sola); como
+  host dentro de la sala, **Cambiar video** eligiendo uno de la biblioteca (con confirmación) y subiendo uno
+  nuevo, con la web viendo el cambio; el caso de un host que no es el dueño de la sala; cancelar durante la
+  subida y ocultar el cuadro (queda el aviso con el avance); modo avión en el último paso con **Reintentar**
+  sin volver a subir; y un repaso de la 4A, porque su código se movió. No se detalló caso por caso.
+- **Código**: la subida de la 4A pasó de `HomeViewModel` a `net/UploadFlow.kt`, compartida con la sala y con un
+  paso siguiente opcional (crear sala / cambiar el video). Lógica pura nueva en `net/RoomVideoLogic.kt`
+  (cuerpos y respuestas de `create-room-from-upload` y `change-video-from-upload`) y estados nuevos en
+  `UploadLogic.kt` (`Finishing`, `UploadGoal`, `alreadyUploaded`). UI: `ui/upload/UploadStatus.kt` (cuerpo
+  compartido y pantalla encendida), `ui/room/ChangeVideoDialog.kt` y el botón en `RoomScreen.kt`.
+  `host-status` ahora trae el `hostToken` (solo en memoria).
+- **Lo que hay que saber del servidor**: `change-video-from-upload` autoriza por el **dueño** de la sala
+  (`isRoomOwner`), no por quién es host. En una sala con dueño solo vale la sesión de esa cuenta y el
+  `hostToken` se ignora: un host por traspaso que no la creó recibe 403, y la app lo explica. En una sala sin
+  dueño (anónima) vale el `hostToken`. El servidor valida el contenido del video recién en estas rutas y
+  borra de la biblioteca el que no pasa (ante un 400 la app recarga la lista).
+- **Verificado antes de probar**: 197 tests de lógica pura pasan (24 nuevos), y `UploadFlow` se ejecutó con
+  un uploader y una API falsos (reintentos, cancelar, avances tardíos). La UI no se compila fuera de Android
+  Studio, así que se probó en el emulador.
+- **Sin probar**: una sala sin dueño (anónima de la web) donde el host sea la app, que usa el `hostToken`
+  (no estaba en el checklist); archivos grandes (cientos de MB o GB); salir de la sala mientras sube (la
+  subida se corta, límite aceptado); y el proceso muerto en segundo plano.
+- **Docs**: el plan tilda la Fase 4; `MEMORIA.md` incorpora la 4B y los archivos nuevos al árbol.
+- **Siguiente**: Fase 5 (rol de host y moderación: `make-host`, `kick-user`, `toggle-mute`).
+
+---
+
 ## 2026-10-08 — Fase 4A probada en emulador (subir un video a la biblioteca)
 
 - **Funciona** (checklist completo en el emulador Medium Phone API 36.1, contra el servidor real con R2):
