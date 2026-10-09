@@ -74,20 +74,21 @@ movienight-android/
         UserIdStore.kt          # userId por instalación (UUID en SharedPreferences)
       home/HomeViewModel.kt     # biblioteca, crear sala, subir y crear sala (4B), unirse por código o link; fetchLibrary()
       room/                     # una sala
-        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat; emite sync si es host (3C); cambiar el video de la sala (4B)
+        RoomViewModel.kt        # comprueba la sala, contraseña, socket, estado del chat; emite sync si es host (3C); cambiar el video de la sala (4B); moderación del host (5)
         RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
         RoomPlayer.kt           # ExoPlayer de la sala: carga el video, sigue al host (applySync) o lo maneja si es host; subtítulos y buffering; Fase 3
       ui/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
         home/HomeScreen.kt      # unirse por código/link + subir (solo subir / subir y crear sala) + biblioteca + diálogo de crear sala
-        room/RoomScreen.kt      # sala: cabecera, contraseña, error, chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
+        room/RoomScreen.kt      # sala: cabecera, contraseña, error, "te sacaron" (5), chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
+        room/ViewersDialog.kt   # lista "En la sala": estado de cada persona y, para el host, el menú Acciones (hacer host / silenciar / expulsar) (5)
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
-        RoomSocket.kt           # wrapper de Socket.IO: join-room, eventos del server como RoomEvent, sendSync / sendBuffering
+        RoomSocket.kt           # wrapper de Socket.IO: join-room, eventos del server como RoomEvent, sendSync / sendBuffering / sendModeration, socketId
         RoomEvents.kt           # RoomEvent, ChatMessage, Viewer y parseServerEvent() (JVM + org.json)
         LibraryParsing.kt       # parseLibrary(), parseCreatedRoomId(), formatFileSize()
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
@@ -96,6 +97,7 @@ movienight-android/
         UploadLogic.kt         # subida: validar extensión y tamaño, nombre sin tildes, parsear presign, mensajes de error, progreso, UploadState/UploadGoal
         UploadFlow.kt          # subida de punta a punta (4A) + paso siguiente opcional (4B): cancelar, reintentar solo el paso siguiente
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
+        ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
@@ -191,6 +193,50 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 5 hecha y probada en el emulador (2026-10-09).** Queda hecho todo lo que el plan pedía hasta la Fase 5 (el
+fallback sin R2 de la Fase 4 sigue fuera de alcance).
+La app como host modera la sala, y como invitada reacciona bien cuando la moderan:
+- **Lista "En la sala"** (`ui/room/ViewersDialog.kt`, se abre tocando "N conectados"): cada persona con su estado
+  ("vos", "host", "silenciado"). Si la app es host **confirmado por `host-status`**, cada otra persona trae un menú
+  **Acciones**: hacer host, silenciar / quitar silencio y expulsar. Los invitados no ven acciones. Hacer host y
+  expulsar piden confirmar; silenciar no (se revierte con un toque).
+- **Resultado a la vista:** el silencio se ve en la fila; al pasar el host, la app pierde el menú (y la fila
+  pasa a decir "host") y la web lo gana; un expulsado desaparece de la lista.
+**Lo que hace el server** (verificado en `server.js`, rama `plan-produccion`, y no es lo mismo que `change-video`):
+- Los tres eventos los autoriza **solo `socket.isHost`**, no el dueño de la sala. El payload es el `id` de socket
+  del objetivo como **texto plano** (el `id` de cada fila de `viewer-list`).
+- **No contestan nada** (sin confirmación ni error): lo que no corresponde se ignora en silencio. El resultado se ve
+  en `viewer-list`, `host-status`, y `kicked` / `mute-status` en el objetivo. Solo `make-host` deja un mensaje de
+  sistema en el chat; expulsar y silenciar no.
+- Solo `make-host` rechaza hacerse host a uno mismo. `kick-user` y `toggle-mute` sobre uno mismo SÍ se ejecutan, y
+  **ninguno protege al dueño** de la sala. Expulsar no veta: la persona puede volver a entrar.
+**Cómo funciona / decisiones:**
+- Lógica pura en `net/ModerationLogic.kt` (con `ModerationLogicTest`, 30 tests): qué acciones se ofrecen según el rol,
+  la comprobación que se repite justo al emitir, los textos y el seguimiento de pedidos. `RoomSocket.sendModeration`
+  no encola si no hay conexión (igual que `sendSync`). `RoomViewModel.moderate()` es el único camino que emite.
+- **Nunca se ofrece nada sobre uno mismo ni sobre quien figura como host**, y si no se conoce el `id` de socket propio
+  (`RoomSocket.socketId`, se relee en cada conexión y lista) no se ofrece nada.
+- Como el server no confirma, la app espera **5 s** a que `viewer-list` refleje el cambio; si no, avisa dentro de la
+  lista. Mientras hay un pedido en curso sobre alguien no se acepta otro sobre esa persona (`toggle-mute` ALTERNA:
+  dos toques seguidos lo dejarían como estaba). Los pedidos en curso se descartan al ceder el host, desconectarse o
+  ser expulsado.
+- Se pide confirmar también para **hacer host**, aunque lo pedido era solo expulsar: es la única acción con la que
+  el host se quita su propio control, y en una sala con dueño solo se recupera volviendo a entrar con esa cuenta.
+**Lado receptor, corregido:**
+- `kicked` ahora tiene su propia pantalla ("Te sacaron de la sala", `RoomPhase.Kicked`), en vez del "No se pudo entrar a
+  la sala" del error genérico, y deja limpio el rol, la lista y cualquier subida en curso.
+- **Bug del silencio:** el server borra el silencio a los 15 s de que te fuiste y, al volver, solo avisa si SIGUES
+  silenciado (nunca manda `muted:false`). La app conservaba el silencio viejo y podía dejar el chat bloqueado sin
+  motivo; ahora lo borra al desconectarse y el server lo vuelve a mandar si corresponde.
+**Qué se probó:** la persona confirmó "todo funcionó" y detalló: el menú Acciones en pantallas chicas; hacer host
+(el menú desaparece en la app y aparece en la web); la web como host contra la app (expulsar, silenciar y quitar
+silencio, con la app reaccionando bien); y reconectar siendo silenciado (el chat vuelve a bloquearse). **No se
+probó:** el botón deshabilitado mientras hay un pedido en curso y el aviso a los 5 s sin confirmación (hay que
+forzar un fallo), silenciar a alguien y que vuelva tras más de 15 s sin conexión, ser expulsado mientras se subía
+un video como ex-host, ni una sala sin dueño con la app como host (el mismo pendiente de la 4B).
+Siguiente: **Fase 6** (extras, no bloqueante). Antes de elegir, releer el plan: probar `server-restarting` y decidir
+si hay algo que valga la pena (acceso al panel de administración, notificaciones).
+
 **Fase 4B hecha y probada en el emulador (2026-10-08). La Fase 4 queda completa.** La app crea una sala con
 un video recién subido y el host puede cambiar el video de la sala:
 - **"Subir y crear sala"** (pantalla principal): contraseña opcional → selector del sistema → subida →
@@ -228,8 +274,6 @@ dueño; cancelar y ocultar el cuadro durante la subida; modo avión en el últim
 repaso de la 4A), sin detallar caso por caso. **No se probó:** una sala sin dueño donde la app sea host (usa el
 `hostToken`; no estaba en el checklist), archivos de cientos de MB o GB, salir de la sala mientras sube, ni el
 proceso muerto en segundo plano.
-Siguiente: **Fase 5** (rol de host y moderación): disparar `make-host`, `kick-user` y `toggle-mute`. Antes de
-escribir código, verificar en `server.js` qué recibe cada uno, quién puede dispararlo y qué eventos emite.
 
 **Fase 4A hecha y probada en el emulador (2026-10-08).** La app sube un video del teléfono a la biblioteca:
 selector del sistema (`OpenDocument`, sin permisos de almacenamiento), `POST /api/uploads/presign`
@@ -308,8 +352,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   solo y se aceptó.
 - **Fase 3C (2026-10-08):** la app como host: emite `sync`, `subtitle-changed` y `buffering-status`.
 - **Fase 4A (2026-10-08):** subir un video a la biblioteca.
-- **Fase 4B (2026-10-08):** crear sala con un video recién subido y cambiar el video de la sala siendo host (ver
-  arriba, es lo último que se hizo).
+- **Fase 4B (2026-10-08):** crear sala con un video recién subido y cambiar el video de la sala siendo host.
+- **Fase 5 (2026-10-09):** la app como host hace host a otra persona, silencia y expulsa (`net/ModerationLogic.kt`,
+  `ui/room/ViewersDialog.kt`), y reacciona a `kicked` y `mute-status` (ver arriba, es lo último que se hizo).
 
 ## Datos que siguen vigentes de las fases viejas
 
@@ -319,17 +364,24 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Media3 fijado en `1.10.1`** (la 1.11.x exige Kotlin 2.2 y el proyecto usa 2.0.21; el error sale en
   `MainActivity.kt` sin nombrar la librería). Ver "Stack".
 - Con Android Studio nuevo, Gradle 8.13 pide "Use JVM 21" (Java 25 no es compatible).
+- **Moderación (Fase 5):** `make-host`, `kick-user` y `toggle-mute` los autoriza solo `socket.isHost` (no el dueño), el
+  payload es el `id` de socket en texto plano y el server no contesta: el resultado se ve en `viewer-list` / `host-status`.
+  El silencio vale por `userId` y el server lo borra a los 15 s de desconectarse; al volver nunca manda `muted:false`.
 
-## Pendientes que arrastramos (no bloquean la Fase 5)
+## Pendientes que arrastramos (no bloquean la Fase 6)
 
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
-- **Sin prueba explícita:** "te sacó de la sala", chat bloqueado al silenciar y el aviso
-  `server-restarting` (necesitan un host que los dispare o reiniciar el server). Tampoco se probó la
-  reacción (`reaction`) ni la red lenta con muchos saltos de sincronización.
+- **Sin prueba explícita:** el aviso `server-restarting` (hay que reiniciar el server), la reacción (`reaction`) y la
+  red lenta con muchos saltos de sincronización. ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
 - **Subida de video (4A):** no probada con un archivo grande real (cientos de MB o GB) ni cerca del límite de
   5 GiB; si Android mata la app durante una subida, se pierde (límite aceptado, ver la entrada de la 4A).
 - **Cambiar el video (4B):** sin probar una sala sin dueño (anónima de la web) donde la app sea host (usa el
   `hostToken`), ni salir de la sala mientras sube (la subida se corta). Un host que no creó la sala no puede
   cambiar el video (403 del servidor, por diseño del servidor).
+- **Moderación (5):** sin probar el botón deshabilitado mientras hay un pedido en curso ni el aviso a los 5 s sin
+  confirmación; silenciar a alguien y que vuelva tras más de 15 s sin conexión; ser expulsado mientras se subía un video
+  como ex-host; ni una sala sin dueño con la app como host. **Límites que vienen del server (por diseño del server):** no
+  protege al dueño (el host de la web puede expulsarlo o silenciarlo; la app no sabe quién es el dueño y tampoco lo
+  impide), expulsar no impide volver a entrar, y expulsar / silenciar no dejan mensaje en el chat.

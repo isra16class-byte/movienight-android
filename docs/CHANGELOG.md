@@ -5,6 +5,37 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-09 — Fase 5 probada en emulador (moderación del host: hacer host, silenciar y expulsar)
+
+- **Funciona** (según la persona, "todo funcionó", y detalló cuatro puntos, en el emulador contra el servidor real
+  con la web como la otra punta): el menú **Acciones** de la lista "En la sala" en pantallas chicas; **hacer host**
+  (el menú desaparece en la app y aparece en la web); la **web como host contra la app** (expulsar, silenciar y quitar
+  silencio, con la app reaccionando bien); y **reconectar siendo silenciado** (el chat vuelve a bloquearse). No se
+  detalló caso por caso más allá de eso. Con esto se cierran los dos pendientes de la Sesión B: "te sacó de la sala"
+  y el chat bloqueado al silenciar.
+- **Código** (commit `0c3e489`): `net/ModerationLogic.kt` (lógica pura), `ui/room/ViewersDialog.kt` (lista con el menú
+  Acciones solo para el host), `RoomSocket.sendModeration` / `socketId`, y `RoomViewModel.moderate()` con el seguimiento
+  de pedidos. Solo se emite con el rol de host confirmado por `host-status` y con conexión, nunca sobre uno mismo, y
+  expulsar / hacer host piden confirmar. Como el server no contesta, la app espera 5 s a ver el cambio en `viewer-list`
+  y, si no llega, lo avisa; mientras hay un pedido en curso no acepta otro sobre la misma persona (`toggle-mute` alterna).
+- **Lo que hay que saber del servidor** (verificado en `server.js`, rama `plan-produccion`): los tres eventos los autoriza
+  solo `socket.isHost` (no el dueño de la sala, a diferencia de `change-video`); el payload es el `id` de socket en texto
+  plano; no contestan nada; solo `make-host` rechaza hacerse host a uno mismo y solo deja un mensaje de sistema en el chat;
+  ninguno protege al dueño; expulsar no veta.
+- **Bugs del lado receptor, corregidos:** `kicked` mostraba "No se pudo entrar a la sala" y ahora tiene su pantalla ("Te
+  sacaron de la sala") y deja limpio el rol, la lista y las subidas. Y el silencio local no se borraba al reconectar: el
+  server lo limpia a los 15 s y al volver nunca manda `muted:false`, así que la app podía dejar el chat bloqueado sin motivo.
+- **Verificado antes de probar:** 227 tests de lógica pura pasan (30 nuevos en `ModerationLogicTest`) y el resto de los
+  archivos pasó el compilador solo como chequeo de sintaxis. La UI no se compila fuera de Android Studio, así que se probó
+  en el emulador.
+- **Sin probar**: el botón deshabilitado mientras hay un pedido en curso y el aviso a los 5 s sin confirmación; silenciar a
+  alguien y que vuelva tras más de 15 s sin conexión; ser expulsado mientras se subía un video como ex-host; y una sala sin
+  dueño con la app como host (el mismo pendiente de la 4B).
+- **Docs**: el plan tilda la Fase 5; `MEMORIA.md` incorpora la Fase 5, los archivos nuevos al árbol y los datos del server.
+- **Siguiente**: Fase 6 (extras, no bloqueante).
+
+---
+
 ## 2026-10-08 — Fase 4B probada en emulador (crear sala con lo subido y cambiar el video de la sala)
 
 - **Funciona** (según la persona, "todo funcionó" con el checklist de la sesión, en el emulador contra el

@@ -226,13 +226,20 @@ del servidor.
 
 ## Fase 5 — Rol de host y moderación
 
-- [ ] Consumir `make-host`, `kick-user`, `toggle-mute` (eventos ya existen en
+> **Hecha y probada en 1 sesión (2026-10-09).** Verificado en `server.js` antes de escribir código: los tres eventos los
+> autoriza solo `socket.isHost`, mandan el `id` de socket en texto plano y el server no contesta (ver `MEMORIA.md`).
+
+- [x] Consumir `make-host`, `kick-user`, `toggle-mute` (eventos ya existen en
       el server, del lado Android solo hay que dispararlos/escucharlos).
-- [ ] Reaccionar a `kicked`, `mute-status`, `room-error`. *(Adelantado en la Sesión B. Probado en
-      el emulador el 2026-10-02: la contraseña de sala incorrecta (`room-error`). **Sin prueba
-      explícita todavía:** "te sacó de la sala" y el chat bloqueado al silenciar, que necesitan
-      un host que los dispare. Falta la parte de **host**: disparar
-      `make-host` / `kick-user` / `toggle-mute`.)*
+      *(Probado en el emulador el 2026-10-09: lista "En la sala" con un menú Acciones solo para el host (hacer
+      host, silenciar / quitar silencio, expulsar), con confirmación al expulsar y al hacer host. Probado el menú
+      en pantallas chicas, el traspaso del host con la web, y la web como host silenciando y expulsando a la
+      app. **Sin probar:** el aviso a los 5 s si el server no refleja el cambio, y una sala sin dueño con la app
+      como host.)*
+- [x] Reaccionar a `kicked`, `mute-status`, `room-error`. *(Adelantado en la Sesión B. Probado en
+      el emulador el 2026-10-02: la contraseña de sala incorrecta (`room-error`). Probado el 2026-10-09 con la web
+      como host: "te sacó de la sala" (ahora con su propia pantalla) y el chat bloqueado al silenciar, incluso
+      reconectando siendo silenciado. Se corrigió que el silencio local no se borraba al reconectar.)*
 
 ---
 
