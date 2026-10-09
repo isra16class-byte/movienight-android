@@ -33,6 +33,12 @@ class RoomSocket(
 
     val isConnected: Boolean get() = socket?.connected() == true
 
+    /**
+     * El `id` de este socket: es el `id` con el que el server nos lista en `viewer-list` (sirve para reconocer la
+     * propia fila). Cambia en cada reconexión, así que no se guarda: se vuelve a leer.
+     */
+    val socketId: String? get() = socket?.id()
+
     fun connect(baseUrl: String, join: JoinParams) {
         disconnect()
 
@@ -100,6 +106,18 @@ class RoomSocket(
     fun sendBuffering(buffering: Boolean) {
         val s = socket?.takeIf { it.connected() } ?: return
         s.emit("buffering-status", buffering)
+    }
+
+    /**
+     * `make-host`, `toggle-mute` o `kick-user` sobre [targetId] (el `id` de socket del objetivo, texto plano).
+     * Igual que [sendSync], no se encola si no hay conexión. Devuelve `false` si no se pudo emitir. El server no
+     * contesta: el resultado se ve en `viewer-list` / `host-status` (ver `net/ModerationLogic.kt`).
+     */
+    fun sendModeration(action: ModerationAction, targetId: String): Boolean {
+        val payload = moderationPayload(targetId) ?: return false
+        val s = socket?.takeIf { it.connected() } ?: return false
+        s.emit(action.wire, payload)
+        return true
     }
 
     private fun emitJoin(s: Socket, join: JoinParams) {

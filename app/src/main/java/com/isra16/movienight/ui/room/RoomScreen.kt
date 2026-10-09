@@ -23,7 +23,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -87,6 +86,7 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
             RoomPhase.Checking -> CenteredStatus("Comprobando la sala…", vm.notice)
             RoomPhase.Connecting -> CenteredStatus("Entrando a la sala…", vm.notice)
             is RoomPhase.AskPassword -> PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword)
+            RoomPhase.Kicked -> KickedState(onLeave = onLeave)
             is RoomPhase.Failed -> FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave)
             RoomPhase.InRoom -> RoomContent(vm)
         }
@@ -116,23 +116,7 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit) {
         }
     }
 
-    if (showViewers) {
-        AlertDialog(
-            onDismissRequest = { showViewers = false },
-            title = { Text("En la sala") },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    vm.viewers.forEach { viewer ->
-                        Text(
-                            viewer.username + if (viewer.isHost) " (host)" else "",
-                            style = MaterialTheme.typography.bodyLarge,
-                        )
-                    }
-                }
-            },
-            confirmButton = { TextButton(onClick = { showViewers = false }) { Text("Cerrar") } },
-        )
-    }
+    if (showViewers) ViewersDialog(vm = vm, onDismiss = { showViewers = false })
 }
 
 @Composable
@@ -176,6 +160,22 @@ private fun PasswordPrompt(message: String?, onSubmit: (String) -> Unit) {
             )
             ErrorText(message)
             PrimaryButton("Entrar", busy = false) { if (password.isNotEmpty()) onSubmit(password) }
+        }
+    }
+}
+
+/** El host te sacó (`kicked`): no es un error de conexión ni hay nada que reintentar, solo volver. */
+@Composable
+private fun KickedState(onLeave: () -> Unit) {
+    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+        Column(
+            Modifier.padding(24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("Te sacaron de la sala", style = MaterialTheme.typography.titleLarge)
+            Text("El host te expulsó de esta sala.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+            OutlinedButton(onClick = onLeave) { Text("Volver") }
         }
     }
 }

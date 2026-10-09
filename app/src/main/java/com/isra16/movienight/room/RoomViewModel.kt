@@ -20,6 +20,12 @@ import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.FollowUpOutcome
 import com.isra16.movienight.net.JoinParams
 import com.isra16.movienight.net.LibraryItem
+import com.isra16.movienight.net.ModerationAction
+import com.isra16.movienight.net.ModerationCheck
+import com.isra16.movienight.net.PendingModerations
+import com.isra16.movienight.net.canCancel
+import com.isra16.movienight.net.checkModeration
+import com.isra16.movienight.net.moderationTimeoutMessage
 import com.isra16.movienight.net.RoomVideoFailure
 import com.isra16.movienight.net.UploadFlow
 import com.isra16.movienight.net.UploadGoal
@@ -60,6 +66,9 @@ sealed interface RoomPhase {
     /** Socket abierto, esperando que el server acepte el `join-room`. */
     data object Connecting : RoomPhase
     data object InRoom : RoomPhase
+
+    /** El host te sacó de la sala (`kicked`). No hay nada que reintentar: solo volver. */
+    data object Kicked : RoomPhase
 
     /** No se pudo entrar. [canRetry] solo si tiene sentido volver a intentar (ej. fue un problema de red). */
     data class Failed(val message: String, val canRetry: Boolean) : RoomPhase
@@ -121,6 +130,27 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     var notice by mutableStateOf<String?>(null)
         private set
 
+    // --- Moderación del host (Fase 5) -------------------------------------------------------------
+
+    /**
+     * El `id` de socket propio: es el `id` con el que el server nos lista en `viewer-list`. Sirve para no ofrecernos
+     * acciones sobre nosotros mismos. Se vuelve a leer en cada conexión y cada lista; `null` = no se sabe.
+     */
+    var mySocketId by mutableStateOf<String?>(null)
+        private set
+
+    /** Personas con un pedido de moderación en curso (se les deshabilita el menú hasta que se vea el resultado). */
+    var busyViewerIds by mutableStateOf<Set<String>>(emptySet())
+        private set
+
+    /** Último problema al moderar (se muestra dentro de la lista de conectados). */
+    var moderationMessage by mutableStateOf<String?>(null)
+        private set
+
+    private val pendingModerations = PendingModerations()
+    private val moderationJobs = mutableMapOf<String, Job>()
+    private var moderationMessageJob: Job? = null
+
     // --- Cambiar el video de la sala (Fase 4B) ---------------------------------------------------
 
     /**
@@ -178,6 +208,73 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         if (!canEmitSync(isHost, isConnected)) return
         Log.d(SYNC_TAG, "emito ${msg.type.wire} t=${msg.timeMs}ms paused=${msg.paused}")
         roomSocket.sendSync(msg)
+    }
+
+    /**
+     * `make-host`, `toggle-mute` o `kick-user` sobre [targetId] (el `id` de un integrante de [viewers]). Solo se emite
+     * si el server confirmó que somos host y hay conexión, y si la persona sigue en la lista y no somos nosotros. El
+     * server no contesta: el resultado llega por `viewer-list` / `host-status`; si no llega en [MODERATION_CONFIRM_MS],
+     * se avisa. Mientras hay un pedido en curso sobre alguien no se acepta otro sobre esa persona (`toggle-mute` alterna).
+     */
+    fun moderate(action: ModerationAction, targetId: String) {
+        val target = when (val check = checkModeration(targetId, viewers, mySocketId, isHost, isConnected)) {
+            is ModerationCheck.Rejected -> {
+                showModerationMessage(check.message)
+                return
+            }
+            is ModerationCheck.Allowed -> check.target
+        }
+        if (!pendingModerations.begin(action, target)) return
+        if (!roomSocket.sendModeration(action, target.id)) {
+            pendingModerations.expire(target.id)
+            showModerationMessage("No se pudo enviar: sin conexión con la sala.")
+            return
+        }
+        moderationMessageJob?.cancel()
+        moderationMessage = null
+        busyViewerIds = pendingModerations.ids
+        moderationJobs[target.id] = viewModelScope.launch {
+            delay(MODERATION_CONFIRM_MS)
+            moderationJobs.remove(target.id)
+            val unresolved = pendingModerations.expire(target.id)
+            busyViewerIds = pendingModerations.ids
+            if (unresolved != null) {
+                showModerationMessage(moderationTimeoutMessage(unresolved.first, unresolved.second.username))
+            }
+        }
+    }
+
+    /** Borra el aviso de moderación (al abrir la lista de conectados). */
+    fun clearModerationMessage() {
+        moderationMessageJob?.cancel()
+        moderationMessage = null
+    }
+
+    private fun showModerationMessage(text: String) {
+        moderationMessageJob?.cancel()
+        moderationMessage = text
+        moderationMessageJob = viewModelScope.launch {
+            delay(MODERATION_MESSAGE_MS)
+            moderationMessage = null
+        }
+    }
+
+    /** Un `viewer-list` nuevo: los pedidos que ya se reflejan dejan de estar en curso. */
+    private fun resolveModerations(list: List<Viewer>) {
+        val done = pendingModerations.resolve(list)
+        if (done.isEmpty()) return
+        done.forEach { moderationJobs.remove(it)?.cancel() }
+        busyViewerIds = pendingModerations.ids
+    }
+
+    /** Se perdió el rol, la conexión o la sala: lo que estaba en curso ya no tiene a quién avisarle. */
+    private fun clearModerations() {
+        moderationJobs.values.forEach { it.cancel() }
+        moderationJobs.clear()
+        pendingModerations.clear()
+        busyViewerIds = emptySet()
+        moderationMessageJob?.cancel()
+        moderationMessage = null
     }
 
     /** Play/pausa del botón (solo host): lo aplica al video y lo emite. */
@@ -330,6 +427,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         when (event) {
             RoomEvent.Connected -> {
                 isConnected = true
+                mySocketId = roomSocket.socketId
                 notice = null
             }
             is RoomEvent.Disconnected -> {
@@ -339,6 +437,12 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 hostToken = null
                 showChangeVideo = false
                 player.setHostRole(false)
+                // El silencio también vale por conexión: el server lo limpia a los 15 s de haberte ido y, al volver,
+                // solo avisa si SIGUES silenciado (nunca manda `muted:false`). Si no se borra acá, un silencio ya
+                // levantado seguiría bloqueando el chat en la app.
+                isMuted = false
+                mySocketId = null
+                clearModerations()
             }
             is RoomEvent.ConnectError -> {
                 isConnected = false
@@ -369,7 +473,11 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 isHost = event.isHost
                 hostToken = if (event.isHost) event.hostToken else null
                 // Si se perdió el rol, no se queda abierto un cuadro que solo el host puede usar.
-                if (!event.isHost) showChangeVideo = false
+                if (!event.isHost) {
+                    showChangeVideo = false
+                    // Se cedió el host (o se perdió): lo que se pidió ya no se puede seguir ni medir.
+                    clearModerations()
+                }
                 // Quien es host ya no sigue a nadie (se le quita la velocidad y cualquier corrección pendiente).
                 player.setHostRole(event.isHost)
                 // `host-status` llega en cada join: el server empezó de cero con este socket, así que si ya estábamos en buffering se vuelve a avisar.
@@ -399,14 +507,27 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             is RoomEvent.Sync -> if (!isHost) player.applySync(event.message)
             is RoomEvent.MuteStatus -> isMuted = event.muted
             is RoomEvent.ViewerCount -> viewerCount = event.count
-            is RoomEvent.ViewerList -> viewers = event.viewers
+            is RoomEvent.ViewerList -> {
+                viewers = event.viewers
+                mySocketId = roomSocket.socketId
+                resolveModerations(event.viewers)
+            }
             is RoomEvent.Typing -> showTyping(event.username)
             is RoomEvent.ChatRateLimited -> showNotice(event.message, clearAfterMs = NOTICE_MS)
             RoomEvent.Kicked -> {
                 roomSocket.disconnect()
                 player.clear()
                 isConnected = false
-                phase = RoomPhase.Failed("El host te sacó de la sala.", canRetry = false)
+                // Ya no estamos en la sala: nada del rol ni de la lista de antes tiene que quedar a la vista.
+                isHost = false
+                hostToken = null
+                showChangeVideo = false
+                player.setHostRole(false)
+                viewers = emptyList()
+                mySocketId = null
+                clearModerations()
+                if (flow.state.canCancel()) flow.cancel()
+                phase = RoomPhase.Kicked
             }
             RoomEvent.ServerRestarting ->
                 showNotice("El servidor se está reiniciando. Te reconectamos en un momento…", clearAfterMs = null)
@@ -458,5 +579,9 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         private const val TYPING_THROTTLE_MS = 2_000L
         private const val TYPING_VISIBLE_MS = 3_000L
         private const val NOTICE_MS = 4_000L
+
+        /** Cuánto se espera ver reflejada una acción de moderación en `viewer-list` antes de avisar que no se confirmó. */
+        private const val MODERATION_CONFIRM_MS = 5_000L
+        private const val MODERATION_MESSAGE_MS = 6_000L
     }
 }
