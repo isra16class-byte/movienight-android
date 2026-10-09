@@ -133,11 +133,19 @@ class RoomPlayer(private val context: Context) {
      * arranca en pausa y en el segundo 0 (cinta nueva). Con [force] = false no hace nada si ya es el
      * video cargado (ver `shouldLoadVideo`): al reconectar, el heartbeat siguiente lo realinea.
      * `url = null` quita la cinta.
+     *
+     * [afterRestart] = esta es la vuelta de un reinicio del server (ver `planRejoin`). Si el video ya cargado había
+     * quedado en error (típico con videos en disco: los sirve el mismo server que se reinició), se vuelve a preparar
+     * en lugar de dejarlo trabado: ExoPlayer no reintenta solo después de un error de red.
      */
-    fun load(url: String?, force: Boolean, start: RoomPosition? = null) {
+    fun load(url: String?, force: Boolean, start: RoomPosition? = null, afterRestart: Boolean = false) {
+        if (!force && url != null && start != null && url == loadedUrl && error != null) {
+            reloadAfterError(url, start, afterRestart)
+            return
+        }
         if (!shouldLoadVideo(loadedUrl, url, force)) {
             // Reconexión con el mismo video: ver [alignToRoom].
-            if (url != null && start != null) alignToRoom(start)
+            if (url != null && start != null) alignToRoom(start, afterRestart)
             return
         }
         loadedUrl = url
@@ -167,18 +175,41 @@ class RoomPlayer(private val context: Context) {
     /**
      * `room-data` con el video ya cargado (reconexión): se pone el reproductor donde está la sala. Vale para
      * invitados y para el host (ver `planRejoin`); el host no guarda referencia porque él es la referencia.
+     * Tras un reinicio del server ([afterRestart]) tampoco se guarda referencia: la posición que devuelve el
+     * server puede estar atrasada, y el próximo heartbeat del host la establece bien.
      */
-    private fun alignToRoom(start: RoomPosition) {
+    private fun alignToRoom(start: RoomPosition, afterRestart: Boolean) {
         val p = exo ?: return
         if (!hasVideo || error != null) return
-        val plan = planRejoin(start, p.currentPosition)
+        val plan = planRejoin(start, p.currentPosition, isHost = isHostRole, localPlaying = playWhenReady, afterRestart = afterRestart)
         plan.seekToMs?.let {
             p.seekTo(it)
             positionMs = it
         }
         p.playWhenReady = plan.playWhenReady
-        hostRef = if (isHostRole) null else hostReferenceFrom(start, SystemClock.elapsedRealtime())
-        Log.d(TAG, "reconecto: sala en ${start.timeMs}ms paused=${start.paused}, salto a ${plan.seekToMs}")
+        hostRef = if (isHostRole || afterRestart) null else hostReferenceFrom(start, SystemClock.elapsedRealtime())
+        Log.d(TAG, "reconecto (reinicio=$afterRestart): sala en ${start.timeMs}ms paused=${start.paused}, salto a ${plan.seekToMs}")
+    }
+
+    /**
+     * El video ya cargado quedó en error (se cortó la red o el server que lo sirve) y volvimos a la sala: se prepara
+     * de nuevo el mismo video, en la posición que corresponda según `planRejoin` (si no hay salto, donde se quedó).
+     */
+    private fun reloadAfterError(url: String, start: RoomPosition, afterRestart: Boolean) {
+        val p = exo ?: return
+        val local = p.currentPosition.coerceAtLeast(0L)
+        val plan = planRejoin(start, local, isHost = isHostRole, localPlaying = playWhenReady, afterRestart = afterRestart)
+        val at = plan.seekToMs ?: local
+        error = null
+        lastHardSeekAt = 0L
+        hostRef = if (isHostRole || afterRestart) null else hostReferenceFrom(start, SystemClock.elapsedRealtime())
+        resyncPending = !isHostRole
+        positionMs = at
+        p.playWhenReady = plan.playWhenReady
+        p.setPlaybackSpeed(1f)
+        p.setMediaItem(buildMediaItem(url), at)
+        p.prepare()
+        Log.d(TAG, "recargo el video tras un error (reinicio=$afterRestart): retomo en ${at}ms paused=${!plan.playWhenReady}")
     }
 
     private fun buildMediaItem(url: String): MediaItem {

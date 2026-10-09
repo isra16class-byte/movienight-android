@@ -36,12 +36,15 @@ import com.isra16.movienight.net.interpretChangeVideo
 import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.isSessionExpired
 import com.isra16.movienight.net.toFollowUp
+import com.isra16.movienight.net.RESTART_GIVE_UP_MS
+import com.isra16.movienight.net.RestartState
 import com.isra16.movienight.net.RoomEvent
 import com.isra16.movienight.net.HEARTBEAT_INTERVAL_MS
 import com.isra16.movienight.net.RoomSocket
 import com.isra16.movienight.net.SyncMessage
 import com.isra16.movienight.net.canEmitSync
 import com.isra16.movienight.net.resolveSubtitleUrl
+import com.isra16.movienight.net.roomErrorAfterRestart
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.net.Viewer
 import com.isra16.movienight.net.apiErrorMessage
@@ -126,9 +129,18 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     var typingUser by mutableStateOf<String?>(null)
         private set
 
-    /** Aviso transitorio (límite de mensajes, servidor reiniciando, reintentando conexión). */
+    /** Aviso transitorio (límite de mensajes, reintentando conexión). El reinicio del server va aparte: [restart]. */
     var notice by mutableStateOf<String?>(null)
         private set
+
+    /**
+     * Reinicio del server (`server-restarting`): desde el aviso hasta que volvemos a unirnos a la sala. Tiene
+     * prioridad sobre [notice] en la franja de aviso (ver `connectionBanner`) y le dice al reproductor que la vuelta
+     * es de un reinicio (ver `planRejoin`). El aviso se deja de mostrar solo a los [RESTART_GIVE_UP_MS] si el server no vuelve.
+     */
+    var restart by mutableStateOf(RestartState())
+        private set
+    private var restartJob: Job? = null
 
     // --- Moderación del host (Fase 5) -------------------------------------------------------------
 
@@ -432,6 +444,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.Disconnected -> {
                 isConnected = false
+                restart = restart.onDisconnected()
                 // El rol vale por socket: al reconectar el server vuelve a mandar `host-status`. Hasta entonces no hay rol confirmado.
                 isHost = false
                 hostToken = null
@@ -449,13 +462,16 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 notice = "No se pudo conectar con el servidor. Reintentando…"
             }
             is RoomEvent.RoomError -> {
+                // Si veníamos de un reinicio, el error se explica con eso (típico: la sala no se recuperó).
+                val afterRestart = restart.isRejoining
+                clearRestart()
                 roomSocket.disconnect()
                 player.clear()
                 isConnected = false
                 phase = if (passwordProtected && isRoomPasswordError(event.message)) {
                     RoomPhase.AskPassword(event.message)
                 } else {
-                    RoomPhase.Failed(event.message, canRetry = false)
+                    RoomPhase.Failed(if (afterRestart) roomErrorAfterRestart(event.message) else event.message, canRetry = false)
                 }
             }
             is RoomEvent.ChatHistory -> {
@@ -491,7 +507,11 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 player.setSubtitle(resolveSubtitleUrl(baseUrl, event.subtitleFile))
                 // También llega al reconectar tras un corte de red: si el video ya es ese no se recarga
                 // (y entonces el reproductor se alinea con la posición de la sala, ver RoomPlayer.alignToRoom).
-                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false, start = event.position)
+                // `room-data` es lo último que manda el server al aceptar el `join-room`: acá termina la vuelta de un reinicio.
+                val (nextRestart, afterRestart) = restart.onJoined()
+                if (afterRestart) restartJob?.cancel()
+                restart = nextRestart
+                player.load(resolveVideoUrl(baseUrl, event.videoFile), force = false, start = event.position, afterRestart = afterRestart)
                 markJoined()
             }
             is RoomEvent.VideoChanged -> {
@@ -515,6 +535,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             is RoomEvent.Typing -> showTyping(event.username)
             is RoomEvent.ChatRateLimited -> showNotice(event.message, clearAfterMs = NOTICE_MS)
             RoomEvent.Kicked -> {
+                clearRestart()
                 roomSocket.disconnect()
                 player.clear()
                 isConnected = false
@@ -529,9 +550,21 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 if (flow.state.canCancel()) flow.cancel()
                 phase = RoomPhase.Kicked
             }
-            RoomEvent.ServerRestarting ->
-                showNotice("El servidor se está reiniciando. Te reconectamos en un momento…", clearAfterMs = null)
+            RoomEvent.ServerRestarting -> {
+                restart = restart.onAnnounced()
+                // Si el server no vuelve, a los RESTART_GIVE_UP_MS se deja de mostrar el aviso y queda el genérico.
+                restartJob?.cancel()
+                restartJob = viewModelScope.launch {
+                    delay(RESTART_GIVE_UP_MS)
+                    restart = restart.giveUpBanner()
+                }
+            }
         }
+    }
+
+    private fun clearRestart() {
+        restartJob?.cancel()
+        restart = RestartState()
     }
 
     /** El server acepta el `join-room` mandando historial, rol y datos de la sala: la primera de esas señales abre la sala. */

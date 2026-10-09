@@ -58,6 +58,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import com.isra16.movienight.net.ChatMessage
+import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.progressFraction
@@ -220,10 +221,7 @@ private fun RoomContent(vm: RoomViewModel) {
         // Avance de una subida cuando el cuadro "Cambiar video" está oculto.
         RoomUploadBanner(vm)
 
-        val banner = when {
-            !vm.isConnected -> vm.notice ?: "Reconectando…"
-            else -> vm.notice
-        }
+        val banner = connectionBanner(vm.isConnected, vm.restart, vm.notice)
         if (banner != null) {
             Text(
                 banner,

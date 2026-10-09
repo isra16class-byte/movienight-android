@@ -209,12 +209,29 @@ data class RejoinPlan(val seekToMs: Long?, val playWhenReady: Boolean)
  * última posición que guardó el server (su último heartbeat, de hace como mucho unos 4 s). Se alinea
  * con ella tanto si volvemos de invitado como de host: un host que no se alineara empujaría a la sala,
  * con su propio heartbeat, a la posición vieja con la que se fue.
+ *
+ * Con [afterRestart] (el server se reinició) todo eso cambia: lo que el server recuperó de Redis puede estar
+ * atrasado hasta unos 8 s (solo persiste el heartbeat cada >5 s; `play`/`pause`/`seek` sí se guardan al toque,
+ * así que `paused` es confiable pero `time` no), y durante la caída nadie pudo mover la sala. Entonces no se salta
+ * a esa posición (el host retrocedería la película para todos): el host sigue donde está ([isHost], con su estado
+ * de reproducción [localPlaying]) y su heartbeat alinea al resto en unos 4 s. Quien no es host solo toma el estado
+ * de pausa de la sala y espera ese heartbeat.
  */
-fun planRejoin(roomPosition: RoomPosition, localPositionMs: Long): RejoinPlan =
-    RejoinPlan(
+fun planRejoin(
+    roomPosition: RoomPosition,
+    localPositionMs: Long,
+    isHost: Boolean = false,
+    localPlaying: Boolean = false,
+    afterRestart: Boolean = false,
+): RejoinPlan {
+    if (afterRestart) {
+        return RejoinPlan(seekToMs = null, playWhenReady = if (isHost) localPlaying else !roomPosition.paused)
+    }
+    return RejoinPlan(
         seekToMs = roomPosition.timeMs.takeIf { abs(it - localPositionMs) > READY_RESYNC_THRESHOLD_MS },
         playWhenReady = !roomPosition.paused,
     )
+}
 
 // --- Barra de progreso de solo lectura (invitados) ---------------------------------------------
 

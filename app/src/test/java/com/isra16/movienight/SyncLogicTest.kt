@@ -433,4 +433,57 @@ class SyncLogicTest {
         // Si la sala retrocedió (otro host saltó atrás), la app no la empuja hacia adelante.
         assertEquals(1_000L, planRejoin(RoomPosition(1_000, paused = false), localPositionMs = 90_000).seekToMs)
     }
+
+    // --- Reconexión tras un reinicio del server (el `time` que recuperó el server puede estar atrasado ~8 s) ---
+
+    @Test
+    fun hostTrasReinicioNoRetrocedeLaPelicula() {
+        // El host iba en 100 s reproduciendo; Redis quedó con 93 s. No salta atrás y sigue reproduciendo.
+        val plan = planRejoin(
+            RoomPosition(93_000, paused = false), localPositionMs = 100_000,
+            isHost = true, localPlaying = true, afterRestart = true,
+        )
+        assertNull(plan.seekToMs)
+        assertTrue(plan.playWhenReady)
+    }
+
+    @Test
+    fun hostTrasReinicioConservaSuPausaLocal() {
+        // Aunque el server recuperó "reproduciendo", si el host estaba en pausa se queda en pausa.
+        val plan = planRejoin(
+            RoomPosition(93_000, paused = false), localPositionMs = 100_000,
+            isHost = true, localPlaying = false, afterRestart = true,
+        )
+        assertNull(plan.seekToMs)
+        assertFalse(plan.playWhenReady)
+    }
+
+    @Test
+    fun invitadoTrasReinicioNoSaltaYTomaLaPausaDeLaSala() {
+        val playing = planRejoin(RoomPosition(93_000, paused = false), localPositionMs = 100_000, afterRestart = true)
+        assertNull(playing.seekToMs)
+        assertTrue(playing.playWhenReady)
+        // `pause` se guarda al toque en el server, así que la pausa de la sala es confiable.
+        val paused = planRejoin(RoomPosition(93_000, paused = true), localPositionMs = 93_100, afterRestart = true)
+        assertNull(paused.seekToMs)
+        assertFalse(paused.playWhenReady)
+    }
+
+    @Test
+    fun trasReinicioNoSaltaAunqueLaDiferenciaSeaGrande() {
+        // Aunque el server esté muy lejos, no se salta: el heartbeat del host (cada 4 s) alinea a todos.
+        val plan = planRejoin(RoomPosition(5_000, paused = false), localPositionMs = 900_000, afterRestart = true)
+        assertNull(plan.seekToMs)
+    }
+
+    @Test
+    fun sinReinicioElHostSigueAlineandoseComoAntes() {
+        // Pasar isHost/localPlaying sin afterRestart no cambia nada (el caso del host que vuelve de un corte de red).
+        val plan = planRejoin(
+            RoomPosition(3_347_948, paused = false), localPositionMs = 192_175,
+            isHost = true, localPlaying = false, afterRestart = false,
+        )
+        assertEquals(3_347_948L, plan.seekToMs)
+        assertTrue(plan.playWhenReady)
+    }
 }
