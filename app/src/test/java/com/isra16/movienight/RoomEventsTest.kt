@@ -87,6 +87,19 @@ class RoomEventsTest {
     }
 
     @Test
+    fun hostStatusTraeElHostTokenSoloSiSosHost() {
+        assertEquals(
+            RoomEvent.HostStatus(true, "tok-123"),
+            parse("host-status", JSONObject("""{"isHost":true,"hostToken":"tok-123"}""")),
+        )
+        // Un invitado nunca debería recibirlo, pero si llegara, no se guarda.
+        assertEquals(
+            RoomEvent.HostStatus(false, null),
+            parse("host-status", JSONObject("""{"isHost":false,"hostToken":"tok-123"}""")),
+        )
+    }
+
+    @Test
     fun datosDeLaSala() {
         val data = JSONObject("""{"videoFile":"/uploads/1__x.mp4","subtitleFile":null,"position":{"time":0,"paused":true}}""")
         assertEquals(

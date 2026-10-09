@@ -226,6 +226,18 @@ private fun failureFromBucket(code: Int, body: String): UploadFailure {
 
 // --- Estado de la subida, para la pantalla -----------------------------------------------------------
 
+/** Para qué se sube el video (Fase 4B): decide qué pasa apenas termina el PUT. */
+enum class UploadGoal {
+    /** Solo a la biblioteca (Fase 4A). */
+    LIBRARY,
+
+    /** "Subir y crear sala": después del PUT se crea una sala con el video. */
+    CREATE_ROOM,
+
+    /** Desde dentro de una sala, como host: después del PUT se cambia el video de la sala. */
+    CHANGE_ROOM_VIDEO,
+}
+
 sealed interface UploadState {
     data object Idle : UploadState
 
@@ -236,10 +248,67 @@ sealed interface UploadState {
         val fraction: Float get() = uploadProgressFraction(sentBytes, totalBytes)
     }
 
-    /** El PUT terminó bien: el video ya está en la biblioteca. */
-    data class Done(val fileName: String) : UploadState
+    /** El PUT terminó bien (el video ya está en la biblioteca) y se está haciendo lo que venía después. */
+    data class Finishing(val fileName: String, val goal: UploadGoal) : UploadState
 
-    data class Failed(val fileName: String, val message: String, val canRetry: Boolean) : UploadState
+    /** Terminó todo. [roomId] solo si [goal] es [UploadGoal.CREATE_ROOM]. */
+    data class Done(
+        val fileName: String,
+        val goal: UploadGoal = UploadGoal.LIBRARY,
+        val roomId: String? = null,
+    ) : UploadState
+
+    /**
+     * Falló. [alreadyUploaded] = el video YA quedó en la biblioteca y lo que falló fue el paso siguiente
+     * (crear la sala o cambiar el video): reintentar repite solo ese paso, no la subida.
+     */
+    data class Failed(
+        val fileName: String,
+        val message: String,
+        val canRetry: Boolean,
+        val alreadyUploaded: Boolean = false,
+        /** Para qué era la subida: la pantalla solo ofrece "elegir otro video" si era a la biblioteca (ver [UploadGoal]). */
+        val goal: UploadGoal = UploadGoal.LIBRARY,
+    ) : UploadState
+}
+
+/** Hay algo en marcha (no se puede empezar otra subida). */
+fun UploadState.isBusy(): Boolean =
+    this is UploadState.Preparing || this is UploadState.Uploading || this is UploadState.Finishing
+
+/**
+ * Se puede cortar solo mientras se pide la URL o se sube. Con [UploadState.Finishing] ya no: el POST que
+ * crea la sala o cambia el video dura un instante y cortarlo dejaría en duda si la sala se creó.
+ */
+fun UploadState.canCancel(): Boolean = this is UploadState.Preparing || this is UploadState.Uploading
+
+/** Texto de "estoy terminando" para [UploadState.Finishing]. */
+fun finishingLabel(goal: UploadGoal): String = when (goal) {
+    UploadGoal.LIBRARY -> "Terminando…"
+    UploadGoal.CREATE_ROOM -> "Creando la sala…"
+    UploadGoal.CHANGE_ROOM_VIDEO -> "Cambiando el video de la sala…"
+}
+
+/** Mensaje de [UploadState.Done]. */
+fun doneMessage(done: UploadState.Done): String = when (done.goal) {
+    UploadGoal.LIBRARY -> "Listo: ${done.fileName} ya está en la biblioteca."
+    UploadGoal.CREATE_ROOM -> "Sala creada con ${done.fileName}."
+    UploadGoal.CHANGE_ROOM_VIDEO -> "Listo: la sala ahora tiene ${done.fileName}."
+}
+
+/** Aclaración que acompaña a un [UploadState.Failed] con `alreadyUploaded`: la subida en sí salió bien. */
+const val ALREADY_UPLOADED_NOTE: String = "El video sí se subió y está en la biblioteca."
+
+/** Estado final tras el paso que sigue a la subida. */
+fun stateAfterFollowUp(fileName: String, goal: UploadGoal, outcome: FollowUpOutcome): UploadState = when (outcome) {
+    is FollowUpOutcome.Done -> UploadState.Done(fileName, goal, outcome.roomId)
+    is FollowUpOutcome.Failed -> UploadState.Failed(
+        fileName,
+        outcome.failure.message,
+        outcome.failure.canRetry,
+        alreadyUploaded = true,
+        goal = goal,
+    )
 }
 
 fun uploadProgressFraction(sent: Long, total: Long): Float =

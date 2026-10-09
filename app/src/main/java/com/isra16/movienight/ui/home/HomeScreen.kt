@@ -22,14 +22,13 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -37,7 +36,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -49,9 +47,11 @@ import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
 import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
-import com.isra16.movienight.net.progressLabel
+import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
+import com.isra16.movienight.ui.upload.KeepScreenOn
+import com.isra16.movienight.ui.upload.UploadStatusBody
 import java.text.DateFormat
 import java.util.Date
 
@@ -68,6 +68,7 @@ fun HomeScreen(
     vm: HomeViewModel = viewModel(),
 ) {
     var selected by remember { mutableStateOf<LibraryItem?>(null) }
+    var showUploadAndCreate by rememberSaveable { mutableStateOf(false) }
 
     // Selector de documentos del sistema (SAF): no pide permisos de almacenamiento, la persona le da
     // acceso a ESE archivo al elegirlo. "video/*" muestra solo videos; el tipo exacto se valida después.
@@ -77,11 +78,20 @@ fun HomeScreen(
 
     // Mientras sube, la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
     val uploadState = vm.upload
-    val uploadRunning = uploadState is UploadState.Preparing || uploadState is UploadState.Uploading
-    val view = LocalView.current
-    DisposableEffect(uploadRunning) {
-        view.keepScreenOn = uploadRunning
-        onDispose { view.keepScreenOn = false }
+    KeepScreenOn(uploadState.isBusy())
+
+    // "Subir y crear sala": al terminar entra solo a la sala, pero únicamente si esta pantalla estaba a la
+    // vista mientras se creaba. Si la persona se había ido a otra sala, no se la arrastra a esta: queda el
+    // botón "Entrar a la sala" en la tarjeta.
+    var previousUpload by remember { mutableStateOf(uploadState) }
+    LaunchedEffect(uploadState) {
+        val before = previousUpload
+        previousUpload = uploadState
+        val roomId = (uploadState as? UploadState.Done)?.roomId
+        if (roomId != null && before is UploadState.Finishing) {
+            vm.dismissUpload()
+            onOpenRoom(roomId)
+        }
     }
 
     Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
@@ -96,9 +106,11 @@ fun HomeScreen(
                 UploadCard(
                     state = uploadState,
                     onPick = { pickVideo.launch(arrayOf("video/*")) },
+                    onPickAndCreateRoom = { showUploadAndCreate = true },
                     onCancel = vm::cancelUpload,
                     onRetry = vm::retryUpload,
                     onDismiss = vm::dismissUpload,
+                    onOpenRoom = onOpenRoom,
                 )
             }
             item {
@@ -145,9 +157,28 @@ fun HomeScreen(
         }
     }
 
+    // "Subir y crear sala": pide la contraseña (opcional) y recién después abre el selector de videos.
+    if (showUploadAndCreate) {
+        CreateRoomDialog(
+            title = "Subir y crear sala",
+            subtitle = "Elegí un video del teléfono: se sube a la biblioteca y, al terminar, se crea la sala con él.",
+            confirmLabel = "Elegir video",
+            busy = false,
+            error = null,
+            onDismiss = { showUploadAndCreate = false },
+            onCreate = { password ->
+                showUploadAndCreate = false
+                vm.prepareUploadAndCreateRoom(password)
+                pickVideo.launch(arrayOf("video/*"))
+            },
+        )
+    }
+
     selected?.let { item ->
         CreateRoomDialog(
-            item = item,
+            title = "Crear sala",
+            subtitle = item.displayName,
+            confirmLabel = "Crear sala",
             busy = vm.isCreatingRoom,
             error = vm.createRoomError,
             onDismiss = {
@@ -229,74 +260,36 @@ private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
 private fun UploadCard(
     state: UploadState,
     onPick: () -> Unit,
+    onPickAndCreateRoom: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
+    onOpenRoom: (roomId: String) -> Unit,
 ) {
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("Subir un video", style = MaterialTheme.typography.titleMedium)
-            when (state) {
-                UploadState.Idle -> {
+            UploadStatusBody(
+                state = state,
+                idle = {
                     val formats = UPLOAD_VIDEO_EXTENSIONS.joinToString(", ") { it.removePrefix(".").uppercase() }
                     Text(
                         "Elegí un video del teléfono ($formats; hasta $MAX_SIMPLE_PUT_LABEL). " +
-                            "Se sube directo a la nube y queda en la biblioteca.",
+                            "Se sube directo a la nube y queda en la biblioteca; si querés, se crea la sala con él al terminar.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    Button(onClick = onPick) { Text("Elegir video") }
-                }
-                is UploadState.Preparing -> {
-                    if (state.fileName.isNotBlank()) Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                        Text("Preparando la subida…", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    OutlinedButton(onClick = onCancel) { Text("Cancelar") }
-                }
-                is UploadState.Uploading -> {
-                    Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                    LinearProgressIndicator(progress = { state.fraction }, modifier = Modifier.fillMaxWidth())
-                    Text(
-                        if (state.sentBytes >= state.totalBytes) {
-                            "Terminando… esperando que la nube confirme."
-                        } else {
-                            progressLabel(state.sentBytes, state.totalBytes)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(
-                        "Dejá la app abierta mientras sube.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    OutlinedButton(onClick = onCancel) { Text("Cancelar") }
-                }
-                is UploadState.Done -> {
-                    Text(
-                        "Listo: ${state.fileName} ya está en la biblioteca.",
-                        style = MaterialTheme.typography.bodyMedium,
-                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = onPick) { Text("Subir otro") }
-                        TextButton(onClick = onDismiss) { Text("Cerrar") }
+                        Button(onClick = onPickAndCreateRoom) { Text("Subir y crear sala") }
+                        OutlinedButton(onClick = onPick) { Text("Solo subir") }
                     }
-                }
-                is UploadState.Failed -> {
-                    if (state.fileName.isNotBlank()) Text(state.fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
-                    ErrorText(state.message)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        if (state.canRetry) {
-                            Button(onClick = onRetry) { Text("Reintentar") }
-                            OutlinedButton(onClick = onDismiss) { Text("Descartar") }
-                        } else {
-                            Button(onClick = onPick) { Text("Elegir otro video") }
-                            TextButton(onClick = onDismiss) { Text("Cerrar") }
-                        }
-                    }
-                }
-            }
+                },
+                onPick = onPick,
+                onCancel = onCancel,
+                onRetry = onRetry,
+                onDismiss = onDismiss,
+                onOpenRoom = onOpenRoom,
+            )
         }
     }
 }
@@ -320,9 +313,15 @@ private fun VideoCard(item: LibraryItem, onClick: () -> Unit) {
     }
 }
 
+/**
+ * Diálogo de la contraseña (opcional) de una sala nueva. Sirve para "Crear sala" con un video de la biblioteca
+ * y para "Subir y crear sala" (donde el botón de confirmar abre el selector de videos).
+ */
 @Composable
 private fun CreateRoomDialog(
-    item: LibraryItem,
+    title: String,
+    subtitle: String,
+    confirmLabel: String,
     busy: Boolean,
     error: String?,
     onDismiss: () -> Unit,
@@ -333,10 +332,10 @@ private fun CreateRoomDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Crear sala") },
+        title = { Text(title) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(item.displayName, style = MaterialTheme.typography.bodyLarge, maxLines = 3)
+                Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4)
                 PasswordField(
                     label = "Contraseña de la sala (opcional)",
                     value = password,
@@ -357,7 +356,7 @@ private fun CreateRoomDialog(
                 if (busy) {
                     CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
                 } else {
-                    Text("Crear sala")
+                    Text(confirmLabel)
                 }
             }
         },

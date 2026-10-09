@@ -13,8 +13,23 @@ import androidx.lifecycle.viewModelScope
 import com.isra16.movienight.MovieNightApp
 import com.isra16.movienight.auth.SessionState
 import com.isra16.movienight.auth.defaultUsername
+import android.net.Uri
+import com.isra16.movienight.home.LibraryState
+import com.isra16.movienight.home.fetchLibrary
 import com.isra16.movienight.net.ChatMessage
+import com.isra16.movienight.net.FollowUpOutcome
 import com.isra16.movienight.net.JoinParams
+import com.isra16.movienight.net.LibraryItem
+import com.isra16.movienight.net.RoomVideoFailure
+import com.isra16.movienight.net.UploadFlow
+import com.isra16.movienight.net.UploadGoal
+import com.isra16.movienight.net.UploadState
+import com.isra16.movienight.net.changeVideoBody
+import com.isra16.movienight.net.changeVideoPath
+import com.isra16.movienight.net.interpretChangeVideo
+import com.isra16.movienight.net.isBusy
+import com.isra16.movienight.net.isSessionExpired
+import com.isra16.movienight.net.toFollowUp
 import com.isra16.movienight.net.RoomEvent
 import com.isra16.movienight.net.HEARTBEAT_INTERVAL_MS
 import com.isra16.movienight.net.RoomSocket
@@ -106,6 +121,45 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     var notice by mutableStateOf<String?>(null)
         private set
 
+    // --- Cambiar el video de la sala (Fase 4B) ---------------------------------------------------
+
+    /**
+     * Secreto del host que manda `host-status` (solo importa en salas sin dueño; ver [RoomEvent.HostStatus]).
+     * Solo en memoria. Se borra apenas se deja de ser host o se pierde la conexión.
+     */
+    private var hostToken: String? = null
+
+    /** `true` mientras está abierto el cuadro "Cambiar video" (solo el host lo puede abrir). */
+    var showChangeVideo by mutableStateOf(false)
+        private set
+
+    /** Biblioteca que muestra ese cuadro. */
+    var changeLibrary by mutableStateOf<LibraryState>(LibraryState.Loading)
+        private set
+
+    /** `true` mientras se pide el cambio de un video de la biblioteca. */
+    var isChangingVideo by mutableStateOf(false)
+        private set
+    var changeVideoError by mutableStateOf<String?>(null)
+        private set
+
+    /**
+     * Subir un video nuevo desde el teléfono y, al terminar, ponerlo en la sala. Es una corrutina de este
+     * ViewModel: si se sale de la sala mientras sube, se corta (igual que si se cierra la sesión en la pantalla
+     * principal). Con la app en segundo plano sigue, con los mismos límites que la subida de la 4A.
+     */
+    private val flow = UploadFlow(
+        scope = viewModelScope,
+        uploader = container.uploader,
+        api = container.api,
+        baseUrl = baseUrl,
+        onSessionExpired = { container.session.refresh() },
+        onLibraryChanged = { loadChangeLibrary() },
+    )
+
+    val upload: UploadState
+        get() = flow.state
+
     init {
         viewModelScope.launch { for (event in events) handle(event) }
         viewModelScope.launch { checkRoom() }
@@ -146,6 +200,84 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     fun retry() {
         phase = RoomPhase.Checking
         viewModelScope.launch { checkRoom() }
+    }
+
+    // --- Cambiar el video de la sala (solo host, Fase 4B) -----------------------------------------
+
+    /** Abre el cuadro "Cambiar video" y carga la biblioteca. */
+    fun openChangeVideo() {
+        if (!isHost) return
+        changeVideoError = null
+        // Un "listo" de una subida anterior ya no dice nada; un fallo sí se deja a la vista, para reintentar.
+        if (flow.state is UploadState.Done) flow.dismiss()
+        showChangeVideo = true
+        loadChangeLibrary()
+    }
+
+    /** Cierra el cuadro. Una subida en curso sigue (se ve en el aviso de arriba de la sala). */
+    fun hideChangeVideo() {
+        showChangeVideo = false
+        changeVideoError = null
+    }
+
+    fun loadChangeLibrary() {
+        changeLibrary = LibraryState.Loading
+        viewModelScope.launch {
+            changeLibrary = fetchLibrary(container.api, baseUrl) { container.session.refresh() }
+        }
+    }
+
+    /** Pone [item], un video que ya está en la biblioteca, como video de la sala. */
+    fun changeVideoTo(item: LibraryItem) {
+        if (!isHost || isChangingVideo || flow.state.isBusy()) return
+        isChangingVideo = true
+        changeVideoError = null
+        viewModelScope.launch {
+            try {
+                when (val outcome = postChangeVideo(item.filename)) {
+                    is FollowUpOutcome.Done -> showChangeVideo = false
+                    is FollowUpOutcome.Failed -> {
+                        changeVideoError = outcome.failure.message
+                        // El server borra de la biblioteca un video que no pasó la validación de contenido.
+                        if (outcome.failure.libraryChanged) loadChangeLibrary()
+                    }
+                }
+            } finally {
+                isChangingVideo = false
+            }
+        }
+    }
+
+    /** Resultado del selector del sistema para "Subir uno nuevo"; [uri] es `null` si la persona lo cerró sin elegir. */
+    fun onVideoPicked(uri: Uri?) {
+        if (uri == null || !isHost || isChangingVideo || flow.state.isBusy()) return
+        changeVideoError = null
+        flow.start(uri, UploadGoal.CHANGE_ROOM_VIDEO) { key ->
+            postChangeVideo(key).also { if (it is FollowUpOutcome.Done) showChangeVideo = false }
+        }
+    }
+
+    fun retryUpload() = flow.retry()
+
+    fun cancelUpload() = flow.cancel()
+
+    fun dismissUpload() = flow.dismiss()
+
+    /**
+     * `POST /room/:id/change-video-from-upload`. El server autoriza por el DUEÑO de la sala, no por quién es
+     * host (ver `net/RoomVideoLogic.kt`): con una sala con dueño que no somos nosotros contesta 403 aunque
+     * ahora seamos host. Los demás se enteran por `video-changed`, que llega a toda la sala, a nosotros también.
+     */
+    private suspend fun postChangeVideo(key: String): FollowUpOutcome {
+        // La subida pudo tardar: si mientras tanto el host pasó a ser otro, no se le pisa el video.
+        if (!isHost) {
+            return FollowUpOutcome.Failed(
+                RoomVideoFailure("Ya no sos el host de la sala, así que el video no se cambió.", canRetry = false),
+            )
+        }
+        val result = container.api.postJson(baseUrl, changeVideoPath(roomId), changeVideoBody(key, hostToken))
+        if (isSessionExpired(result.code)) container.session.refresh()
+        return interpretChangeVideo(result.code, result.body).toFollowUp()
     }
 
     fun submitPassword(password: String) {
@@ -204,6 +336,8 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 isConnected = false
                 // El rol vale por socket: al reconectar el server vuelve a mandar `host-status`. Hasta entonces no hay rol confirmado.
                 isHost = false
+                hostToken = null
+                showChangeVideo = false
                 player.setHostRole(false)
             }
             is RoomEvent.ConnectError -> {
@@ -233,6 +367,9 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.HostStatus -> {
                 isHost = event.isHost
+                hostToken = if (event.isHost) event.hostToken else null
+                // Si se perdió el rol, no se queda abierto un cuadro que solo el host puede usar.
+                if (!event.isHost) showChangeVideo = false
                 // Quien es host ya no sigue a nadie (se le quita la velocidad y cualquier corrección pendiente).
                 player.setHostRole(event.isHost)
                 // `host-status` llega en cada join: el server empezó de cero con este socket, así que si ya estábamos en buffering se vuelve a avisar.
@@ -302,6 +439,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     override fun onCleared() {
+        flow.release()
         player.release()
         roomSocket.disconnect()
         events.close()

@@ -40,7 +40,12 @@ sealed interface RoomEvent {
     data class ChatHistory(val messages: List<ChatMessage>) : RoomEvent
     data class Chat(val message: ChatMessage) : RoomEvent
     data class ChatRateLimited(val message: String) : RoomEvent
-    data class HostStatus(val isHost: Boolean) : RoomEvent
+    /**
+     * `host-status`. [hostToken] solo viene cuando [isHost] es `true`. Hace falta para cambiar el video en
+     * una sala SIN dueño (anónima, creada en la web sin cuenta); en una sala con dueño el server lo ignora.
+     * Es un secreto de la sala: se guarda solo en memoria y nunca se escribe en el log.
+     */
+    data class HostStatus(val isHost: Boolean, val hostToken: String? = null) : RoomEvent
     /** `room-data`: la cinta y, si el server la mandó, dónde va el video ([position], en el momento del join). */
     data class RoomData(
         val videoFile: String?,
@@ -82,7 +87,10 @@ fun parseServerEvent(name: String, args: Array<out Any?>): RoomEvent? {
             (first as? JSONObject)?.optString("message", "")?.takeIf { it.isNotBlank() }
                 ?: "Estás mandando mensajes muy rápido, esperá un toque.",
         )
-        "host-status" -> (first as? JSONObject)?.let { RoomEvent.HostStatus(it.optBoolean("isHost", false)) }
+        "host-status" -> (first as? JSONObject)?.let {
+            val isHost = it.optBoolean("isHost", false)
+            RoomEvent.HostStatus(isHost, if (isHost) it.optStringOrNull("hostToken") else null)
+        }
         "room-data" -> (first as? JSONObject)?.let {
             RoomEvent.RoomData(
                 it.optStringOrNull("videoFile"),

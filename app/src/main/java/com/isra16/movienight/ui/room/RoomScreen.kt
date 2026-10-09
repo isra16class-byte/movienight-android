@@ -60,6 +60,7 @@ import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.formatPlaybackTime
+import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
@@ -68,12 +69,17 @@ import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.auth.PrimaryButton
+import com.isra16.movienight.ui.upload.KeepScreenOn
 
 /** Una sala: según la fase muestra la comprobación, el pedido de contraseña, un error o el chat. */
 @Composable
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada).
     PauseWhenAppStops(onStop = vm::onAppStopped)
+    // Mientras el host sube un video la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
+    KeepScreenOn(vm.upload.isBusy())
+    // El cuadro "Cambiar video" es solo del host: si pierde el rol, el ViewModel lo cierra.
+    if (vm.showChangeVideo && vm.isHost) ChangeVideoDialog(vm)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         RoomHeader(vm = vm, onLeave = onLeave)
         HorizontalDivider()
@@ -208,7 +214,11 @@ private fun RoomContent(vm: RoomViewModel) {
                 isHost = vm.isHost,
                 onTogglePlay = vm::hostTogglePlay,
                 onSeek = vm::hostSeekTo,
+                onChangeVideo = vm::openChangeVideo,
             )
+
+        // Avance de una subida cuando el cuadro "Cambiar video" está oculto.
+        RoomUploadBanner(vm)
 
         val banner = when {
             !vm.isConnected -> vm.notice ?: "Reconectando…"
@@ -334,6 +344,7 @@ private fun RoomVideo(
     isHost: Boolean,
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
+    onChangeVideo: () -> Unit,
 ) {
     // La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe.
     LaunchedEffect(rp, rp.hasVideo) {
@@ -397,6 +408,7 @@ private fun RoomVideo(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
+            if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
         }
         if (rp.hasVideo && rp.error == null) {
             if (isHost) {
