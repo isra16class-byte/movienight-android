@@ -193,6 +193,43 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 6A hecha y probada en el emulador (2026-10-09): aviso de `server-restarting` y reconexión coherente.** Quedan
+pendientes la 6B y la 6C del resto de la Fase 6 (ver el plan). Qué hace la app cuando el server se reinicia:
+- **Aviso** (franja sobre el chat, `connectionBanner` en `net/ServerRestartLogic.kt`): "El servidor se va a reiniciar en
+  unos segundos…" mientras sigue la conexión y "El servidor se está reiniciando. Reconectando en cuanto vuelva…" cuando
+  se corta. Manda sobre los demás avisos (los `connect_error` de la caída no lo pisan) y desaparece solo cuando
+  `room-data` confirma que volvimos a la sala. Si el server no vuelve, a los 90 s (`RESTART_GIVE_UP_MS`) cae al genérico.
+- **Posición:** `RestartState` (inmutable) sabe si el reinicio fue anunciado y si el socket llegó a cortarse; solo
+  entonces `room-data` cuenta como "vuelta de un reinicio" y `planRejoin(afterRestart = true)` **no salta**. El host
+  conserva su posición y su pausa y su heartbeat alinea al resto en unos 4 s; el invitado toma solo la pausa de la sala.
+  Motivo: Redis guarda la posición con hasta ~8 s de atraso. Sin reinicio, `planRejoin` sigue igual que en la 5.
+- **Video en error:** si el mismo video había quedado en error durante la caída (típico con videos en disco, los sirve el
+  mismo Node), `RoomPlayer.load` lo vuelve a preparar. **Sin probar.**
+- **`room-error` al volver:** se le agrega contexto (`roomErrorAfterRestart`); típico: la sala no se recuperó.
+- **Subidas:** sin cambios. El PUT va directo a R2; solo `presign` y el paso final pasan por el server y son reintentables.
+**Lo que hace el server** (verificado en `server.js`, rama `plan-produccion`, y con un server real): SIGTERM / SIGINT / IPC
+de PM2 → `gracefulShutdown` → `io.emit('server-restarting')` a todos, **sin payload** → corte `SHUTDOWN_GRACE_MS` después
+(5 s; PM2 `kill_timeout: 8000`), razón `transport close`, el cliente reconecta solo. Al volver, `join-room` devuelve
+chat-history, host-status y room-data; las salas salen de Redis.
+**Cómo se probó** (Docker Desktop, proyecto `movienight`): reiniciar con ⋮ → Restart sobre **`app-1`** (no sobre
+`redis-1` ni el grupo). `app-1` no termina de arrancar sin Redis. Las salas están en Redis como `movienight:room:<id>`
+(`docker exec movienight-redis-1 redis-cli --scan --pattern "movienight:room:*"`). Para probar la sala perdida hay que
+**detener `app-1`** antes de borrar la clave: mientras corre, el server la vuelve a escribir (el heartbeat del host la guarda).
+**Qué se probó** (la persona lo confirmó, con la web como la otra punta): aviso y reconexión; el video del host no
+retrocede ni se adelanta; el invitado se realinea; host y silencio; sala perdida; server caído más de 90 s; subida en
+curso (las dos últimas, "pasaron", sin más detalle). **No se probó:** la recarga del video en error (prueba 4,
+descartada).
+**Pendientes fuera de la app** (no se tocó el server ni la web):
+- **El navegador (no host) retrocede 5-6 s** al terminar el reinicio y luego se corrige con el heartbeat del host.
+  Hipótesis sin confirmar: `room.html` compara `player.src.indexOf(videoFile)`; con nombres con espacios, tildes o
+  símbolos `player.src` queda codificado, no coincide, y se reaplica la posición vieja de `room-data`.
+- **El dueño recupera el host tras un reinicio** aunque se lo hubiera pasado a otro (probado): `join-room` concede el host
+  a cualquier socket que pruebe ser el dueño y el host vive solo en memoria. Del código se deduce que también pasa con
+  una reconexión normal del dueño (no se probó). Si el host era alguien que NO es el dueño y el dueño no está, tras el
+  reinicio la sala queda sin host hasta que entre el dueño: la app no manda `hostToken` en `join-room` (no se cambió para
+  no alterar las reconexiones normales).
+Siguiente: **6B y 6C** del resto de la Fase 6 (releer el plan antes de elegir).
+
 **Fase 5 hecha y probada en el emulador (2026-10-09).** Queda hecho todo lo que el plan pedía hasta la Fase 5 (el
 fallback sin R2 de la Fase 4 sigue fuera de alcance).
 La app como host modera la sala, y como invitada reacciona bien cuando la moderan:
@@ -367,13 +404,16 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Moderación (Fase 5):** `make-host`, `kick-user` y `toggle-mute` los autoriza solo `socket.isHost` (no el dueño), el
   payload es el `id` de socket en texto plano y el server no contesta: el resultado se ve en `viewer-list` / `host-status`.
   El silencio vale por `userId` y el server lo borra a los 15 s de desconectarse; al volver nunca manda `muted:false`.
+- **Reinicio del server (6A):** `server-restarting` llega sin payload y el corte 5 s después (`transport close`). Redis guarda
+  la posición con hasta ~8 s de atraso, y el host solo vive en memoria: tras un reinicio el dueño (cookie de sesión) recupera
+  el host sin importar quién lo tuviera. `app-1` no arranca sin Redis.
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
-- **Sin prueba explícita:** el aviso `server-restarting` (hay que reiniciar el server), la reacción (`reaction`) y la
-  red lenta con muchos saltos de sincronización. ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
+- **Sin prueba explícita:** la reacción (`reaction`) y la
+  red lenta con muchos saltos de sincronización. (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
 - **Subida de video (4A):** no probada con un archivo grande real (cientos de MB o GB) ni cerca del límite de
   5 GiB; si Android mata la app durante una subida, se pierde (límite aceptado, ver la entrada de la 4A).
@@ -385,3 +425,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   como ex-host; ni una sala sin dueño con la app como host. **Límites que vienen del server (por diseño del server):** no
   protege al dueño (el host de la web puede expulsarlo o silenciarlo; la app no sabe quién es el dueño y tampoco lo
   impide), expulsar no impide volver a entrar, y expulsar / silenciar no dejan mensaje en el chat.
+- **Reinicio del server (6A):** sin probar la recarga automática del video si queda en error durante la caída (videos
+  servidos desde disco). **Fuera de la app:** el navegador no host retrocede 5-6 s al terminar el reinicio (hipótesis
+  del nombre del archivo codificado en `room.html`, sin confirmar) y el dueño recupera el host tras un reinicio aunque se
+  lo hubiera pasado a otro. Ver la primera entrada de "Por dónde seguir".

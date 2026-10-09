@@ -245,10 +245,11 @@ del servidor.
 
 ## Fase 6 — Extras (no bloqueante, evaluar más adelante)
 
-- [ ] Manejar `server-restarting` (graceful shutdown del backend) con un
-      aviso en pantalla, igual que hace `room.html`. *(Adelantado en la Sesión B. La reconexión
-      automática tras cortar y devolver la red se probó en el emulador el 2026-10-02; el aviso de
-      `server-restarting` en sí no se provocó.)*
+- [x] Manejar `server-restarting` (graceful shutdown del backend) con un
+      aviso en pantalla, igual que hace `room.html`. *(6A, probada en el emulador el 2026-10-09 contra el server real en
+      Docker: aviso, reconexión sola, host sin retroceder, invitado alineado, host y silencio, sala perdida, server caído
+      más de 90 s y subida en curso. **Sin probar:** la recarga automática del video si queda en error (video servido
+      desde disco). Detalle y pendientes del server y la web en `MEMORIA.md` y `CHANGELOG.md`.)*
 - [ ] Evaluar si tiene sentido un acceso al panel de administración
       (`/admin/*`) desde la app — no es prioritario, el panel web ya cubre
       ese caso de uso.

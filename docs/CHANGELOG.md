@@ -5,6 +5,51 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-09 — Fase 6A probada en emulador (aviso de server-restarting y reconexión coherente)
+
+- **Funciona** (según la persona, en el emulador contra el server real en Docker, con la web como la otra punta;
+  reinicio con ⋮ → Restart sobre `app-1` en Docker Desktop): el aviso aparece como debe y la app reconecta sola; con la
+  app como host el video **no retrocede ni se adelanta**; el invitado (la web) se vuelve a alinear con el host; **host y
+  silencio** (ver abajo); **sala perdida**; **server caído más de 90 s** y **subida en curso**. En las pruebas 6 y 7 la
+  persona confirmó "pasaron" sin más detalle.
+- **Sin probar:** la recarga automática del video si había quedado en error durante la caída (pasa con videos servidos
+  desde disco). Está escrita y compila, pero nunca se vio funcionar. No se tilda como probada.
+- **Código** (patch `fase-6A`): `net/ServerRestartLogic.kt` (lógica pura: `RestartState`, `connectionBanner`,
+  `roomErrorAfterRestart`), `planRejoin` con `afterRestart`, y cambios en `RoomPlayer`, `RoomViewModel` y `RoomScreen`.
+  Lo que cambió respecto de lo que había desde la Sesión B:
+  - El aviso ya no lo pisan los `connect_error` que salen mientras el server está caído ni un aviso de límite de mensajes.
+    Dice "se va a reiniciar" mientras sigue la conexión y "reconectando en cuanto vuelva" cuando se corta. A los 90 s sin
+    volver se deja de mostrar y queda el genérico "Reconectando…".
+  - **Tras un reinicio nadie salta de posición al volver.** Redis guarda la posición con hasta ~8 s de atraso (el server
+    solo persiste el heartbeat cada >5 s), y antes `planRejoin` hacía retroceder al host a esa posición vieja y arrastraba
+    a todos. Ahora el host conserva la suya y el heartbeat alinea al resto en unos 4 s; el invitado toma solo la pausa de
+    la sala.
+  - Si el video ya cargado había quedado en error durante la caída, se vuelve a preparar al reconectar (ExoPlayer no
+    reintenta solo). **Sin probar.**
+  - Un `room-error` al volver de un reinicio agrega el contexto ("La sala no existe. El servidor se estaba reiniciando y
+    puede que la sala no se haya recuperado.").
+- **Verificado contra el server** (`server.js`, rama `plan-produccion`, y con un server real levantado con SIGTERM):
+  `server-restarting` se emite con `io.emit` a todos los sockets **sin payload**; el corte llega `SHUTDOWN_GRACE_MS`
+  después (5 s por defecto; PM2 tiene `kill_timeout: 8000`) con razón `transport close`, o sea que el cliente reconecta
+  solo; mientras el server está caído salen `connect_error` seguidos. Con el Dockerfile (`CMD ["node", "server.js"]`)
+  Node recibe el SIGTERM de Docker directamente, y Stop y Restart emiten el aviso por igual.
+- **Subidas:** no cambió nada. El PUT va directo a R2; solo `presign` y el paso final contra el server pasan por el
+  server caído, y ambos ya eran reintentables.
+- **Pendientes que salieron de las pruebas, fuera de la app** (no se tocó el server ni la web):
+  - **El navegador (no host) retrocede 5-6 s** justo cuando termina el reinicio y después el heartbeat del host lo corrige
+    solo. La app no lo causa. Hipótesis **sin confirmar**: `room.html` solo aplica la posición de `room-data` si
+    `player.src.indexOf(videoFile) === -1`; si el nombre del archivo tiene espacios, tildes o símbolos, `player.src`
+    queda codificado, no coincide, y la web reasigna el video y aplica la posición vieja.
+  - **Tras un reinicio el dueño recupera el host aunque se lo hubiera pasado a otro.** Probado: se le pasó el host a la web,
+    se reinició el server y volvió el host a la app (la dueña). `join-room` concede el host a cualquier socket que pruebe
+    ser el dueño (`isRoomOwner` → `setHost`) sin mirar quién lo tenía, y el host solo vive en memoria. Del código se
+    deduce que pasa también con una reconexión normal del dueño; eso no se probó. La sala queda coherente (un solo host).
+- **Verificado antes de probar:** 240 tests de lógica pura pasan con el arnés del asistente (21 nuevos: 16 en
+  `ServerRestartLogicTest` y 5 en `SyncLogicTest`; sin `UploadFollowUpTest`, que depende de Android) y `gradlew
+  testDebugUnitTest` terminó en BUILD SUCCESSFUL en la máquina de la persona (compila también la UI).
+
+---
+
 ## 2026-10-09 — Fase 5 probada en emulador (moderación del host: hacer host, silenciar y expulsar)
 
 - **Funciona** (según la persona, "todo funcionó", y detalló cuatro puntos, en el emulador contra el servidor real
