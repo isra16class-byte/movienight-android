@@ -8,6 +8,8 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.isra16.movienight.MovieNightApp
+import com.isra16.movienight.net.ADMIN_PROBE_PATH
+import com.isra16.movienight.net.AdminAccess
 import com.isra16.movienight.net.CREATE_ROOM_FROM_UPLOAD_PATH
 import com.isra16.movienight.net.CreateRoomResult
 import com.isra16.movienight.net.LibraryItem
@@ -15,12 +17,15 @@ import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.UploadFlow
 import com.isra16.movienight.net.UploadGoal
 import com.isra16.movienight.net.UploadState
+import com.isra16.movienight.net.adminAccessFrom
+import com.isra16.movienight.net.adminPanelUrl
 import com.isra16.movienight.net.apiErrorMessage
 import com.isra16.movienight.net.createRoomBody
 import com.isra16.movienight.net.extractRoomId
 import com.isra16.movienight.net.interpretCreateRoom
 import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.isSessionExpired
+import com.isra16.movienight.net.mergeAdminAccess
 import com.isra16.movienight.net.parseLibrary
 import com.isra16.movienight.net.serverErrorMessage
 import com.isra16.movienight.net.toFollowUp
@@ -82,6 +87,28 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         private set
     var joinError by mutableStateOf<String?>(null)
         private set
+
+    // --- Acceso al panel de administración (Fase 6B) ------------------------------------------------
+
+    /**
+     * Si la cuenta es admin. El server no lo dice en `/auth/me`: se averigua con un GET de solo lectura
+     * ([ADMIN_PROBE_PATH]). Empieza en [AdminAccess.UNKNOWN] (sin botón) y muere con este ViewModel al
+     * cerrar sesión, así que una cuenta nueva nunca hereda el acceso de la anterior.
+     */
+    var adminAccess by mutableStateOf(AdminAccess.UNKNOWN)
+        private set
+
+    /** Link del panel web (`/admin.html`), que se abre en el navegador del teléfono. */
+    val adminPanelLink: String
+        get() = adminPanelUrl(baseUrl)
+
+    /** Vuelve a preguntar si la cuenta es admin. Una respuesta dudosa (sin red, 5xx) no cambia lo ya sabido. */
+    fun refreshAdminAccess() {
+        viewModelScope.launch {
+            val result = api.get(baseUrl, ADMIN_PROBE_PATH)
+            adminAccess = mergeAdminAccess(adminAccess, adminAccessFrom(result.code, result.body))
+        }
+    }
 
     // --- Subir un video del teléfono (Fase 4A) y crear la sala con él (Fase 4B) --------------------
 

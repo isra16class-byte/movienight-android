@@ -36,18 +36,21 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isra16.movienight.home.HomeViewModel
 import com.isra16.movienight.home.LibraryState
+import com.isra16.movienight.net.ADMIN_NO_BROWSER_MESSAGE
 import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
 import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
 import com.isra16.movienight.net.isBusy
+import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.upload.KeepScreenOn
@@ -76,6 +79,12 @@ fun HomeScreen(
         vm.onVideoPicked(uri)
     }
 
+    // Acceso al panel de administración (Fase 6B): se pregunta al server al abrir la pantalla y cada vez
+    // que se vuelve a ella (por ejemplo al salir de una sala), así un cambio de rol se nota.
+    LaunchedEffect(Unit) { vm.refreshAdminAccess() }
+    val context = LocalContext.current
+    var adminError by remember { mutableStateOf<String?>(null) }
+
     // Mientras sube, la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
     val uploadState = vm.upload
     KeepScreenOn(uploadState.isBusy())
@@ -101,6 +110,16 @@ fun HomeScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item { Header(email, isLoggingOut, onLogout) }
+            if (shouldShowAdminAccess(vm.adminAccess)) {
+                item {
+                    AdminCard(
+                        error = adminError,
+                        onOpen = {
+                            adminError = if (openInBrowser(context, vm.adminPanelLink)) null else ADMIN_NO_BROWSER_MESSAGE
+                        },
+                    )
+                }
+            }
             item { JoinCard(vm, onOpenRoom) }
             item {
                 UploadCard(
@@ -217,6 +236,24 @@ private fun Header(email: String, isLoggingOut: Boolean, onLogout: () -> Unit) {
         }
         OutlinedButton(onClick = onLogout, enabled = !isLoggingOut) {
             Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión")
+        }
+    }
+}
+
+/** Solo se muestra a una cuenta admin confirmada por el server (ver `shouldShowAdminAccess`). */
+@Composable
+private fun AdminCard(error: String?, onOpen: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("Administración", style = MaterialTheme.typography.titleMedium)
+            Text(
+                "El panel se abre en el navegador del teléfono. Ahí te va a pedir iniciar sesión " +
+                    "con tu email y contraseña: es una sesión aparte de la de la app.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            ErrorText(error)
+            OutlinedButton(onClick = onOpen) { Text("Abrir panel de administración") }
         }
     }
 }
