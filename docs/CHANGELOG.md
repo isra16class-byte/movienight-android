@@ -5,6 +5,36 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-09 — Fase 6B probada en emulador (acceso al panel de administración desde la app)
+
+- **Funciona** (según la persona, "todos los puntos funcionaron perfectamente", en el emulador contra el server real en
+  Docker, con una cuenta promovida con `scripts/make-admin.js`): la cuenta admin ve la tarjeta "Administración" y llega al
+  panel (el navegador pide iniciar sesión aparte y después se abre `/admin.html`); una cuenta normal no ve nada; al
+  quitarle el rol y volver a la pantalla principal desde una sala, la tarjeta desaparece; cerrar sesión en el panel del
+  navegador no cierra la sesión de la app.
+- **Sin probar:** el aviso "No se encontró un navegador para abrir el panel." (teléfono sin navegador).
+- **Alcance elegido** (la persona eligió la opción a entre: a) abrir el panel web en el navegador, b) pantallas nativas,
+  c) agregar el rol a `/auth/me` en el server): solo el botón. No se tocó el server ni se agregaron dependencias.
+- **Código** (commit `feat: Fase 6B`): `net/AdminAccessLogic.kt` (lógica pura: `AdminAccess`, `adminAccessFrom`,
+  `mergeAdminAccess`, `shouldShowAdminAccess`, `adminPanelUrl`), `ui/home/AdminPanelLauncher.kt` (`openInBrowser` con
+  `ACTION_VIEW`), `HomeViewModel.refreshAdminAccess()` y la tarjeta `AdminCard` en `HomeScreen`.
+- **Verificado contra el server** (`server.js` y `lib/`, rama `plan-produccion`): `GET /auth/me` solo devuelve `loggedIn`, `id`
+  y `email`, sin rol; `requireAdmin` (`lib/adminAuth.js`) lee `users.role` en cada request; `admin.html` es estático y
+  comprueba el acceso con `/admin/settings`; el panel no tiene login propio (misma cookie `movienight.sid`) y su pantalla de
+  inicio de sesión es la de `/`, que no devuelve al panel. Ejecutando el `requireAdmin` real con una base simulada: admin pasa,
+  cuenta normal 403, sin sesión 401, sin Postgres 404, base caída 500. La app sondea `/admin/stats` (de solo lectura): 200 con
+  `activeRooms` = admin; 401, 403 y 404 = no admin; red, 429 y 5xx = no se sabe y no cambia lo ya sabido.
+- **Cookie:** la de la app vive en `PersistentCookieJar` y el `ACTION_VIEW` solo pasa la URL, así que no se filtra al navegador ni
+  al revés. El navegador abre una sesión propia; lo único compartido es el límite de intentos de login (IP + email).
+- **Verificado antes de probar:** 11 tests nuevos de `AdminAccessLogicTest` pasan con el arnés del asistente (`kotlinc` 2.0.21
+  y `org.json` real); el resto del código nuevo (UI y ViewModel) pasó el parser sin errores de sintaxis. `gradlew
+  testDebugUnitTest` no se confirmó en esta fase; la app compiló y corrió en el emulador.
+- **Pendientes de esta fase:** `/auth/me` podría devolver el rol y evitar el sondeo (requiere tocar el server; no se hizo).
+  El rol se vuelve a consultar solo al entrar a la pantalla principal, no al volver del navegador. El navegador no devuelve al
+  panel tras iniciar sesión (comportamiento de la web).
+
+---
+
 ## 2026-10-09 — Fase 6A probada en emulador (aviso de server-restarting y reconexión coherente)
 
 - **Funciona** (según la persona, en el emulador contra el server real en Docker, con la web como la otra punta;

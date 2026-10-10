@@ -250,9 +250,11 @@ del servidor.
       Docker: aviso, reconexión sola, host sin retroceder, invitado alineado, host y silencio, sala perdida, server caído
       más de 90 s y subida en curso. **Sin probar:** la recarga automática del video si queda en error (video servido
       desde disco). Detalle y pendientes del server y la web en `MEMORIA.md` y `CHANGELOG.md`.)*
-- [ ] Evaluar si tiene sentido un acceso al panel de administración
+- [x] Evaluar si tiene sentido un acceso al panel de administración
       (`/admin/*`) desde la app — no es prioritario, el panel web ya cubre
-      ese caso de uso.
+      ese caso de uso. *(6B, probada en el emulador el 2026-10-09 contra el server real en Docker. Se eligió el alcance
+      mínimo: una tarjeta "Administración" que abre `/admin.html` en el navegador, visible solo para cuentas admin;
+      sin pantallas nativas del panel. Detalle en `MEMORIA.md` y `CHANGELOG.md`.)*
 - [ ] PWA/notificaciones push si en algún momento hace falta avisar fuera de
       la app (ej. "tu sala está por expirar").
 

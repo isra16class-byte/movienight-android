@@ -81,6 +81,7 @@ movienight-android/
         AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
         home/HomeScreen.kt      # unirse por código/link + subir (solo subir / subir y crear sala) + biblioteca + diálogo de crear sala
+        home/AdminPanelLauncher.kt # 6B: openInBrowser(): abre un link en el navegador con ACTION_VIEW
         room/RoomScreen.kt      # sala: cabecera, contraseña, error, "te sacaron" (5), chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
         room/ViewersDialog.kt   # lista "En la sala": estado de cada persona y, para el host, el menú Acciones (hacer host / silenciar / expulsar) (5)
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
@@ -98,6 +99,7 @@ movienight-android/
         UploadFlow.kt          # subida de punta a punta (4A) + paso siguiente opcional (4B): cancelar, reintentar solo el paso siguiente
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
+        AdminAccessLogic.kt    # 6B: si la cuenta es admin (respuesta de GET /admin/stats -> AdminAccess), cuándo mostrar el acceso, URL del panel (JVM puro)
         VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
         UrlUtils.kt             # normalizeBaseUrl()
@@ -192,6 +194,42 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 6B hecha y probada en el emulador (2026-10-09): acceso al panel de administración desde la app.** Queda la 6C
+(el único punto sin tildar de la Fase 6 en el plan es PWA/notificaciones push; releer el plan antes de elegir). Se eligió
+el alcance mínimo (opción a): **no hay pantallas nativas del panel**, solo un botón que abre el panel web.
+- **Cómo sabe la app si la cuenta es admin:** `GET /auth/me` no lo dice (solo `loggedIn`, `id` y `email`). El rol vive en
+  Postgres (`users.role`) y `requireAdmin` lo consulta en cada request a las rutas de admin. La app hace un sondeo de
+  solo lectura a `GET /admin/stats` (`ADMIN_PROBE_PATH`): **200 con el JSON esperado (trae `activeRooms`) = admin**;
+  401 / 403 / 404 = no admin; red, 429 o 5xx = no se sabe (`adminAccessFrom`). Una respuesta dudosa no borra lo ya
+  sabido y una clara lo reemplaza (`mergeAdminAccess`), así que quitarle el rol a una cuenta oculta el botón en la
+  próxima consulta. Solo `AdminAccess.ADMIN` muestra algo (`shouldShowAdminAccess`).
+- **Cuándo se consulta:** `HomeScreen` llama a `HomeViewModel.refreshAdminAccess()` cada vez que entra en composición
+  (al abrir la app y al volver de una sala). **No** se vuelve a consultar al volver del navegador a la app. El estado
+  vive en el `HomeViewModel`, que muere al cerrar sesión: una cuenta nueva no hereda el acceso de la anterior.
+- **El acceso:** tarjeta "Administración" en la pantalla principal (`AdminCard`, solo con admin confirmado) con el botón
+  "Abrir panel de administración"; abre `adminPanelUrl(baseUrl)` = `<server>/admin.html` con
+  `Intent.ACTION_VIEW` (`ui/home/AdminPanelLauncher.kt`, sin librerías nuevas; Custom Tabs hubiera exigido
+  `androidx.browser`). Si no hay navegador, muestra `ADMIN_NO_BROWSER_MESSAGE` (ese aviso no se probó).
+- **Sesión y cookie (verificado leyendo el código del server; el comportamiento en el navegador lo confirmó la persona):** el
+  panel usa la misma sesión de siempre (cookie `movienight.sid`), no tiene login ni contraseña propios. `/admin.html` es un
+  archivo estático que se sirve sin autenticar; si el navegador no tiene sesión, la página redirige a `/`, donde se inicia
+  sesión con el mismo email y contraseña, y **no vuelve sola al panel** (hay que abrir `/admin.html` otra vez). La cookie
+  de la app queda en `PersistentCookieJar` (SharedPreferences privadas) y no pasa al navegador: el navegador crea una
+  sesión distinta en el server, y cerrar sesión en el panel no cierra la de la app. Lo único compartido es el límite de
+  intentos de login (por IP y email).
+- **Cómo se hace admin una cuenta:** no hay ninguna ruta HTTP, a propósito. Solo `scripts/make-admin.js <email>` en el
+  server, con la cuenta ya registrada. Con Docker, desde la carpeta del server: `docker compose exec app node
+  scripts/make-admin.js <email>` (correrlo con `node` directo en Windows falla: `DATABASE_URL` solo está dentro del
+  contenedor). El rol se nota sin cerrar sesión.
+- **Qué se probó** (la persona lo confirmó, "todos los puntos funcionaron"): cuenta admin ve la tarjeta y llega al panel
+  (con el login aparte en el navegador); cuenta normal no ve nada; la tarjeta desaparece al quitar el rol y volver a la
+  pantalla principal; cerrar sesión en el panel no cierra la de la app. **Verificado antes** (arnés del asistente): los 11
+  tests de `AdminAccessLogicTest` pasan, y el `requireAdmin` real del server dio 200 / 403 / 401 / 404 / 500 con una base
+  simulada. `gradlew testDebugUnitTest` no se confirmó en esta fase (la app sí compiló y corrió en el emulador).
+- **Mejora posible, no hecha:** que `/auth/me` devuelva el rol (hoy hay que sondear una ruta de admin). Tocaría el server
+  y la app tendría que seguir funcionando con servers viejos. No se tocó el server.
+Siguiente: **6C** (releer el plan antes de elegir).
 
 **Fase 6A hecha y probada en el emulador (2026-10-09): aviso de `server-restarting` y reconexión coherente.** Quedan
 pendientes la 6B y la 6C del resto de la Fase 6 (ver el plan). Qué hace la app cuando el server se reinicia:
@@ -407,6 +445,10 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Reinicio del server (6A):** `server-restarting` llega sin payload y el corte 5 s después (`transport close`). Redis guarda
   la posición con hasta ~8 s de atraso, y el host solo vive en memoria: tras un reinicio el dueño (cookie de sesión) recupera
   el host sin importar quién lo tuviera. `app-1` no arranca sin Redis.
+- **Admin (6B):** el rol está en `users.role` y `requireAdmin` lo consulta en cada request (401 sin sesión, 403 cuenta normal,
+  404 sin Postgres, 500 si falla la consulta); `/auth/me` no lo informa. `/admin.html` es estático y el panel usa la misma
+  cookie `movienight.sid`; no hay ruta HTTP para dar el rol (solo `scripts/make-admin.js`). Las rutas POST de admin pasan
+  `requireSameOrigin` con OkHttp (no manda Origin ni Referer), por si algún día hacen falta acciones nativas.
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
@@ -429,3 +471,6 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   servidos desde disco). **Fuera de la app:** el navegador no host retrocede 5-6 s al terminar el reinicio (hipótesis
   del nombre del archivo codificado en `room.html`, sin confirmar) y el dueño recupera el host tras un reinicio aunque se
   lo hubiera pasado a otro. Ver la primera entrada de "Por dónde seguir".
+- **Acceso al panel (6B):** el rol se averigua con un sondeo a `/admin/stats` y se vuelve a consultar solo al entrar a la pantalla
+  principal (no al volver del navegador). Sin probar el aviso de "no hay navegador". Tras iniciar sesión en el navegador el
+  panel no se abre solo (la web no redirige de vuelta). Ver la primera entrada de "Por dónde seguir".
