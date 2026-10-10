@@ -260,6 +260,90 @@ del servidor.
 
 ---
 
+## Fase 7 — Reproducción fuera de la pantalla de la sala (PiP y segundo plano)
+
+> **Pendiente, sin empezar. Plan escrito el 2026-10-09; no toca el servidor.** Dos mejoras distintas, con costo y
+> riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
+> No depende de la 6C, pero si la opción A de la 6C (aviso local al terminar una subida) ya está hecha, 7B reusa su
+> canal de notificaciones y el momento de pedir el permiso de Android 13+.
+
+**Cómo está hoy** (verificado en el código el 2026-10-09):
+- El reproductor es un `ExoPlayer` dentro de `RoomPlayer`, que vive en `RoomViewModel`. La pantalla lo dibuja con un
+  `PlayerView` sin controles propios (los botones son de Compose: el host manda, los demás no mueven el video).
+- `RoomScreen` llama a `PauseWhenAppStops`: en `ON_STOP` (salvo girar el teléfono) se llama a `RoomViewModel.onAppStopped()`,
+  que pausa el video local y, **si la persona es host, también emite `sync` de pausa a toda la sala**.
+- Media3 está en 1.10.1 con `media3-exoplayer` y `media3-ui`. No hay `media3-session`, ni servicios, ni permisos de
+  notificaciones o de servicio en primer plano en el manifiesto. `MainActivity` no declara PiP ni `configChanges`.
+- Sin servicio en primer plano, Android puede congelar o matar el proceso con la app en segundo plano (ya anotado para
+  las subidas en la 4A).
+
+### 7A — Mini-reproductor flotante (Picture-in-Picture)
+
+Al salir de la app estando en una sala, el video queda en una ventana flotante sobre la otra app. Sin dependencias nuevas
+(PiP viene con el sistema desde Android 8; el `minSdk` es 26).
+
+- [ ] **Decisión previa — qué pasa con la sala cuando el host entra en PiP.** Hoy salir de la app pausa a todos si eres
+      host. Propuesta: **en PiP no se pausa** (ni el video local ni la sala); se pausa cuando la ventana flotante se cierra
+      o se deja de ver. Confirmar con la persona antes de escribir código.
+- [ ] Declarar en el manifiesto que `MainActivity` soporta PiP (`supportsPictureInPicture`), y decidir si hace falta
+      `configChanges` para que entrar en PiP no recree la actividad. **Verificar en el emulador:** el reproductor sobrevive
+      porque vive en el ViewModel, pero un `PlayerView` recreado puede dejar un parpadeo o una pantalla negra.
+- [ ] Entrar en PiP solo cuando corresponde: la persona está en la pantalla de la sala, el video está cargado y se
+      reproduce, y deja la app (botón Inicio o cambio a otra app). Nunca desde la pantalla principal, el login ni una
+      sala con error, o "te sacaron".
+- [ ] Relación de aspecto de la ventana: la del video (con un valor por defecto de 16:9 si todavía no se conoce).
+- [ ] Mientras la ventana está activa, mostrar **solo el video** (sin chat, cabecera ni controles) y volver a la pantalla
+      completa al tocarla.
+- [ ] Reemplazar la condición de `PauseWhenAppStops` por una que mire si la actividad está en PiP
+      (`isInPictureInPictureMode` / el listener de cambio de modo de `ComponentActivity`). **Verificar en el emulador** en
+      qué orden llegan `ON_PAUSE`, `ON_STOP` y el cambio de modo al entrar y al cerrar la ventana: la lógica de "cuándo pausar"
+      va como función pura con tests, y el orden real se confirma a mano.
+- [ ] Opcional: botones en la ventana (`RemoteAction`) de reproducir / pausar **solo para el host**; el invitado no los tiene.
+- [ ] Tests de la lógica pura (cuándo entrar en PiP, cuándo pausar). La UI y el comportamiento de Android solo se prueban en
+      el emulador.
+
+**Hecho cuando:** salgo de la sala a otra app y el video sigue en una ventana flotante, sin pausar a los demás; tocar la
+ventana me devuelve a la sala; cerrar la ventana pausa como hoy; y en la pantalla principal, el login o una sala con
+error no aparece ninguna ventana flotante.
+
+**Límite que se acepta:** la ventana vive mientras Android mantenga la app. Si Android mata el proceso, el video se detiene.
+
+### 7B — Audio y video que siguen con la pantalla apagada o en otra app (servicio de reproducción)
+
+Más grande y de más riesgo. Se evalúa **después** de usar 7A, y solo si hace falta.
+
+- [ ] **Decisión previa — qué se espera:** (1) que siga solo el audio con la pantalla apagada, o (2) también el video (eso
+      ya lo cubre 7A mientras haya ventana). Confirmar con la persona.
+- [ ] **Versión de Media3 y Kotlin:** agregar `androidx.media3:media3-session` en la **misma versión 1.10.1**, y **comprobar
+      antes de agregarla** que no exige un Kotlin más nuevo que el 2.0.21 (así falló Media3 1.11). Si lo exigiera, avisar y
+      no agregarla.
+- [ ] Un `MediaSessionService` en primer plano con notificación de reproducción. Manifiesto: el servicio con
+      `foregroundServiceType="mediaPlayback"`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y
+      `POST_NOTIFICATIONS` (Android 13+, pedido en un momento con sentido, por ejemplo al entrar a una sala con video, y
+      nunca al abrir la app).
+- [ ] **Mover el reproductor:** hoy el `ExoPlayer` lo crea `RoomPlayer` dentro del ViewModel. Hay que decidir si el servicio
+      lo es dueño (y el ViewModel lo usa) o si se mantiene `RoomPlayer` y el servicio lo observa. Es la parte delicada:
+      `RoomPlayer` tiene la lógica de sincronización (`planRejoin`, `RestartState`, correcciones de posición) y no debe
+      duplicarse.
+- [ ] **El socket:** con el servicio vivo el proceso se mantiene y el socket sigue conectado, así que la sincronización
+      continúa. Definir qué pasa si el host sale: sigue reproduciendo para todos (distinto de hoy) o se pausa (como hoy).
+- [ ] Detener el servicio al salir de la sala, al cerrar sesión, cuando la sala se cierra o expira, o si te sacan.
+- [ ] Tests de la lógica pura (cuándo arrancar y detener el servicio, qué se muestra en la notificación).
+
+**Hecho cuando:** con la pantalla apagada o en otra app el audio de la sala sigue, la notificación permite pausar, y al
+salir de la sala el servicio se detiene solo y la notificación desaparece. Y la app no pide permisos al abrirla ni muestra
+notificaciones fuera de lugar.
+
+**Riesgos:** es el cambio más grande desde la Fase 3 y la UI y el servicio no se pueden compilar fuera de Android Studio,
+así que cada paso se descubre en el emulador. Los servicios y su ciclo de vida se comportan distinto en un teléfono real
+que en el emulador (ahorro de batería, límites del fabricante): conviene probar también en uno real antes de darlo por bueno.
+
+**Reglas de trabajo de esta fase** (las mismas de siempre): no se modifica el servidor; un solo patch de código por
+subfase y otro de docs aparte, tras la prueba de la persona; no se tilda nada como probado sin que ella lo confirme; no se
+agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10.1, AGP 8.13.2) sin avisar.
+
+---
+
 ## Resumen — por dónde empezar
 
 1. **Fase 1** (spike técnico) — es la que más barato prueba si el enfoque es
@@ -270,6 +354,7 @@ del servidor.
    real del proyecto, dejarla para cuando el resto ya esté sólido.
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
+6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta.
 
 ---
 
