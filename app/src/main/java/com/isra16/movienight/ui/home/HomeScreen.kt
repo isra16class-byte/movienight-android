@@ -54,6 +54,7 @@ import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.upload.KeepScreenOn
+import com.isra16.movienight.ui.upload.rememberNotificationGate
 import com.isra16.movienight.ui.upload.UploadStatusBody
 import java.text.DateFormat
 import java.util.Date
@@ -78,6 +79,9 @@ fun HomeScreen(
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         vm.onVideoPicked(uri)
     }
+
+    // Antes de abrir el selector, si hace falta, explica y pide el permiso de notificaciones (Android 13+, una sola vez).
+    val askNotifications = rememberNotificationGate()
 
     // Acceso al panel de administración (Fase 6B): se pregunta al server al abrir la pantalla y cada vez
     // que se vuelve a ella (por ejemplo al salir de una sala), así un cambio de rol se nota.
@@ -124,7 +128,7 @@ fun HomeScreen(
             item {
                 UploadCard(
                     state = uploadState,
-                    onPick = { pickVideo.launch(arrayOf("video/*")) },
+                    onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
                     onPickAndCreateRoom = { showUploadAndCreate = true },
                     onCancel = vm::cancelUpload,
                     onRetry = vm::retryUpload,
@@ -187,8 +191,12 @@ fun HomeScreen(
             onDismiss = { showUploadAndCreate = false },
             onCreate = { password ->
                 showUploadAndCreate = false
-                vm.prepareUploadAndCreateRoom(password)
-                pickVideo.launch(arrayOf("video/*"))
+                // La contraseña se guarda recién cuando se abre el selector: si el cuadro de permiso se pierde
+                // (por ejemplo al girar el teléfono), no queda una contraseña pendiente para otra subida.
+                askNotifications {
+                    vm.prepareUploadAndCreateRoom(password)
+                    pickVideo.launch(arrayOf("video/*"))
+                }
             },
         )
     }

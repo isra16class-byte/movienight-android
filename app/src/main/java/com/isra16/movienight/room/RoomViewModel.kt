@@ -197,6 +197,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         baseUrl = baseUrl,
         onSessionExpired = { container.session.refresh() },
         onLibraryChanged = { loadChangeLibrary() },
+        onFinished = container.uploadNotifier::onUploadFinished,
     )
 
     val upload: UploadState

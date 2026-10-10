@@ -4,4 +4,5 @@
 <full-backup-content>
     <exclude domain="sharedpref" path="movienight_cookies.xml" />
     <exclude domain="sharedpref" path="movienight_identity.xml" />
+    <exclude domain="sharedpref" path="movienight_notifications.xml" />
 </full-backup-content>

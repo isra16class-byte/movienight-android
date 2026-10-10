@@ -42,6 +42,7 @@ import com.isra16.movienight.net.progressLabel
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.upload.UploadStatusBody
+import com.isra16.movienight.ui.upload.rememberNotificationGate
 
 /**
  * "Cambiar video" (solo el host, Fase 4B): elegir uno de la biblioteca (pide confirmar, porque lo ven todos y
@@ -55,6 +56,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
     val pickVideo = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         vm.onVideoPicked(uri)
     }
+    val askNotifications = rememberNotificationGate()
     val upload = vm.upload
     val busy = upload.isBusy() || vm.isChangingVideo
 
@@ -77,11 +79,11 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Button(
-                                onClick = { pickVideo.launch(arrayOf("video/*")) },
+                                onClick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
                                 enabled = !vm.isChangingVideo,
                             ) { Text("Subir uno nuevo") }
                         },
-                        onPick = { pickVideo.launch(arrayOf("video/*")) },
+                        onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
                         onCancel = vm::cancelUpload,
                         onRetry = vm::retryUpload,
                         onDismiss = vm::dismissUpload,

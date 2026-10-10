@@ -5,8 +5,11 @@ import com.isra16.movienight.auth.SessionManager
 import com.isra16.movienight.auth.UserIdStore
 import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.PersistentCookieJar
+import com.isra16.movienight.net.VisibilityCounter
 import com.isra16.movienight.net.VideoUploader
 import com.isra16.movienight.net.normalizeBaseUrl
+import com.isra16.movienight.notify.NotificationPrefs
+import com.isra16.movienight.notify.UploadNotifier
 import com.isra16.movienight.room.RoomPasswordCache
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
@@ -49,4 +52,9 @@ class AppContainer(context: Context) {
     val session = SessionManager(api, cookieJar, baseUrl)
     val userIds = UserIdStore(context)
     val roomPasswords = RoomPasswordCache()
+
+    /** Cuántas pantallas de la app se ven ahora (lo actualiza [MovieNightApp]); el aviso de subida lo consulta. */
+    val visibility = VisibilityCounter()
+    val notificationPrefs = NotificationPrefs(context)
+    val uploadNotifier = UploadNotifier(context, visibility)
 }

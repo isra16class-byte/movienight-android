@@ -40,9 +40,21 @@ class UploadFlow(
     private val onSessionExpired: suspend () -> Unit,
     /** El video ya está en la biblioteca (o el server borró uno inválido): hay que recargar la lista. */
     private val onLibraryChanged: () -> Unit,
+    /**
+     * La subida llegó a su estado final ([UploadState.Done] o [UploadState.Failed]); lo usa el aviso local de
+     * "terminó tu subida" (Fase 6C). Se llama desde el hilo principal.
+     */
+    private val onFinished: (UploadState) -> Unit = {},
 ) {
-    var state by mutableStateOf<UploadState>(UploadState.Idle)
-        private set
+    private var currentState by mutableStateOf<UploadState>(UploadState.Idle)
+
+    /** Estado para la pantalla. Todo cambio pasa por acá, así [onFinished] se entera de cada final. */
+    var state: UploadState
+        get() = currentState
+        private set(value) {
+            currentState = value
+            if (value is UploadState.Done || value is UploadState.Failed) onFinished(value)
+        }
 
     private var job: Job? = null
 

@@ -119,6 +119,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         baseUrl = baseUrl,
         onSessionExpired = { container.session.refresh() },
         onLibraryChanged = { refresh() },
+        onFinished = container.uploadNotifier::onUploadFinished,
     )
 
     val upload: UploadState

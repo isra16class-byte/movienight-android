@@ -5,9 +5,11 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="movienight_cookies.xml" />
         <exclude domain="sharedpref" path="movienight_identity.xml" />
+        <exclude domain="sharedpref" path="movienight_notifications.xml" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="movienight_cookies.xml" />
         <exclude domain="sharedpref" path="movienight_identity.xml" />
+        <exclude domain="sharedpref" path="movienight_notifications.xml" />
     </device-transfer>
 </data-extraction-rules>
