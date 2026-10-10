@@ -3,7 +3,7 @@ package com.isra16.movienight
 import android.app.Activity
 import android.app.Application
 import android.os.Bundle
-import com.isra16.movienight.notify.createUploadChannel
+import com.isra16.movienight.notify.createUploadChannels
 
 class MovieNightApp : Application() {
     lateinit var container: AppContainer
@@ -12,7 +12,7 @@ class MovieNightApp : Application() {
     override fun onCreate() {
         super.onCreate()
         container = AppContainer(this)
-        createUploadChannel(this)
+        createUploadChannels(this)
         registerActivityLifecycleCallbacks(VisibilityCallbacks())
     }
 

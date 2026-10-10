@@ -29,7 +29,9 @@ typealias FollowUp = suspend (key: String) -> FollowUpOutcome
  *  - Si la subida salió bien y falló el paso siguiente, [retry] repite SOLO ese paso con la misma key: no se
  *    vuelve a subir un video que ya está en la nube.
  *
- * Mismas decisiones de la 4A: sin servicio en primer plano; si Android mata el proceso la subida se pierde.
+ * Decisiones de la 4A: la subida es una corrutina del ViewModel dueño y, si Android mata el proceso, se pierde. Desde la
+ * 6C un servicio en primer plano (`UploadKeepAlive`, que se entera por `onStateChanged`) mantiene vivo el proceso
+ * mientras hay una subida en marcha, porque con la app en segundo plano Android corta la red.
  */
 class UploadFlow(
     private val scope: CoroutineScope,
@@ -45,6 +47,11 @@ class UploadFlow(
      * "terminó tu subida" (Fase 6C). Se llama desde el hilo principal.
      */
     private val onFinished: (UploadState) -> Unit = {},
+    /**
+     * Cada cambio de estado, incluido el avance; lo usa el servicio en primer plano que mantiene viva la
+     * subida con la app en segundo plano (Fase 6C, opción B). Se llama desde cualquier hilo.
+     */
+    private val onStateChanged: (UploadState) -> Unit = {},
 ) {
     private var currentState by mutableStateOf<UploadState>(UploadState.Idle)
 
@@ -53,6 +60,7 @@ class UploadFlow(
         get() = currentState
         private set(value) {
             currentState = value
+            onStateChanged(value)
             if (value is UploadState.Done || value is UploadState.Failed) onFinished(value)
         }
 
@@ -156,6 +164,8 @@ class UploadFlow(
     /** Suelta el acceso al archivo (al cerrarse la pantalla dueña). La corrutina la cancela el [scope]. */
     fun release() {
         releasePicked()
+        // La pantalla dueña se cierra y su corrutina se cancela: que el servicio en primer plano no se quede esperando.
+        onStateChanged(UploadState.Idle)
     }
 
     private fun launch(gen: Int, block: suspend () -> Unit) {

@@ -46,7 +46,7 @@ fun UploadStatusBody(
     modifier: Modifier = Modifier,
     /** Si no es `null`, un "listo" de crear sala ofrece este botón (por si la pantalla no navegó sola). */
     onOpenRoom: ((roomId: String) -> Unit)? = null,
-    uploadingHint: String = "Dejá la app abierta mientras sube.",
+    uploadingHint: String = "Podés usar otras apps: la subida sigue y se ve el avance en una notificación.",
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state) {

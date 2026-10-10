@@ -9,6 +9,7 @@ import com.isra16.movienight.net.VisibilityCounter
 import com.isra16.movienight.net.VideoUploader
 import com.isra16.movienight.net.normalizeBaseUrl
 import com.isra16.movienight.notify.NotificationPrefs
+import com.isra16.movienight.notify.UploadKeepAlive
 import com.isra16.movienight.notify.UploadNotifier
 import com.isra16.movienight.room.RoomPasswordCache
 import okhttp3.OkHttpClient
@@ -57,4 +58,7 @@ class AppContainer(context: Context) {
     val visibility = VisibilityCounter()
     val notificationPrefs = NotificationPrefs(context)
     val uploadNotifier = UploadNotifier(context, visibility)
+
+    /** Mantiene vivo el proceso (servicio en primer plano) mientras hay una subida en marcha. */
+    val uploadKeepAlive = UploadKeepAlive(context)
 }

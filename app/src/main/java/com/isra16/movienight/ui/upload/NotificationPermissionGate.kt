@@ -56,8 +56,8 @@ fun rememberNotificationGate(): (proceed: () -> Unit) -> Unit {
             title = { Text("¿Avisarte cuando termine la subida?") },
             text = {
                 Text(
-                    "Subir un video grande puede tardar. Si salís de la app mientras sube, te mandamos una " +
-                        "notificación cuando termine o si falla. Solo la usamos para eso.",
+                    "Subir un video grande puede tardar. Si salís de la app mientras sube, mostramos el avance " +
+                        "en una notificación y te avisamos cuando termine o si falla. Solo la usamos para eso.",
                 )
             },
             confirmButton = {

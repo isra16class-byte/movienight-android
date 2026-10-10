@@ -3,7 +3,6 @@ package com.isra16.movienight.notify
 import android.annotation.SuppressLint
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
 import android.content.Context
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -15,8 +14,9 @@ import com.isra16.movienight.net.uploadNotice
 private const val UPLOAD_CHANNEL_ID = "uploads"
 private const val UPLOAD_NOTIFICATION_ID = 1001
 
-/** Crea el canal de las notificaciones de subida (el `minSdk` es 26, así que los canales siempre existen). */
-fun createUploadChannel(context: Context) {
+/** Crea los canales de las notificaciones de subida (el `minSdk` es 26, así que los canales siempre existen). */
+fun createUploadChannels(context: Context) {
+    createUploadProgressChannel(context)
     val channel = NotificationChannel(UPLOAD_CHANNEL_ID, "Subidas de video", NotificationManager.IMPORTANCE_DEFAULT)
         .apply { description = "Avisa cuando termina una subida de video o falla, si la app no está a la vista." }
     context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -40,10 +40,6 @@ class UploadNotifier(
         val manager = NotificationManagerCompat.from(context)
         if (!manager.areNotificationsEnabled()) return
 
-        // Tocar el aviso trae la app al frente (o la abre) como si se tocara su ícono.
-        val tap = context.packageManager.getLaunchIntentForPackage(context.packageName)?.let { launch ->
-            PendingIntent.getActivity(context, 0, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
-        }
         val notification = NotificationCompat.Builder(context, UPLOAD_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_stat_upload)
             .setContentTitle(notice.title)
@@ -51,7 +47,7 @@ class UploadNotifier(
             .setStyle(NotificationCompat.BigTextStyle().bigText(notice.text))
             .setCategory(NotificationCompat.CATEGORY_STATUS)
             .setAutoCancel(true)
-            .setContentIntent(tap)
+            .setContentIntent(launchAppPendingIntent(context)) // tocar el aviso trae la app al frente
             .build()
         try {
             manager.notify(UPLOAD_NOTIFICATION_ID, notification)

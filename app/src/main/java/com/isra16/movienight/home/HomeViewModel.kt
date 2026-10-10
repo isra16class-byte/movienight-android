@@ -59,15 +59,15 @@ suspend fun fetchLibrary(api: MovieNightApi, baseUrl: String, onSessionExpired: 
  * (`POST /create-room-from-upload`), subir un video y crear la sala en un solo paso (Fase 4B) y unirse a
  * una sala por código o link.
  *
- * **La subida y la app en segundo plano (decisión de la Fase 4A):** la subida ([UploadFlow]) es una
- * corrutina de este ViewModel. Sobrevive a rotar la pantalla y a entrar a una sala (esta pantalla sigue en
- * la pila), y se cancela sola al cerrar sesión (el ViewModel muere). Al pasar la app a segundo plano NO se
- * pausa ni se cancela, pero tampoco hay servicio en primer plano ni notificación: sigue mientras Android
- * mantenga vivo el proceso, que no está garantizado (menos aún con la pantalla apagada o ahorro de
- * batería). Si el sistema lo mata, la subida se pierde y se empieza de nuevo: un PUT simple cortado no deja
- * ningún objeto en el bucket, así que no queda basura. Por eso la pantalla se mantiene encendida mientras
- * sube y avisa que conviene dejar la app abierta. Un servicio en primer plano queda como mejora si la
- * prueba real muestra cortes.
+ * **La subida y la app en segundo plano (Fases 4A y 6C):** la subida ([UploadFlow]) es una corrutina de
+ * este ViewModel. Sobrevive a rotar la pantalla y a entrar a una sala (esta pantalla sigue en la pila), y se
+ * cancela sola al cerrar sesión o al cerrar la app desde recientes (el ViewModel muere). Al pasar la app a
+ * segundo plano NO se pausa ni se cancela. Sin más, Android corta la red de una app en segundo plano ("Se
+ * cortó la conexión"), así que mientras hay una subida en marcha un servicio en primer plano
+ * ([com.isra16.movienight.notify.UploadKeepAlive]) mantiene vivo el proceso y muestra una notificación de
+ * avance; cuando termina o falla, un aviso local lo cuenta si la app no se está viendo. Si el sistema aun así
+ * mata el proceso, la subida se pierde y se empieza de nuevo: un PUT simple cortado no deja ningún objeto en
+ * el bucket, así que no queda basura. La pantalla se mantiene encendida mientras sube.
  *
  * Sin sesión válida el server contesta 401; en ese caso se le pide al `SessionManager` que vuelva a
  * consultar `/auth/me`, que pasa el estado a "sin sesión" y la raíz de la app muestra el login.
@@ -112,6 +112,9 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     // --- Subir un video del teléfono (Fase 4A) y crear la sala con él (Fase 4B) --------------------
 
+    /** Identifica a esta subida ante el servicio en primer plano (puede haber otra en una sala). */
+    private val uploadKey = Any()
+
     private val flow = UploadFlow(
         scope = viewModelScope,
         uploader = container.uploader,
@@ -120,6 +123,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         onSessionExpired = { container.session.refresh() },
         onLibraryChanged = { refresh() },
         onFinished = container.uploadNotifier::onUploadFinished,
+        onStateChanged = { container.uploadKeepAlive.onState(uploadKey, it) },
     )
 
     val upload: UploadState

@@ -87,7 +87,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                         onCancel = vm::cancelUpload,
                         onRetry = vm::retryUpload,
                         onDismiss = vm::dismissUpload,
-                        uploadingHint = "Dejá la app abierta y no salgas de la sala mientras sube.",
+                        uploadingHint = "Podés usar otras apps, pero no salgas de la sala mientras sube: si salís, la subida se corta.",
                     )
                 }
                 if (vm.isChangingVideo) {

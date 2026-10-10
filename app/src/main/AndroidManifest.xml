@@ -5,6 +5,9 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <!-- Android 13+: aviso local cuando termina una subida (se pide al empezar la primera subida, no al abrir la app). -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Servicio en primer plano que mantiene viva una subida de video con la app en segundo plano (Fase 6C, opción B). -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
 
     <application
         android:name=".MovieNightApp"
@@ -28,6 +31,12 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+
+        <!-- Mantiene vivo el proceso mientras se sube un video con la app en segundo plano; no sube nada por sí mismo. -->
+        <service
+            android:name=".notify.UploadService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
     </application>
 
 </manifest>

@@ -190,6 +190,9 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
      * ViewModel: si se sale de la sala mientras sube, se corta (igual que si se cierra la sesión en la pantalla
      * principal). Con la app en segundo plano sigue, con los mismos límites que la subida de la 4A.
      */
+    /** Identifica a esta subida ante el servicio en primer plano (puede haber otra en la pantalla principal). */
+    private val uploadKey = Any()
+
     private val flow = UploadFlow(
         scope = viewModelScope,
         uploader = container.uploader,
@@ -198,6 +201,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         onSessionExpired = { container.session.refresh() },
         onLibraryChanged = { loadChangeLibrary() },
         onFinished = container.uploadNotifier::onUploadFinished,
+        onStateChanged = { container.uploadKeepAlive.onState(uploadKey, it) },
     )
 
     val upload: UploadState
