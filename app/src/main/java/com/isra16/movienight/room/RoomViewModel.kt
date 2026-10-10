@@ -443,11 +443,13 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     private fun handle(event: RoomEvent) {
         when (event) {
             RoomEvent.Connected -> {
+                Log.d(SYNC_TAG, "socket conectado")
                 isConnected = true
                 mySocketId = roomSocket.socketId
                 notice = null
             }
             is RoomEvent.Disconnected -> {
+                Log.d(SYNC_TAG, "socket desconectado: ${event.reason}")
                 isConnected = false
                 restart = restart.onDisconnected()
                 // El rol vale por socket: al reconectar el server vuelve a mandar `host-status`. Hasta entonces no hay rol confirmado.
@@ -529,7 +531,10 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             // El server solo retransmite `sync` a quien no es host; igual se descarta si somos host (p. ej. durante
             // un traspaso), para no pelear con los controles locales. Aplicarlo no emite nada (ningún listener del
             // ExoPlayer emite `sync`): un seek que viene del server no puede rebotar de vuelta.
-            is RoomEvent.Sync -> if (!isHost) player.applySync(event.message)
+            is RoomEvent.Sync -> if (!isHost) {
+                Log.d(SYNC_TAG, "recibo ${event.message.type.wire} t=${event.message.timeMs}ms paused=${event.message.paused}")
+                player.applySync(event.message)
+            }
             is RoomEvent.MuteStatus -> isMuted = event.muted
             is RoomEvent.ViewerCount -> viewerCount = event.count
             is RoomEvent.ViewerList -> {

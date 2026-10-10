@@ -14,6 +14,7 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.exoplayer.ExoPlayer
 import com.isra16.movienight.net.HostReference
 import com.isra16.movienight.net.RoomPosition
@@ -27,6 +28,7 @@ import com.isra16.movienight.net.shouldReportBuffering
 import com.isra16.movienight.net.updateHostReference
 import com.isra16.movienight.net.playbackErrorMessage
 import com.isra16.movienight.net.shouldLoadVideo
+import kotlin.math.roundToInt
 
 /**
  * El reproductor de la sala (ExoPlayer de Media3) y lo que la pantalla necesita saber de él, como
@@ -87,6 +89,15 @@ class RoomPlayer(private val context: Context) {
     var durationMs by mutableLongStateOf(0L)
         private set
 
+    /**
+     * Tamaño del video tal como se ve (con la forma del píxel ya aplicada), o 0 x 0 si todavía no se conoce. Solo lo
+     * usa la ventana flotante para su relación de aspecto (Fase 7A); no interviene en la sincronización.
+     */
+    var videoWidth by mutableIntStateOf(0)
+        private set
+    var videoHeight by mutableIntStateOf(0)
+        private set
+
     /** Para conectarlo al `PlayerView`. `null` hasta que la sala tenga una cinta. */
     var player by mutableStateOf<Player?>(null)
         private set
@@ -119,6 +130,11 @@ class RoomPlayer(private val context: Context) {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             this@RoomPlayer.playWhenReady = playWhenReady
             updateBufferingReport()
+        }
+
+        override fun onVideoSizeChanged(videoSize: VideoSize) {
+            videoWidth = (videoSize.width * videoSize.pixelWidthHeightRatio).roundToInt()
+            videoHeight = videoSize.height
         }
 
         override fun onPlayerError(error: PlaybackException) {
@@ -155,6 +171,8 @@ class RoomPlayer(private val context: Context) {
         resyncPending = start != null && !isHostRole
         positionMs = 0L
         durationMs = 0L
+        videoWidth = 0
+        videoHeight = 0
         if (url == null) {
             exo?.let {
                 it.stop()
@@ -409,6 +427,8 @@ class RoomPlayer(private val context: Context) {
         reportedBuffering = false
         positionMs = 0L
         durationMs = 0L
+        videoWidth = 0
+        videoHeight = 0
     }
 
     private fun createPlayer(): ExoPlayer {

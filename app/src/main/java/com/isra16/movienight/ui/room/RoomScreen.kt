@@ -1,8 +1,6 @@
 package com.isra16.movienight.ui.room
 
-import android.content.Context
-import android.content.ContextWrapper
-import androidx.activity.ComponentActivity
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -37,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -54,13 +53,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.core.app.PictureInPictureModeChangedInfo
+import androidx.core.util.Consumer
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import com.isra16.movienight.net.ChatMessage
+import com.isra16.movienight.net.PauseOnStopTracker
+import com.isra16.movienight.net.PipConditions
+import com.isra16.movienight.net.PipContent
+import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.isBusy
+import com.isra16.movienight.net.pipAspectFor
+import com.isra16.movienight.net.pipContentFor
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
@@ -74,10 +81,18 @@ import com.isra16.movienight.ui.upload.KeepScreenOn
 /** Una sala: según la fase muestra la comprobación, el pedido de contraseña, un error o el chat. */
 @Composable
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
-    // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada).
+    // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada), salvo que
+    // pase a la ventana flotante (PiP): ahí sigue, y se pausa cuando la ventana se cierra o deja de verse.
     PauseWhenAppStops(onStop = vm::onAppStopped)
+    // Le dice a la actividad cuándo tiene sentido una ventana flotante (y la desactiva al salir de la sala).
+    PictureInPictureRequests(vm)
     // Mientras el host sube un video la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
     KeepScreenOn(vm.upload.isBusy())
+    // En la ventana flotante solo va el video: sin chat, cabecera ni controles ni cuadros.
+    if (rememberIsInPictureInPicture(LocalContext.current.findActivity())) {
+        PipVideo(vm)
+        return
+    }
     // El cuadro "Cambiar video" es solo del host: si pierde el rol, el ViewModel lo cierra.
     if (vm.showChangeVideo && vm.isHost) ChangeVideoDialog(vm)
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
@@ -473,24 +488,118 @@ private fun GuestProgressBar(positionMs: Long, durationMs: Long) {
 private const val PROGRESS_REFRESH_MS = 500L
 
 /**
- * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla...), pero no cuando la
- * actividad solo se recrea por girar el teléfono: ahí el video tiene que seguir.
+ * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla, cerrar la ventana flotante...), pero no
+ * cuando la actividad solo se recrea por girar el teléfono (ahí el video tiene que seguir) ni cuando pasa a la
+ * ventana flotante (PiP, ahí tampoco se pausa). La decisión vive en [PauseOnStopTracker] (lógica pura con tests);
+ * acá solo se le pasan los eventos de Android. Los logs `MovieNightPip` dejan ver el orden real de los eventos.
  */
 @Composable
 private fun PauseWhenAppStops(onStop: () -> Unit) {
     val activity = LocalContext.current.findActivity()
     val currentOnStop by rememberUpdatedState(onStop)
     DisposableEffect(activity) {
-        val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_STOP && activity?.isChangingConfigurations != true) currentOnStop()
+        if (activity == null) return@DisposableEffect onDispose { }
+        val tracker = PauseOnStopTracker(startInPip = activity.isInPictureInPictureMode)
+
+        fun pauseIf(pause: Boolean, why: String) {
+            Log.d(PIP_TAG, "$why -> ${if (pause) "PAUSO" else "no pauso"}")
+            if (pause) currentOnStop()
         }
-        activity?.lifecycle?.addObserver(observer)
-        onDispose { activity?.lifecycle?.removeObserver(observer) }
+
+        fun state() = "pip=${activity.isInPictureInPictureMode} cambioConfig=${activity.isChangingConfigurations} " +
+            "pantalla=${if (activity.isScreenInteractive()) "on" else "off"}"
+
+        val observer = LifecycleEventObserver { _, event ->
+            when (event) {
+                Lifecycle.Event.ON_START -> {
+                    Log.d(PIP_TAG, "ON_START ${state()}")
+                    tracker.onStarted()
+                }
+                Lifecycle.Event.ON_PAUSE, Lifecycle.Event.ON_RESUME -> Log.d(PIP_TAG, "$event ${state()}")
+                Lifecycle.Event.ON_STOP -> pauseIf(
+                    tracker.onStopped(
+                        changingConfigurations = activity.isChangingConfigurations,
+                        inPipNow = activity.isInPictureInPictureMode,
+                        screenOn = activity.isScreenInteractive(),
+                    ),
+                    "ON_STOP ${state()}",
+                )
+                else -> Unit
+            }
+        }
+        val pipListener = Consumer<PictureInPictureModeChangedInfo> { info ->
+            val stopped = !activity.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
+            pauseIf(
+                tracker.onPipModeChanged(info.isInPictureInPictureMode, stopped, activity.isChangingConfigurations),
+                "MODO_PIP=${info.isInPictureInPictureMode} lifecycle=${activity.lifecycle.currentState} ${state()}",
+            )
+        }
+        activity.lifecycle.addObserver(observer)
+        activity.addOnPictureInPictureModeChangedListener(pipListener)
+        onDispose {
+            activity.lifecycle.removeObserver(observer)
+            activity.removeOnPictureInPictureModeChangedListener(pipListener)
+        }
     }
 }
 
-private tailrec fun Context.findActivity(): ComponentActivity? = when (this) {
-    is ComponentActivity -> this
-    is ContextWrapper -> baseContext.findActivity()
-    else -> null
+/**
+ * Cada vez que cambia lo que decide si una ventana flotante tiene sentido (en la sala, video cargado, sano y
+ * reproduciéndose; y la relación de aspecto del video), se lo avisa a la actividad. Si la sala deja de estar sana
+ * (error, "te sacaron") las condiciones dejan de cumplirse solas; al salir de esta pantalla (salir de la sala, cerrar
+ * sesión...) se desactiva del todo, para que desde la pantalla principal o el login nunca aparezca la ventana flotante.
+ */
+@Composable
+private fun PictureInPictureRequests(vm: RoomViewModel) {
+    val host = LocalContext.current.findActivity() as? PipHost
+    val rp = vm.player
+    val request = PipRequest(
+        PipConditions(
+            inRoom = vm.phase == RoomPhase.InRoom,
+            videoLoaded = rp.hasVideo,
+            videoFailed = rp.error != null,
+            playing = rp.showsPause,
+        ),
+        pipAspectFor(rp.videoWidth, rp.videoHeight),
+    )
+    SideEffect { host?.updatePip(request) }
+    DisposableEffect(host) { onDispose { host?.updatePip(PipRequest.OFF) } }
+}
+
+/** Lo único que se dibuja dentro de la ventana flotante: el video, o un mensaje corto si la sala dejó de estar sana. */
+@Composable
+private fun PipVideo(vm: RoomViewModel) {
+    val rp = vm.player
+    val exo = rp.player
+    val content = pipContentFor(
+        inRoom = vm.phase == RoomPhase.InRoom,
+        kicked = vm.phase == RoomPhase.Kicked,
+        videoLoaded = rp.hasVideo,
+        videoFailed = rp.error != null,
+    )
+    Box(Modifier.fillMaxSize().background(Color.Black), contentAlignment = Alignment.Center) {
+        if (content == PipContent.VIDEO && exo != null) {
+            // Igual que en RoomVideo: soltar el reproductor del PlayerView al salir de la composición.
+            val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
+            DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
+            AndroidView(
+                factory = { context -> PlayerView(context).apply { useController = false }.also { viewHolder[0] = it } },
+                modifier = Modifier.fillMaxSize(),
+                update = { view -> view.player = exo },
+            )
+        } else {
+            Text(
+                when (content) {
+                    PipContent.KICKED -> "Te sacaron de la sala"
+                    PipContent.ROOM_UNAVAILABLE -> "Sala no disponible"
+                    PipContent.VIDEO_ERROR -> "Error de video"
+                    else -> "Sin cinta"
+                },
+                modifier = Modifier.padding(8.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = Color.White,
+                textAlign = TextAlign.Center,
+            )
+        }
+    }
 }
