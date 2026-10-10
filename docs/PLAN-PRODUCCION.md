@@ -255,8 +255,13 @@ del servidor.
       ese caso de uso. *(6B, probada en el emulador el 2026-10-09 contra el server real en Docker. Se eligió el alcance
       mínimo: una tarjeta "Administración" que abre `/admin.html` en el navegador, visible solo para cuentas admin;
       sin pantallas nativas del panel. Detalle en `MEMORIA.md` y `CHANGELOG.md`.)*
-- [ ] PWA/notificaciones push si en algún momento hace falta avisar fuera de
-      la app (ej. "tu sala está por expirar").
+- [x] Notificaciones que se pueden hacer sin tocar el servidor *(6C, probadas en el emulador el 2026-10-10. A: aviso local
+      cuando una subida termina o falla con la app en segundo plano, con el permiso de Android 13+ pedido una sola vez
+      antes de la primera subida. B: servicio en primer plano que mantiene viva la subida y muestra su avance, porque con la
+      app en segundo plano Android cortaba la red de la subida. Detalle en `MEMORIA.md` y `CHANGELOG.md`.)*
+- [ ] Push real (PWA / Firebase) para avisar con la app cerrada, por ejemplo "tu sala está por expirar". *(Evaluado en la
+      6C y **no hecho**: exige cambiar el servidor. Hoy el server no tiene tokens de dispositivo, ni envío de push, ni un aviso
+      previo a la expiración de la sala; solo emite `room-error` después de cerrarla y a los conectados. Ver `MEMORIA.md`.)*
 
 ---
 
@@ -264,18 +269,22 @@ del servidor.
 
 > **Pendiente, sin empezar. Plan escrito el 2026-10-09; no toca el servidor.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
-> No depende de la 6C, pero si la opción A de la 6C (aviso local al terminar una subida) ya está hecha, 7B reusa su
-> canal de notificaciones y el momento de pedir el permiso de Android 13+.
+> No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
+> reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
+> patrón de la 6C (un servicio en primer plano que no es dueño de la tarea y una notificación con `NotificationCompat`).
 
 **Cómo está hoy** (verificado en el código el 2026-10-09):
 - El reproductor es un `ExoPlayer` dentro de `RoomPlayer`, que vive en `RoomViewModel`. La pantalla lo dibuja con un
   `PlayerView` sin controles propios (los botones son de Compose: el host manda, los demás no mueven el video).
 - `RoomScreen` llama a `PauseWhenAppStops`: en `ON_STOP` (salvo girar el teléfono) se llama a `RoomViewModel.onAppStopped()`,
   que pausa el video local y, **si la persona es host, también emite `sync` de pausa a toda la sala**.
-- Media3 está en 1.10.1 con `media3-exoplayer` y `media3-ui`. No hay `media3-session`, ni servicios, ni permisos de
-  notificaciones o de servicio en primer plano en el manifiesto. `MainActivity` no declara PiP ni `configChanges`.
-- Sin servicio en primer plano, Android puede congelar o matar el proceso con la app en segundo plano (ya anotado para
-  las subidas en la 4A).
+- Media3 está en 1.10.1 con `media3-exoplayer` y `media3-ui`. No hay `media3-session` ni un servicio de reproducción.
+  Desde la 6C el manifiesto tiene `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` y un servicio
+  de subidas (`UploadService`, tipo `dataSync`). `MainActivity` no declara PiP ni `configChanges`.
+- Lo visto en la 6C: con la app en segundo plano y **sin** servicio en primer plano, la subida fallaba siempre con "Se cortó
+  la conexión" aunque el proceso seguía vivo (se sospecha que Android corta la red de la app; la causa técnica exacta no se
+  registró). El servicio de subidas lo resolvió. Hay que esperar el mismo riesgo para la conexión de la sala y la
+  reproducción en segundo plano: verificarlo en 7B.
 
 ### 7A — Mini-reproductor flotante (Picture-in-Picture)
 
@@ -319,8 +328,9 @@ Más grande y de más riesgo. Se evalúa **después** de usar 7A, y solo si hace
       no agregarla.
 - [ ] Un `MediaSessionService` en primer plano con notificación de reproducción. Manifiesto: el servicio con
       `foregroundServiceType="mediaPlayback"`, `FOREGROUND_SERVICE` y `FOREGROUND_SERVICE_MEDIA_PLAYBACK` (Android 14+) y
-      `POST_NOTIFICATIONS` (Android 13+, pedido en un momento con sentido, por ejemplo al entrar a una sala con video, y
-      nunca al abrir la app).
+      `POST_NOTIFICATIONS` (Android 13+; la 6C ya lo declara y lo pide antes de la primera subida, así que 7B solo
+      decide si lo reutiliza o lo vuelve a pedir en un momento con sentido, por ejemplo al entrar a una sala con video,
+      y nunca al abrir la app).
 - [ ] **Mover el reproductor:** hoy el `ExoPlayer` lo crea `RoomPlayer` dentro del ViewModel. Hay que decidir si el servicio
       lo es dueño (y el ViewModel lo usa) o si se mantiene `RoomPlayer` y el servicio lo observa. Es la parte delicada:
       `RoomPlayer` tiene la lógica de sincronización (`planRejoin`, `RestartState`, correcciones de posición) y no debe

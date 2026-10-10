@@ -5,6 +5,36 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-10 — Fase 6C probada en emulador (notificaciones: aviso de subida y servicio en primer plano)
+
+- **Funciona** (según la persona, "todas las pruebas funcionaron como debían", en el emulador contra el server real): con la
+  app en segundo plano la subida sigue con una notificación de avance; al terminar llega el aviso; salir de la app justo después
+  de elegir el video; pantalla apagada; un archivo inválido no muestra notificación de avance; con el wifi cortado sale el aviso de
+  fallo y la notificación de avance desaparece; rotar el teléfono durante la subida.
+- **Sin confirmar uno por uno** (checklist de la A): el cuadro de permiso de Android 13+ y su texto, "Ahora no", el permiso negado,
+  "Subir y crear sala" y "Cambiar video" desde una sala con su aviso. Tampoco se probó con un video de varios GB ni en un teléfono real.
+- **Evaluación sin tocar el server:** `server.js` y `lib/` no tienen push (ni tokens de dispositivo ni envío) ni un aviso previo a la
+  expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; el `room-error` sale después de cerrar y solo a los conectados). El
+  push real quedó **sin hacer**: exige cambiar el server (tokens, endpoint, envío, programador) y sumar Firebase a la app.
+- **Código, A** (commit `feat: Fase 6C — aviso local…`): `net/UploadNotificationLogic.kt`, `notify/UploadNotifier.kt`,
+  `notify/NotificationPrefs.kt`, `ui/upload/NotificationPermissionGate.kt`, cuenta de pantallas visibles en `MovieNightApp`,
+  `UploadFlow.onFinished`. El permiso `POST_NOTIFICATIONS` se pide una sola vez, antes de abrir el selector de video.
+- **Hallazgo y código, B** (commit `feat: Fase 6C (B) — servicio en primer plano…`): con A sola, la subida en segundo plano fallaba
+  siempre con "Se cortó la conexión durante la subida" aunque el proceso seguía vivo. Se agregó un servicio en primer plano
+  (`dataSync`) que mantiene vivo el proceso y muestra el avance, sin subir nada él mismo: `net/UploadServiceLogic.kt`,
+  `notify/UploadKeepAlive.kt`, `notify/UploadService.kt`, `UploadFlow.onStateChanged`, permisos `FOREGROUND_SERVICE` y
+  `FOREGROUND_SERVICE_DATA_SYNC`, canal silencioso `upload_progress`. La causa técnica exacta del corte no se registró (el detalle
+  del error de red se descarta).
+- **Verificado antes de probar:** 11 tests de `UploadNotificationLogicTest` y 11 de `UploadServiceLogicTest` pasan con el arnés del
+  asistente (`kotlinc` 2.0.21); el resto del código nuevo pasó el parser sin errores de sintaxis. `gradlew testDebugUnitTest` no se
+  confirmó en esta fase; la app compiló y corrió en el emulador. Sin dependencias nuevas y sin tocar el server.
+- **Límites y pendientes:** cerrar la app desde recientes (o salir de la sala mientras se cambia el video) cancela la subida;
+  Android 15 limita `dataSync` a unas 6 h por día; sin botón de cancelar en la notificación de avance; el error técnico de red sigue
+  sin registrarse. Se actualizaron las pistas de subida (ya no piden dejar la app abierta) y las referencias viejas en `MEMORIA.md`
+  y en la Fase 7 del plan.
+
+---
+
 ## 2026-10-09 — Fase 6B probada en emulador (acceso al panel de administración desde la app)
 
 - **Funciona** (según la persona, "todos los puntos funcionaron perfectamente", en el emulador contra el server real en

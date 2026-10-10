@@ -61,7 +61,7 @@ movienight-android/
   app/
     build.gradle.kts       # applicationId, minSdk, targetSdk, dependencias de red
     src/main/java/com/isra16/movienight/
-      MovieNightApp.kt      # Application: crea el AppContainer
+      MovieNightApp.kt      # Application: crea el AppContainer y los canales de notificación (6C); cuenta las pantallas visibles
       AppContainer.kt       # singletons: CookieJar, OkHttpClient (+ socketClient), MovieNightApi, SessionManager, UserIdStore, RoomPasswordCache
       MainActivity.kt       # monta AppRoot
       auth/                 # sesión y cuenta, sin UI salvo los ViewModels
@@ -86,6 +86,7 @@ movienight-android/
         room/ViewersDialog.kt   # lista "En la sala": estado de cada persona y, para el host, el menú Acciones (hacer host / silenciar / expulsar) (5)
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
+        upload/NotificationPermissionGate.kt # 6C-A: rememberNotificationGate(): explica y pide POST_NOTIFICATIONS (Android 13+) antes de abrir el selector, una sola vez
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
@@ -99,6 +100,8 @@ movienight-android/
         UploadFlow.kt          # subida de punta a punta (4A) + paso siguiente opcional (4B): cancelar, reintentar solo el paso siguiente
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
+        UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
         AdminAccessLogic.kt    # 6B: si la cuenta es admin (respuesta de GET /admin/stats -> AdminAccess), cuándo mostrar el acceso, URL del panel (JVM puro)
         VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
         ApiErrors.kt            # apiErrorMessage(): código HTTP -> mensaje (datos; AuthErrors es el de login)
@@ -194,6 +197,64 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 6C hecha y probada en el emulador (2026-10-10): notificaciones que se pueden hacer sin tocar el servidor.** Con esto
+la Fase 6 queda cerrada, salvo el push real, que se evaluó y **no se hizo** (exige cambiar el servidor; ver abajo). Lo que sigue
+es la **Fase 7** (PiP y reproducción en segundo plano), ya escrita en el plan; releerla antes de empezar.
+- **Evaluación (verificada en `server.js` y `lib/`, rama `plan-produccion`):** las salas expiran tras `ROOM_TTL_HOURS` sin
+  actividad (24 h por defecto; `null` = nunca) con un barrido cada 30 minutos. **No hay aviso previo** a la expiración: lo único
+  que existe es el `room-error` "Esta sala expiró por inactividad…" emitido **después** de cerrarla y solo a los sockets
+  conectados. Los demás eventos (`host-status`, `mute-status`, `chat-message`, `video-changed`, `room-error`) también llegan solo
+  a quien tiene el socket abierto. No hay nada de push: ni tokens de dispositivo, ni Firebase, ni web-push.
+- **Push real, no hecho:** exigiría cambiar el servidor (guardar el token de cada dispositivo con un endpoint nuevo, una cuenta
+  de servicio de Firebase para enviar, ganchos en cada evento y un programador que avise antes de expirar la sala) y en la app un
+  proyecto de Firebase con su `google-services.json` y sus dependencias, comprobando antes que no exijan un Kotlin más nuevo que
+  el 2.0.21. Es la única forma de avisar con la app cerrada y de tener "sala por expirar". Queda en el plan sin tildar.
+- **A — aviso local de subida.** Cuando una subida llega a `Done` o `Failed` y la app **no se está viendo**, sale una notificación
+  (canal `uploads`, id 1001): "Subida terminada", "Sala lista", "Video de la sala cambiado", "No se pudo subir el video" o
+  "La subida quedó a medias" (video ya subido pero falló el paso siguiente). Tocarla trae la app al frente; con la app a la vista
+  no avisa, y al volver a verla se borra el aviso viejo. Lógica pura en `net/UploadNotificationLogic.kt` (`uploadNotice`,
+  `shouldAskNotificationPermission`, `VisibilityCounter`); la notificación en `notify/UploadNotifier.kt`. `UploadFlow` avisa por
+  `onFinished` desde un único punto (el setter de `state`). Se sabe si la app se ve contando `onActivityStarted`/`Stopped` en
+  `MovieNightApp`, sin dependencias nuevas; se comprueba con `areNotificationsEnabled()`.
+- **Permiso `POST_NOTIFICATIONS` (Android 13+):** se pide **una sola vez, justo antes de abrir el selector de video** (en "Solo
+  subir", "Subir y crear sala" y "Cambiar video" de la sala), con un cuadro que explica para qué es
+  (`ui/upload/NotificationPermissionGate.kt`). "Activar avisos" abre el cuadro del sistema; "Ahora no" no vuelve a preguntar;
+  cerrar el cuadro sin elegir sí vuelve a preguntar la próxima vez; con cualquier respuesta la subida sigue. Nunca se pide al abrir
+  la app y en Android 12 o menos no aparece nada. El "ya se preguntó" vive en `NotificationPrefs` y se excluye del backup.
+- **B — servicio en primer plano de subidas.** Hallazgo de la prueba real: con la app en segundo plano la subida **fallaba siempre**
+  con "Se cortó la conexión durante la subida" aunque el proceso seguía vivo (el aviso de fallo salía de ese mismo proceso). Se
+  sospecha que Android corta la red de una app en segundo plano sin servicio en primer plano; **la causa técnica exacta no se
+  registró** (el detalle del error de red, `PutOutcome.NetworkFailure.detail`, se descarta y no se muestra ni se loguea). El
+  servicio la resolvió en el emulador. Piezas: `net/UploadServiceLogic.kt` (`progressNoticeFor`, `UploadActivityTracker`, JVM
+  puro), `notify/UploadKeepAlive.kt` (controlador en el `AppContainer`), `notify/UploadService.kt` (servicio `dataSync`) y
+  `UploadFlow.onStateChanged`, que cada `HomeViewModel` y `RoomViewModel` conectan con su propia clave.
+- **Cómo funciona B:** el servicio **no sube nada**: la subida sigue siendo la corrutina de `UploadFlow`; el servicio solo mantiene
+  vivo el proceso y muestra una notificación de avance (canal silencioso `upload_progress`, id 1002, barra con porcentaje entero
+  que solo se actualiza al cambiar el número). Se arranca ya en `Preparing` (Android 12+ no deja arrancarlo desde segundo plano;
+  las notificaciones de servicios de vida corta se difieren, así que un archivo inválido que falla al instante no muestra nada) y se
+  para 2 s después de que no queda ninguna subida (para no pararlo antes de que termine de arrancar). `onStartCommand` siempre llama
+  a `startForeground` y devuelve `START_NOT_STICKY`. Con dos subidas a la vez (principal y sala) sigue hasta que terminen ambas.
+  `UploadFlow.release()` avisa `Idle` al cerrarse la pantalla dueña. Si Android no deja arrancarlo, la subida sigue como antes.
+  Manifiesto nuevo: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` y el servicio con
+  `foregroundServiceType="dataSync"`. Sin dependencias nuevas. Se actualizaron las pistas de la subida (ya no dicen "dejá la app
+  abierta") y el texto del cuadro de permiso.
+- **Qué se probó** (la persona confirmó "todas las pruebas funcionaron como debían" con el checklist de la B): la subida sigue con
+  la app en segundo plano con la notificación de avance; el aviso de "terminada" al acabar; salir de la app justo después de
+  elegir el video; pantalla apagada; un archivo inválido no muestra notificación de avance; con el wifi cortado sale el aviso de
+  fallo y la notificación de avance desaparece; rotar el teléfono durante la subida. Antes, con A sola, el aviso de **fallo** sí
+  llegó (esa prueba mostró el problema que resolvió B). **No se confirmaron uno por uno** los puntos del checklist de la A: el
+  cuadro de permiso y su texto, "Ahora no", el permiso negado, "Subir y crear sala" y "Cambiar video" desde una sala. **Verificado
+  por el asistente:** los 11 tests de `UploadNotificationLogicTest` y los 11 de `UploadServiceLogicTest` pasan (`kotlinc` 2.0.21,
+  arnés propio); el resto del código nuevo (UI, servicio, notificaciones) pasó el parser sin errores de sintaxis.
+  `gradlew testDebugUnitTest` no se confirmó en esta fase (la app sí compiló y corrió en el emulador).
+- **Límites:** cerrar la app deslizándola desde recientes **cancela** la subida (muere el ViewModel que la tiene), igual que salir
+  de la sala mientras se cambia el video; evitarlo exigiría mover la subida al servicio, un cambio mayor. Android 15 limita los
+  servicios `dataSync` a unas 6 h por día (`onTimeout` lo para). Si el sistema mata el proceso aun así, la subida se pierde (sin
+  basura en el bucket). La notificación de avance no tiene botón de cancelar (se cancela desde la app). Si el cuadro de permiso se
+  pierde al girar el teléfono en ese instante, el selector no se abre y hay que volver a tocar el botón (en "Subir y crear sala" la
+  contraseña recién se guarda cuando se abre el selector, así que no queda pendiente).
+Siguiente: **Fase 7** (7A, PiP) según el plan, o lo que decida la persona.
 
 **Fase 6B hecha y probada en el emulador (2026-10-09): acceso al panel de administración desde la app.** Queda la 6C
 (el único punto sin tildar de la Fase 6 en el plan es PWA/notificaciones push; releer el plan antes de elegir). Se eligió
@@ -341,7 +402,8 @@ un video recién subido y el host puede cambiar el video de la sala:
 - El servidor valida el contenido del video recién en estas dos rutas y **borra de la biblioteca** el que no
   pasa. Ante cualquier 400 la app recarga la lista.
 - La subida desde la sala es una corrutina de `RoomViewModel`: **si se sale de la sala mientras sube, se
-  corta** (mismo límite aceptado que en la 4A: sin servicio en primer plano). La pantalla se mantiene encendida
+  corta** (mismo límite que en la 4A; desde la 6C sigue valiendo para salir de la sala, aunque con la app en
+  segundo plano la subida ya no se corta: ver la primera entrada). La pantalla se mantiene encendida
   mientras sube.
 **Qué se probó:** la persona confirmó "todo funcionó" con el checklist de la sesión (crear con y sin
 contraseña; cambiar desde la biblioteca y subiendo uno nuevo con la web viendo el cambio; un host que no es el
@@ -365,7 +427,9 @@ Código en `net/UploadLogic.kt` (lógica pura con tests), `net/VideoUploader.kt`
   una URL nueva y sube desde cero.**
 - La pantalla se mantiene encendida mientras sube. La subida es una corrutina del `HomeViewModel`, sin
   servicio en primer plano: sigue mientras Android mantenga vivo el proceso; **si lo mata, hay que empezar de
-  nuevo** (un `PUT` simple cortado no deja objeto en el bucket). Es un límite aceptado, no un bug.
+  nuevo** (un `PUT` simple cortado no deja objeto en el bucket). Es un límite aceptado, no un bug. **(Superado en la 6C:
+  con la app en segundo plano la subida falló siempre en la prueba real y se agregó un servicio en primer plano; ver la
+  primera entrada de "Por dónde seguir".)**
 **Qué se probó:** el checklist completo de la 4A (selector, progreso, aparece en la biblioteca de la app y de
 la web, crear sala con ese video y reproducirlo, cancelar sin dejar un video a medias, error y reintento con
 modo avión, nombre con tilde y espacio, pantalla encendida y segundo plano) con un video de prueba de ~47 MB y
@@ -449,6 +513,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   404 sin Postgres, 500 si falla la consulta); `/auth/me` no lo informa. `/admin.html` es estático y el panel usa la misma
   cookie `movienight.sid`; no hay ruta HTTP para dar el rol (solo `scripts/make-admin.js`). Las rutas POST de admin pasan
   `requireSameOrigin` con OkHttp (no manda Origin ni Referer), por si algún día hacen falta acciones nativas.
+- **Notificaciones y subida en segundo plano (6C):** canales `uploads` (aviso, id 1001) y `upload_progress` (avance, silencioso, id
+  1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
+  previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
@@ -457,6 +524,11 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Sin prueba explícita:** la reacción (`reaction`) y la
   red lenta con muchos saltos de sincronización. (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
+- **Notificaciones y servicio de subida (6C):** sin confirmar uno por uno el cuadro de permiso, "Ahora no" y el permiso negado,
+  ni los avisos de "Subir y crear sala" y "Cambiar video"; sin probar con un video de varios GB ni en un teléfono real (el
+  comportamiento de los servicios cambia con la batería y el fabricante); no se registra el error técnico de red de una subida
+  fallida; cerrar la app desde recientes cancela la subida; sin push real (necesita el servidor). Ver la primera entrada de "Por
+  dónde seguir".
 - **Subida de video (4A):** no probada con un archivo grande real (cientos de MB o GB) ni cerca del límite de
   5 GiB; si Android mata la app durante una subida, se pierde (límite aceptado, ver la entrada de la 4A).
 - **Cambiar el video (4B):** sin probar una sala sin dueño (anónima de la web) donde la app sea host (usa el
