@@ -510,8 +510,6 @@ private fun PauseWhenAppStops(onStop: () -> Unit) {
         fun state() = "pip=${activity.isInPictureInPictureMode} cambioConfig=${activity.isChangingConfigurations} " +
             "pantalla=${if (activity.isScreenInteractive()) "on" else "off"}"
 
-        Log.d(PIP_TAG, "[DEBUG-X] PauseWhenAppStops: observador CREADO activity=${System.identityHashCode(activity)} ${state()}")
-
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_START -> {
@@ -540,7 +538,6 @@ private fun PauseWhenAppStops(onStop: () -> Unit) {
         activity.lifecycle.addObserver(observer)
         activity.addOnPictureInPictureModeChangedListener(pipListener)
         onDispose {
-            Log.d(PIP_TAG, "[DEBUG-X] PauseWhenAppStops: observador DESCARTADO activity=${System.identityHashCode(activity)} ${state()}")
             activity.lifecycle.removeObserver(observer)
             activity.removeOnPictureInPictureModeChangedListener(pipListener)
         }

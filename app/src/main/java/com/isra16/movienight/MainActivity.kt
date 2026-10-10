@@ -12,9 +12,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
-import androidx.core.app.PictureInPictureModeChangedInfo
-import androidx.core.util.Consumer
-import androidx.lifecycle.LifecycleEventObserver
 import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.shouldEnterPip
 import com.isra16.movienight.ui.AppRoot
@@ -30,20 +27,6 @@ class MainActivity : ComponentActivity(), PipHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // [DEBUG-X] Temporal: ciclo de vida y cambio de modo PiP de la actividad, para ver qué pasa al cerrar la ventana con la X.
-        val debugId = System.identityHashCode(this)
-        Log.d(PIP_TAG, "[DEBUG-X] ACTIVITY id=$debugId onCreate recreada=${savedInstanceState != null}")
-        lifecycle.addObserver(LifecycleEventObserver { _, event ->
-            Log.d(
-                PIP_TAG,
-                "[DEBUG-X] ACTIVITY id=$debugId $event pip=$isInPictureInPictureMode finishing=$isFinishing cambioConfig=$isChangingConfigurations",
-            )
-        })
-        addOnPictureInPictureModeChangedListener(
-            Consumer<PictureInPictureModeChangedInfo> { info ->
-                Log.d(PIP_TAG, "[DEBUG-X] ACTIVITY id=$debugId MODO_PIP=${info.isInPictureInPictureMode} lifecycle=${lifecycle.currentState}")
-            },
-        )
         enableEdgeToEdge()
         setContent {
             MovieNightTheme {

@@ -308,7 +308,6 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
 
     /** La app dejó de verse: el video se pausa, y si somos host la sala también (como pausar en el navegador). */
     fun onAppStopped() {
-        Log.d(SYNC_TAG, "[DEBUG-X] onAppStopped isHost=$isHost")
         player.pause()?.let { if (isHost) emitSync(it) }
     }
 
@@ -604,7 +603,6 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     override fun onCleared() {
-        Log.d(SYNC_TAG, "[DEBUG-X] onCleared vm=${System.identityHashCode(this)} isHost=$isHost")
         flow.release()
         player.release()
         roomSocket.disconnect()
