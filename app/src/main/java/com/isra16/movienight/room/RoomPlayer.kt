@@ -128,8 +128,13 @@ class RoomPlayer(private val context: Context) {
         }
 
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+            Log.d(TAG, "[DEBUG-X] ExoPlayer playWhenReady=$playWhenReady motivo=$reason")
             this@RoomPlayer.playWhenReady = playWhenReady
             updateBufferingReport()
+        }
+
+        override fun onIsPlayingChanged(isPlaying: Boolean) {
+            Log.d(TAG, "[DEBUG-X] ExoPlayer isPlaying=$isPlaying")
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
