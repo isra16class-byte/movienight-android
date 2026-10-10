@@ -200,6 +200,34 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 7A, punto de la X resuelto y confirmado en el emulador (2026-10-10): cerrar la ventana flotante con la X ahora pausa.** Reemplaza el
+punto pendiente de la entrada siguiente. Queda sin probar lo que se detalla abajo; la 7B sigue sin empezar (solo si hace falta, y empieza preguntando).
+- **Qué falló y cómo se arregló:** sin `configChanges`, cerrar la ventana con la X hacía que Android destruyera y recreara la actividad y no mandara
+  `onPictureInPictureModeChanged`; el video (y la sala, si eras host) seguía sonando. Se declaró en `MainActivity`
+  `android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: entrar y salir de PiP y **girar el teléfono ya no recrean la
+  actividad** (reciben `onConfigurationChanged`); tema oscuro, idioma y tamaño de letra siguen recreándola, y `PauseWhenAppStops` no pausa en ese caso. No
+  se tocó la lógica de pausa (`PauseOnStopTracker` ya cubría el orden).
+- **Qué se vio** (`adb logcat -s MovieNightPip MovieNightSync`): dos cierres con la X, uno como host y otro como invitado. En los dos sale
+  `ON_STOP pip=true -> no pauso` y, medio segundo después, `MODO_PIP=false lifecycle=CREATED -> PAUSO`. Como host: `onAppStopped isHost=true`,
+  `playWhenReady=false`, `emito pause` y los heartbeats siguen con `paused=true`. Como invitado: `onAppStopped isHost=false` y no emite nada. La persona
+  confirmó que se pausó bien. Un primer intento anterior no dejó ningún evento (la actividad seguía `pip=true`); no se explicó, posiblemente el toque no
+  fue sobre la X.
+- **También respaldado por ese log (entrada, expandir y pantalla apagada):** al entrar, `ON_PAUSE pip=true` y luego `MODO_PIP=true -> no pauso`, con la
+  misma actividad y el heartbeat del host cada 4 s; al tocar la ventana, `MODO_PIP=false` y `ON_RESUME` sin pausa; con la pantalla apagada en PiP,
+  `ON_STOP ... pantalla=off -> PAUSO` y el host emite `pause`, y al encenderla sigue pausado. Pausado y Inicio no abre ventana (`entrar=false`). Como
+  invitado en PiP llegó un `heartbeat` antes de cerrar.
+- **Límite conocido (decidido por la persona: se deja así):** un **invitado** que cierra la ventana con la X pausa, pero el siguiente `heartbeat` de un
+  host que sigue reproduciendo lo pone otra vez en play (1,1 s después en el log) y suena en segundo plano hasta que el socket cae (~5 s). Es el mismo
+  camino de la pantalla apagada y no es nuevo de PiP. Arreglarlo exigiría que el invitado ignore `play` y `heartbeat` mientras la app no se ve (tocaría
+  `RoomPlayer`/`RoomViewModel`, sin tocar el servidor); queda para la 7B si se hace.
+- **Código de este paso:** `fedab99` (el `configChanges`) y un patch que quita los logs de depuración `[DEBUG-X]` (revierte `5baa7c6`) y actualiza el
+  comentario del manifiesto. Se mantienen los logs `MovieNightPip` y `MovieNightSync` (decidir si se quitan). Sin dependencias nuevas ni cambios en el servidor.
+- **Sin probar (no darlos por probados):** girar el teléfono en la sala con `configChanges` (diseño horizontal, barras, teclado; sin `ON_STOP`,
+  `ON_DESTROY` ni `PAUSO`) y el tema oscuro (debe recrear sin pausar); la pantalla principal y el login sin ventana (solo se ve en el log la principal
+  con el video pausado); el camino de antes de Android 12; PiP desactivado en Ajustes; "Subir uno nuevo" con el video sonando; ser expulsado con la
+  ventana abierta; el invitado en PiP durante más tiempo (solo llegó un heartbeat antes de cerrar); y el contenido de la ventana (solo video), que no se ve
+  en el log. `gradlew testDebugUnitTest` no se confirmó.
+
 **Fase 7A hecha y probada en el emulador (2026-10-10): mini-reproductor flotante (Picture-in-Picture), con un punto por verificar: cerrar la
 ventana con la X.** La persona reporta que todas las pruebas funcionaron y que no vio parpadeos; el log que adjuntó respalda casi todo, pero
 no muestra el cierre con la X. Queda la 7B (sin empezar; solo si hace falta, y empieza preguntando).
@@ -558,6 +586,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Notificaciones y subida en segundo plano (6C):** canales `uploads` (aviso, id 1001) y `upload_progress` (avance, silencioso, id
   1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
+- **PiP y rotación (7A):** `MainActivity` declara `configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: girar el teléfono o entrar
+  y salir de PiP no recrean la actividad; tema, idioma y tamaño de letra sí. Sin ese `configChanges`, cerrar la ventana con la X no avisa a la
+  actividad y el video no se pausa.
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
@@ -566,9 +597,10 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Sin prueba explícita:** la reacción (`reaction`) y la
   red lenta con muchos saltos de sincronización. (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
-- **PiP (7A):** sin verificar el cierre con la X (el log no lo muestra: ver la primera entrada), el camino de antes de Android 12, PiP
-  desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y ser expulsado con la ventana abierta; quedan logs de depuración
-  (`MovieNightPip`, `MovieNightSync`) en el código; sin botones de reproducir/pausar en la ventana.
+- **PiP (7A):** la X ya se confirmó (ver la primera entrada). Sin probar: girar el teléfono y el tema oscuro con `configChanges`, la pantalla
+  principal y el login sin ventana, el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y
+  ser expulsado con la ventana abierta. Quedan los logs `MovieNightPip` y `MovieNightSync` en el código; sin botones de reproducir/pausar en la
+  ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
 - **Notificaciones y servicio de subida (6C):** sin confirmar uno por uno el cuadro de permiso, "Ahora no" y el permiso negado,
   ni los avisos de "Subir y crear sala" y "Cambiar video"; sin probar con un video de varios GB ni en un teléfono real (el
   comportamiento de los servicios cambia con la batería y el fabricante); no se registra el error técnico de red de una subida

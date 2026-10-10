@@ -5,6 +5,25 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-10 — Fase 7A: la X de la ventana flotante ya pausa (`configChanges`), confirmado en el emulador
+
+- **Defecto:** sin `configChanges`, cerrar la ventana flotante con la X recreaba la actividad y Android no mandaba el cambio de modo de PiP; el video
+  (y la sala, si eras host) seguía sonando con la actividad invisible.
+- **Arreglo** (commit `fix: la X de la ventana flotante (PiP) debe pausar el video (configChanges)`): `android:configChanges="screenSize|smallestScreenSize|
+  screenLayout|orientation"` en `MainActivity`. Entrar y salir de PiP y girar el teléfono ya no recrean la actividad; tema oscuro, idioma y tamaño de
+  letra sí. Sin cambios en la lógica de pausa, sin tests nuevos.
+- **Confirmado** por la persona ("se pausó bien", dos cierres: host e invitado). Log: `ON_STOP pip=true -> no pauso`, y medio segundo después
+  `MODO_PIP=false lifecycle=CREATED -> PAUSO`; como host `emito pause`, como invitado no emite nada. El log también respalda entrar en PiP sin pausar, expandir
+  la ventana sin pausar y la pantalla apagada en PiP (pausa y el host emite `pause`).
+- **Límite conocido (decidido por la persona):** el invitado que cierra la ventana pausa, pero el siguiente `heartbeat` de un host que sigue reproduciendo
+  lo vuelve a poner en play hasta que cae el socket (~5 s). No es nuevo de PiP (pasa igual con la pantalla apagada). No se arregló.
+- **Quitado:** los logs temporales `[DEBUG-X]` (patch de código aparte, revierte `5baa7c6`) y el comentario del manifiesto sobre la "hipótesis". Se mantienen
+  `MovieNightPip` y `MovieNightSync`.
+- **Sin probar:** girar el teléfono y el tema oscuro con `configChanges`, la pantalla principal y el login sin ventana, antes de Android 12, PiP desactivado
+  en Ajustes, "Subir uno nuevo" con el video sonando, ser expulsado con la ventana abierta. Sin dependencias nuevas y sin tocar el server.
+
+---
+
 ## 2026-10-10 — Fase 7A probada en emulador (mini-reproductor flotante, con un punto por verificar)
 
 - **Funciona** (según la persona, "todas las pruebas funcionaron como debían, sin parpadeos", en el emulador SDK 36): salir de la sala a otra

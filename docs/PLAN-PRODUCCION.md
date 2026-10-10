@@ -267,8 +267,9 @@ del servidor.
 
 ## Fase 7 — Reproducción fuera de la pantalla de la sala (PiP y segundo plano)
 
-> **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10, con un punto sin
-> verificar (cerrar la ventana con la X, ver abajo); 7B sin empezar.** Dos mejoras distintas, con costo y
+> **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
+> se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
+> abajo); 7B sin empezar.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -299,8 +300,11 @@ Al salir de la app estando en una sala, el video queda en una ventana flotante s
 - [x] Declarar en el manifiesto que `MainActivity` soporta PiP (`supportsPictureInPicture`), y decidir si hace falta
       `configChanges` para que entrar en PiP no recree la actividad. **Verificar en el emulador:** el reproductor sobrevive
       porque vive en el ViewModel, pero un `PlayerView` recreado puede dejar un parpadeo o una pantalla negra.
-      *(`supportsPictureInPicture` declarado; `configChanges` **no**: entrar en PiP recrea la actividad —se ve en el log— y la
-      persona no vio parpadeo.)*
+      *(`supportsPictureInPicture` declarado. Primero sin `configChanges` (entrar en PiP recreaba la actividad y no hubo
+      parpadeo), pero **cerrar con la X recreaba la actividad y no mandaba el cambio de modo de PiP**, así que el video no se
+      pausaba (medido con logs). Se declaró `configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: entrar y
+      salir de PiP y girar el teléfono ya no recrean la actividad; tema oscuro, idioma y tamaño de letra sí. **Efecto sobre
+      girar el teléfono: sin probar** en el emulador.)*
 - [x] Entrar en PiP solo cuando corresponde: la persona está en la pantalla de la sala, el video está cargado y se
       reproduce, y deja la app (botón Inicio o cambio a otra app). Nunca desde la pantalla principal, el login ni una
       sala con error, o "te sacaron". *(Android 12+: entrada automática con parámetros que se actualizan y se desactivan al
@@ -314,22 +318,34 @@ Al salir de la app estando en una sala, el video queda en una ventana flotante s
       (`isInPictureInPictureMode` / el listener de cambio de modo de `ComponentActivity`). **Verificar en el emulador** en
       qué orden llegan `ON_PAUSE`, `ON_STOP` y el cambio de modo al entrar y al cerrar la ventana: la lógica de "cuándo pausar"
       va como función pura con tests, y el orden real se confirma a mano. *(`PauseOnStopTracker`. El orden al entrar y al
-      volver a pantalla completa se vio en el log; **el del cierre con la X, no**.)*
+      volver a pantalla completa se vio en el log. Con `configChanges`, el cierre con la X llega así: `ON_STOP pip=true -> no pauso`
+      y medio segundo después `MODO_PIP=false` con la actividad detenida `-> PAUSO`.)*
 - [ ] Opcional: botones en la ventana (`RemoteAction`) de reproducir / pausar **solo para el host**; el invitado no los tiene.
       *(No se hizo: se dejó fuera de la primera entrega.)*
 - [x] Tests de la lógica pura (cuándo entrar en PiP, cuándo pausar). La UI y el comportamiento de Android solo se prueban en
       el emulador. *(21 tests en `PictureInPictureLogicTest`.)*
-- [ ] **Verificar el cierre con la X de la ventana flotante:** que pause el video, el host emita `pause` y el sonido pare. La
-      persona reporta que todo funcionó, pero el log que se adjuntó no muestra esa vía (ninguna pausa por cierre ni una sola
-      línea `MODO_PIP=`). Repetir con `adb logcat -s MovieNightPip MovieNightSync`: sala reproduciendo, entrar en PiP, tocar la
-      X, y mirar si aparece `PAUSO` y si el sonido para. Si no, hace falta un segundo patch de código.
+- [x] **Verificar el cierre con la X de la ventana flotante:** que pause el video, el host emita `pause` y el sonido pare.
+      *(Confirmado por la persona en el emulador con `configChanges`: "se pausó bien", dos cierres, uno como host y otro como
+      invitado. El log: como host sale `PAUSO`, `onAppStopped isHost=true`, `playWhenReady=false` y `emito pause`; como invitado
+      `PAUSO` y `onAppStopped isHost=false`, sin `emito pause`. Un primer intento sin ningún evento en el log quedó sin explicar
+      —posiblemente el toque no fue sobre la X—.)*
+- [ ] **Girar el teléfono en la sala y el tema oscuro, con `configChanges` declarado:** girar no debe pausar ni recrear la
+      actividad y la pantalla debe adaptarse (diseño horizontal, barras, teclado); el tema oscuro sí debe recrearla sin pausar.
+      *(Sin probar.)*
 
 **Hecho cuando:** salgo de la sala a otra app y el video sigue en una ventana flotante, sin pausar a los demás; tocar la
 ventana me devuelve a la sala; cerrar la ventana pausa como hoy; y en la pantalla principal, el login o una sala con
-error no aparece ninguna ventana flotante. *(Según la persona se cumple todo; la parte de "cerrar la ventana pausa como
-hoy" no está respaldada por el log, ver el punto pendiente de arriba.)*
+error no aparece ninguna ventana flotante. *(Según la persona se cumple, y la X se confirmó con `configChanges`. Falta
+"girar el teléfono en la sala sigue funcionando como hoy" con `configChanges`; la pantalla principal sin ventana se vio en el
+log, el login y la sala con error no.)*
 
 **Límite que se acepta:** la ventana vive mientras Android mantenga la app. Si Android mata el proceso, el video se detiene.
+
+**Límite conocido (decidido por la persona: se deja así):** un **invitado** que cierra la ventana con la X (o apaga la pantalla)
+pausa su video, pero el siguiente `heartbeat` de un host que sigue reproduciendo se lo vuelve a poner en play (visto en el log:
+1,1 s después de pausar) y suena en segundo plano hasta que el socket cae (~5 s). No es nuevo de PiP. Arreglarlo exigiría que
+el invitado ignore `play` y `heartbeat` mientras la app no se ve (tocaría `RoomPlayer`/`RoomViewModel`), y queda para la 7B
+si se hace.
 
 ### 7B — Audio y video que siguen con la pantalla apagada o en otra app (servicio de reproducción)
 
