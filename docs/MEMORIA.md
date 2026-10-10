@@ -86,6 +86,7 @@ movienight-android/
         room/ViewersDialog.kt   # lista "En la sala": estado de cada persona y, para el host, el menú Acciones (hacer host / silenciar / expulsar) (5)
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
+        room/PictureInPicture.kt # 7A: disponibilidad de PiP, actividad y PipHost
         upload/NotificationPermissionGate.kt # 6C-A: rememberNotificationGate(): explica y pide POST_NOTIFICATIONS (Android 13+) antes de abrir el selector, una sola vez
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
@@ -101,6 +102,7 @@ movienight-android/
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
         AdminAccessLogic.kt    # 6B: si la cuenta es admin (respuesta de GET /admin/stats -> AdminAccess), cuándo mostrar el acceso, URL del panel (JVM puro)
         VideoUploader.kt       # subida: metadatos del URI, RequestBody en streaming y PUT cancelable al bucket
@@ -197,6 +199,46 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 7A hecha y probada en el emulador (2026-10-10): mini-reproductor flotante (Picture-in-Picture), con un punto por verificar: cerrar la
+ventana con la X.** La persona reporta que todas las pruebas funcionaron y que no vio parpadeos; el log que adjuntó respalda casi todo, pero
+no muestra el cierre con la X. Queda la 7B (sin empezar; solo si hace falta, y empieza preguntando).
+- **Decisión de la persona:** al entrar en PiP **no se pausa nada**, ni el video local ni la sala, ni siendo host ni invitado. Se pausa cuando
+  la ventana se cierra o la app deja de verse del todo (por ejemplo, pantalla apagada).
+- **Cómo funciona:** `MainActivity` declara `supportsPictureInPicture` y **no** `configChanges`: entrar en PiP recrea la actividad (se ve en el
+  log: `ON_STOP cambioConfig=true` seguido de `ON_START pip=true`) y no se vio parpadeo porque el reproductor vive en el `RoomViewModel`. La
+  pantalla de la sala le pide a la actividad (`PipHost.updatePip(PipRequest)`) lo que hace falta cada vez que cambia: en la sala, video
+  cargado y sano, reproduciéndose, y el aspecto. La actividad lo aplica con `setPictureInPictureParams` y, desde Android 12, la entrada
+  automática (`setAutoEnterEnabled`); antes de Android 12 entra con `onUserLeaveHint` + `enterPictureInPictureMode`. Al salir de la
+  pantalla de la sala se manda `PipRequest.OFF`, para que desde la pantalla principal o el login nunca aparezca la ventana. Si PiP no está
+  disponible (función ausente o desactivada para la app en Ajustes, vía `AppOpsManager`) o entrar falla, la app se pausa como siempre.
+- **Piezas:** `net/PictureInPictureLogic.kt` (`PipConditions`, `shouldEnterPip`, `pipAspectFor` —16:9 por defecto, acotado a 1:2,39..2,39:1—,
+  `pipContentFor`, `PauseOnStopTracker`; JVM puro), `ui/room/PictureInPicture.kt` (disponibilidad, actividad, `PipHost`), cambios en
+  `MainActivity`, `RoomScreen` (`PictureInPictureRequests`, `PipVideo`, `PauseWhenAppStops`), `RoomPlayer` (`videoWidth`/`videoHeight` desde
+  `onVideoSizeChanged`, solo para el aspecto) y `RoomViewModel` (logs). En la ventana solo va el video; si la sala deja de estar sana con la
+  ventana abierta (te sacaron, se cerró, el video falló) se muestra un mensaje corto. No se hicieron los botones de reproducir/pausar de la ventana.
+- **Pausa (`PauseOnStopTracker`, reemplaza "ON_STOP y no es cambio de configuración"):** sin PiP, o con la pantalla apagada, se pausa; un cambio
+  de configuración no pausa; **detenida en PiP con la pantalla encendida no pausa en el momento: espera al cambio de modo de PiP**, y pausa si la
+  actividad quedó detenida (la ventana se cerró). Es un diseño que depende de que Android mande ese cambio de modo al cerrar la ventana.
+- **Qué muestra el log** (`adb logcat -s MovieNightPip MovieNightSync`, emulador SDK 36 / Android 16): al entrar en PiP no se pausa y el host sigue
+  emitiendo `heartbeat` cada 4 s sin huecos; un invitado en PiP recibe `heartbeat`, `pause` y `play` y la ventana los sigue; dos veces el
+  `ON_STOP` llegó en PiP con `cambioConfig=false` al volver a pantalla completa y no pausó (con la condición anterior habría pausado, y un host
+  habría pausado a toda la sala); con la pantalla apagada estando en PiP sale `pantalla=off -> PAUSO` y el host emite `pause`; desde la pantalla
+  principal `onUserLeaveHint ... entrar=false` y no hay ventana.
+- **Qué se probó:** la persona confirmó que todas las pruebas de la lista funcionaron y que no hubo parpadeos. **Qué NO queda respaldado por el
+  log y sigue sin verificar:** (1) **cerrar la ventana con la X**: en todo el log no hay ninguna pausa por esa vía ni una sola línea `MODO_PIP=`,
+  así que no se ve que el video pare; si Android no manda el cambio de modo al cerrar una actividad que nació en PiP (se recrea al entrar), la
+  pausa quedaría en espera y el video podría seguir sonando; (2) a las 18:27:44 el log marca `inRoom=false` con la ventana abierta y no se sabe
+  qué se hizo ahí; (3) el camino de antes de Android 12 (`onUserLeaveHint` + `enterPictureInPictureMode`), porque solo se probó SDK 36; (4) PiP
+  desactivado en Ajustes, abrir "Subir uno nuevo" con el video reproduciéndose y ser expulsado con la ventana abierta (no dejan línea en el log
+  aunque se hayan hecho); (5) el contenido de la ventana (solo video) y tocarla para volver, que no se ven en el log. **Verificado por el
+  asistente:** los 21 tests de `PictureInPictureLogicTest` pasan (`kotlinc` 2.0.21, arnés propio); `gradlew testDebugUnitTest` no se confirmó.
+- **Límites:** con la pantalla apagada se pausa y, unos 5 s después, el socket cae con `transport error` y reconecta al volver: es el mismo corte
+  de red de la 6C, independiente de PiP (la 7B tendría que resolverlo si se quiere audio con la pantalla apagada). Los logs de depuración
+  `MovieNightPip` y `MovieNightSync` (heartbeat cada 4 s, sync emitido y recibido, socket) quedaron en el código: decidir si se dejan o se quitan.
+- **Próximo paso:** repetir solo la prueba de la X con `adb logcat -s MovieNightPip MovieNightSync` (entrar en PiP con la sala reproduciendo, tocar
+  la X y mirar si sale `PAUSO` y si el sonido para). Si no pausa, hay que arreglarlo en un patch de código aparte. Después, usar la 7A unos días antes
+  de decidir si hace falta la 7B.
 
 **Fase 6C hecha y probada en el emulador (2026-10-10): notificaciones que se pueden hacer sin tocar el servidor.** Con esto
 la Fase 6 queda cerrada, salvo el push real, que se evaluó y **no se hizo** (exige cambiar el servidor; ver abajo). Lo que sigue
@@ -524,6 +566,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Sin prueba explícita:** la reacción (`reaction`) y la
   red lenta con muchos saltos de sincronización. (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
+- **PiP (7A):** sin verificar el cierre con la X (el log no lo muestra: ver la primera entrada), el camino de antes de Android 12, PiP
+  desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y ser expulsado con la ventana abierta; quedan logs de depuración
+  (`MovieNightPip`, `MovieNightSync`) en el código; sin botones de reproducir/pausar en la ventana.
 - **Notificaciones y servicio de subida (6C):** sin confirmar uno por uno el cuadro de permiso, "Ahora no" y el permiso negado,
   ni los avisos de "Subir y crear sala" y "Cambiar video"; sin probar con un video de varios GB ni en un teléfono real (el
   comportamiento de los servicios cambia con la batería y el fabricante); no se registra el error técnico de red de una subida

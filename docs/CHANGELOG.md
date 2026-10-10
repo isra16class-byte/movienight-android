@@ -5,6 +5,28 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-10 — Fase 7A probada en emulador (mini-reproductor flotante, con un punto por verificar)
+
+- **Funciona** (según la persona, "todas las pruebas funcionaron como debían, sin parpadeos", en el emulador SDK 36): salir de la sala a otra
+  app deja el video en una ventana flotante sin pausar a los demás; tocar la ventana vuelve a la sala; sin ventana desde la pantalla principal.
+- **Lo que respalda el log** (`MovieNightPip` y `MovieNightSync`): entrar en PiP no pausa y el host sigue emitiendo `heartbeat` cada 4 s sin
+  huecos; un invitado en PiP recibe `heartbeat`, `pause` y `play`; dos `ON_STOP` en PiP con `cambioConfig=false` al volver a pantalla completa no
+  pausaron (con la condición anterior habrían pausado); con la pantalla apagada se pausa y el host emite `pause`; desde la pantalla principal no
+  hay ventana. Entrar en PiP recrea la actividad y no hizo falta `configChanges`.
+- **Sin verificar:** el **cierre con la X** (el log no tiene ninguna pausa por esa vía ni líneas `MODO_PIP=`, así que no se ve que pare), qué pasó a
+  las 18:27:44 (`inRoom=false` con la ventana abierta), el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video
+  reproduciéndose y ser expulsado con la ventana abierta. No se tildó el cierre con la X en el plan.
+- **Decisión de la persona:** en PiP no se pausa nada (host ni invitado); se pausa al cerrar la ventana o al dejar de verse la app del todo.
+- **Código** (commit `feat: Fase 7A — mini-reproductor flotante…`): `net/PictureInPictureLogic.kt`, `ui/room/PictureInPicture.kt`, `MainActivity`
+  (`supportsPictureInPicture`, `updatePip`, `onUserLeaveHint`), `RoomScreen` (`PauseOnStopTracker` en lugar de la condición vieja de pausa),
+  `RoomPlayer` (tamaño del video para el aspecto). Sin dependencias nuevas y sin tocar el server. Sin botones en la ventana.
+- **Verificado por el asistente:** los 21 tests de `PictureInPictureLogicTest` pasan (`kotlinc` 2.0.21, arnés propio). `gradlew testDebugUnitTest`
+  no se confirmó en esta fase.
+- **Pendientes:** repetir la prueba de la X con el log; los logs de depuración `MovieNightPip` y `MovieNightSync` siguen en el código; con la
+  pantalla apagada el socket cae (`transport error`, igual que en la 6C), lo que tocaría resolver en la 7B si se hace.
+
+---
+
 ## 2026-10-10 — Fase 6C probada en emulador (notificaciones: aviso de subida y servicio en primer plano)
 
 - **Funciona** (según la persona, "todas las pruebas funcionaron como debían", en el emulador contra el server real): con la

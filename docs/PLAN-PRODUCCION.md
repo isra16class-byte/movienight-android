@@ -267,13 +267,14 @@ del servidor.
 
 ## Fase 7 — Reproducción fuera de la pantalla de la sala (PiP y segundo plano)
 
-> **Pendiente, sin empezar. Plan escrito el 2026-10-09; no toca el servidor.** Dos mejoras distintas, con costo y
+> **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10, con un punto sin
+> verificar (cerrar la ventana con la X, ver abajo); 7B sin empezar.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
 > patrón de la 6C (un servicio en primer plano que no es dueño de la tarea y una notificación con `NotificationCompat`).
 
-**Cómo está hoy** (verificado en el código el 2026-10-09):
+**Cómo estaba antes de la 7A** (verificado en el código el 2026-10-09):
 - El reproductor es un `ExoPlayer` dentro de `RoomPlayer`, que vive en `RoomViewModel`. La pantalla lo dibuja con un
   `PlayerView` sin controles propios (los botones son de Compose: el host manda, los demás no mueven el video).
 - `RoomScreen` llama a `PauseWhenAppStops`: en `ON_STOP` (salvo girar el teléfono) se llama a `RoomViewModel.onAppStopped()`,
@@ -291,29 +292,42 @@ del servidor.
 Al salir de la app estando en una sala, el video queda en una ventana flotante sobre la otra app. Sin dependencias nuevas
 (PiP viene con el sistema desde Android 8; el `minSdk` es 26).
 
-- [ ] **Decisión previa — qué pasa con la sala cuando el host entra en PiP.** Hoy salir de la app pausa a todos si eres
+- [x] **Decisión previa — qué pasa con la sala cuando el host entra en PiP.** Hoy salir de la app pausa a todos si eres
       host. Propuesta: **en PiP no se pausa** (ni el video local ni la sala); se pausa cuando la ventana flotante se cierra
-      o se deja de ver. Confirmar con la persona antes de escribir código.
-- [ ] Declarar en el manifiesto que `MainActivity` soporta PiP (`supportsPictureInPicture`), y decidir si hace falta
+      o se deja de ver. *(Decidido por la persona: en PiP no se pausa nada, ni siendo host ni invitado; se pausa al cerrar la
+      ventana o cuando la app deja de verse del todo, por ejemplo con la pantalla apagada.)*
+- [x] Declarar en el manifiesto que `MainActivity` soporta PiP (`supportsPictureInPicture`), y decidir si hace falta
       `configChanges` para que entrar en PiP no recree la actividad. **Verificar en el emulador:** el reproductor sobrevive
       porque vive en el ViewModel, pero un `PlayerView` recreado puede dejar un parpadeo o una pantalla negra.
-- [ ] Entrar en PiP solo cuando corresponde: la persona está en la pantalla de la sala, el video está cargado y se
+      *(`supportsPictureInPicture` declarado; `configChanges` **no**: entrar en PiP recrea la actividad —se ve en el log— y la
+      persona no vio parpadeo.)*
+- [x] Entrar en PiP solo cuando corresponde: la persona está en la pantalla de la sala, el video está cargado y se
       reproduce, y deja la app (botón Inicio o cambio a otra app). Nunca desde la pantalla principal, el login ni una
-      sala con error, o "te sacaron".
-- [ ] Relación de aspecto de la ventana: la del video (con un valor por defecto de 16:9 si todavía no se conoce).
-- [ ] Mientras la ventana está activa, mostrar **solo el video** (sin chat, cabecera ni controles) y volver a la pantalla
-      completa al tocarla.
-- [ ] Reemplazar la condición de `PauseWhenAppStops` por una que mire si la actividad está en PiP
+      sala con error, o "te sacaron". *(Android 12+: entrada automática con parámetros que se actualizan y se desactivan al
+      salir de la sala; antes de Android 12: `onUserLeaveHint`. Si PiP no está disponible o falla, se pausa como siempre. En el
+      log: sin ventana desde la pantalla principal. Solo se probó SDK 36.)*
+- [x] Relación de aspecto de la ventana: la del video (con un valor por defecto de 16:9 si todavía no se conoce). *(Log: 16:9
+      mientras no se conoce y 1920x1080 con el video cargado.)*
+- [x] Mientras la ventana está activa, mostrar **solo el video** (sin chat, cabecera ni controles) y volver a la pantalla
+      completa al tocarla. *(Según la persona; el log no muestra el contenido de la ventana.)*
+- [x] Reemplazar la condición de `PauseWhenAppStops` por una que mire si la actividad está en PiP
       (`isInPictureInPictureMode` / el listener de cambio de modo de `ComponentActivity`). **Verificar en el emulador** en
       qué orden llegan `ON_PAUSE`, `ON_STOP` y el cambio de modo al entrar y al cerrar la ventana: la lógica de "cuándo pausar"
-      va como función pura con tests, y el orden real se confirma a mano.
+      va como función pura con tests, y el orden real se confirma a mano. *(`PauseOnStopTracker`. El orden al entrar y al
+      volver a pantalla completa se vio en el log; **el del cierre con la X, no**.)*
 - [ ] Opcional: botones en la ventana (`RemoteAction`) de reproducir / pausar **solo para el host**; el invitado no los tiene.
-- [ ] Tests de la lógica pura (cuándo entrar en PiP, cuándo pausar). La UI y el comportamiento de Android solo se prueban en
-      el emulador.
+      *(No se hizo: se dejó fuera de la primera entrega.)*
+- [x] Tests de la lógica pura (cuándo entrar en PiP, cuándo pausar). La UI y el comportamiento de Android solo se prueban en
+      el emulador. *(21 tests en `PictureInPictureLogicTest`.)*
+- [ ] **Verificar el cierre con la X de la ventana flotante:** que pause el video, el host emita `pause` y el sonido pare. La
+      persona reporta que todo funcionó, pero el log que se adjuntó no muestra esa vía (ninguna pausa por cierre ni una sola
+      línea `MODO_PIP=`). Repetir con `adb logcat -s MovieNightPip MovieNightSync`: sala reproduciendo, entrar en PiP, tocar la
+      X, y mirar si aparece `PAUSO` y si el sonido para. Si no, hace falta un segundo patch de código.
 
 **Hecho cuando:** salgo de la sala a otra app y el video sigue en una ventana flotante, sin pausar a los demás; tocar la
 ventana me devuelve a la sala; cerrar la ventana pausa como hoy; y en la pantalla principal, el login o una sala con
-error no aparece ninguna ventana flotante.
+error no aparece ninguna ventana flotante. *(Según la persona se cumple todo; la parte de "cerrar la ventana pausa como
+hoy" no está respaldada por el log, ver el punto pendiente de arriba.)*
 
 **Límite que se acepta:** la ventana vive mientras Android mantenga la app. Si Android mata el proceso, el video se detiene.
 
