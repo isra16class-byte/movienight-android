@@ -19,8 +19,17 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.MovieNight">
+        <!--
+          Fase 7A: configChanges evita que Android recree la actividad al entrar y salir de la ventana flotante (PiP)
+          y al girar el teléfono: la actividad se queda viva y recibe onConfigurationChanged. Sin esto, al cerrar la
+          ventana con la X Android destruía y recreaba la actividad y nunca mandaba el cambio de modo de PiP, así que
+          el video no se pausaba (medido con los logs DEBUG-X). Es una hipótesis a confirmar en el emulador: que con
+          esto el cambio de modo llegue a la misma instancia. Otros cambios de configuración (tema oscuro, idioma,
+          tamaño de letra) siguen recreando la actividad, y PauseWhenAppStops sigue sin pausar en ese caso.
+        -->
         <activity
             android:name=".MainActivity"
+            android:configChanges="screenSize|smallestScreenSize|screenLayout|orientation"
             android:exported="true"
             android:label="@string/app_name"
             android:supportsPictureInPicture="true"

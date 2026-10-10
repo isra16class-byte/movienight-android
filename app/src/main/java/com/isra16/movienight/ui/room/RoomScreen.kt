@@ -489,8 +489,9 @@ private const val PROGRESS_REFRESH_MS = 500L
 
 /**
  * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla, cerrar la ventana flotante...), pero no
- * cuando la actividad solo se recrea por girar el teléfono (ahí el video tiene que seguir) ni cuando pasa a la
- * ventana flotante (PiP, ahí tampoco se pausa). La decisión vive en [PauseOnStopTracker] (lógica pura con tests);
+ * cuando la actividad se recrea por un cambio de configuración (tema oscuro, idioma...: ahí el video tiene que
+ * seguir; girar el teléfono ya no la recrea, ver `configChanges` en el manifiesto) ni cuando pasa a la ventana
+ * flotante (PiP, ahí tampoco se pausa). La decisión vive en [PauseOnStopTracker] (lógica pura con tests);
  * acá solo se le pasan los eventos de Android. Los logs `MovieNightPip` dejan ver el orden real de los eventos.
  */
 @Composable
