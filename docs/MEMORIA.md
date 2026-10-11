@@ -104,6 +104,7 @@ movienight-android/
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        PortraitVideoLogic.kt   # alto del video en vertical: 16:9, o más bajo con el teclado abierto (38 % del alto visible, piso de 90 dp) (JVM puro, 9 tests)
         DanmakuLogic.kt         # 7 (2A): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes (JVM puro, 17 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
@@ -204,6 +205,26 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Arreglo del teclado en vertical hecho y confirmado por la persona (2026-10-11): con el teclado abierto el video se achica en vez de esconderse.** La 7B y la
+parte 2B (reacciones) siguen sin empezar.
+- **Commit:** `5fdcb40` (en `origin/main`). Solo UI y lógica pura; sin servidor, `RoomPlayer`, `RoomViewModel` ni dependencias.
+- **Qué pasaba:** `RoomContent` no dibujaba el video mientras el teclado estaba abierto (decisión vieja, solo en un comentario del código: "dejaría el chat
+  aplastado"). La web hace lo contrario a propósito: `public/style.css` (`html.keyboard-open:not(.device-landscape) .screen-wrap`, rama `plan-produccion`) deja el
+  video achicarse a un tope de 38 % del alto visible con piso de 90 px, porque la prioridad es que se siga viendo grande.
+- **Qué hace ahora:** `portraitVideoHeightDp` (`net/PortraitVideoLogic.kt`): sin teclado, 16:9; con teclado, el 16:9 limitado al 38 % del alto que queda sobre el
+  teclado, con piso de 90 dp y sin agrandarse. `RoomContent` mide el espacio con `BoxWithConstraints` (misma pasada de layout) y pasa el alto a
+  `RoomVideo`/`RoomVideoBox`. El video ya no se desmonta al abrir o cerrar el teclado. Detección del teclado: la misma de antes (inset del IME mayor que 0); la
+  web la ata al foco del campo de chat.
+- **Qué verificó el asistente:** los 9 tests de `PortraitVideoLogicTest` pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); sin errores de sintaxis
+  nuevos en `RoomScreen.kt`. La UI no se pudo compilar aquí.
+- **Qué confirmó la persona:** probó en vivo los 5 puntos de la lista y funcionaron todos (video visible y más bajo con el teclado, vuelve al cerrarlo, sin
+  cortes al abrir y cerrar varias veces con el video sonando, controles al tocar el video con el teclado abierto, paso a pantalla completa al girar con el
+  teclado abierto). No dijo si fue en teléfono o emulador ni pidió ajustar los valores. "El teclado" salió de las listas de lo que seguía sin confirmar de la
+  7C. El pendiente de la 7A de girar el teléfono con `configChanges` sigue sin marcarse como cubierto.
+- **Una diferencia con la web, sin tocar:** el 38 % se calcula sobre el alto bajo la cabecera de la sala, algo menos que el de la web; el video puede salir un
+  poco más bajo que allá. Si en el teléfono el chat queda apretado o el video chico, se ajustan el 38 % y el piso (`VIDEO_KEYBOARD_MAX_FRACTION`,
+  `VIDEO_KEYBOARD_MIN_HEIGHT_DP`).
+
 **Fase 7, parte 2A hecha y confirmada por la persona (2026-10-11): comentarios flotantes del chat sobre el video en pantalla completa.** La 7B y la parte 2B
 (reacciones) siguen sin empezar. Es una extensión de la 7C (el siguiente bloque), pedida como "parte 2".
 - **Commit:** `5c4a99b` (en `origin/main`). Solo UI, lógica pura y un flujo en `RoomViewModel`; sin servidor, `RoomPlayer`, `MainActivity` ni PiP; sin
@@ -255,7 +276,7 @@ empezar (solo si hace falta, y empieza preguntando). La 7C no estaba en el plan 
 - **Decisiones del código que la persona no pidió cambiar:** los controles se esconden solos incluso con el video en pausa; en vertical no hay botón de
   volumen para invitados (la web móvil sí lo tiene).
 - **Sin confirmar uno por uno (no darlos por probados):** host y invitado en vertical (play/pausa, arrastrar la barra sin que se escondan los controles,
-  barra de solo lectura), tocar la franja oscura de los controles (se espera que esconda), el teclado abierto y cerrado, sin video o con error (el icono de
+  barra de solo lectura), tocar la franja oscura de los controles (se espera que esconda), sin video o con error (el icono de
   pantalla completa sigue y "Reintentar" no esconde los controles), el volumen del invitado en pantalla completa, y la interacción de la pantalla completa
   con PiP (entrar en PiP desde pantalla completa). Que `gradlew testDebugUnitTest` pasa no se confirmó (hay 25 `@Test` en `FullscreenLogicTest`). Girar el
   teléfono con `configChanges` (pendiente de la 7A) pudo quedar cubierto por las pruebas de esta fase, pero nadie lo confirmó expresamente.
@@ -646,6 +667,8 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Notificaciones y subida en segundo plano (6C):** canales `uploads` (aviso, id 1001) y `upload_progress` (avance, silencioso, id
   1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
+- **Video con el teclado abierto (vertical):** no se esconde, se achica: `portraitVideoHeightDp` copia el criterio de la web (tope 38 % del alto visible, piso de
+  90 dp, nunca más grande que el 16:9). Antes se escondía; esa decisión vieja ya no vale.
 - **Comentarios flotantes (7, parte 2A):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
   existe dentro de `RoomFullscreen`, así que salir de pantalla completa limpia comentarios y carriles. El tope de 12 es nuestro (la web no limita) y el color
   del nombre usa el mismo hash que la web, con tests contra sus valores.
@@ -669,7 +692,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
 - **Reacciones (parte 2B):** sin empezar; ver los hallazgos en la primera entrada de "Por dónde seguir".
 - **Sala en horizontal y controles sobre el video (7C):** funciona según la persona, sin detalle punto por punto. Sin confirmar uno por uno: lo listado en la
-  primera entrada de "Por dónde seguir" (host/invitado en vertical, teclado, sin video o con error, volumen del invitado, PiP desde pantalla completa).
+  primera entrada de "Por dónde seguir" (host/invitado en vertical, sin video o con error, volumen del invitado, PiP desde pantalla completa).
   Decisiones sin cambiar: controles que se esconden también en pausa y sin volumen en vertical.
 - **Notificaciones y servicio de subida (6C):** sin confirmar uno por uno el cuadro de permiso, "Ahora no" y el permiso negado,
   ni los avisos de "Subir y crear sala" y "Cambiar video"; sin probar con un video de varios GB ni en un teléfono real (el

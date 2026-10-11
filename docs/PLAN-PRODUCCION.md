@@ -393,9 +393,11 @@ servidor, sin tocar `RoomPlayer`/`RoomViewModel`/`MainActivity`/PiP y sin depend
       largo, color del nombre por hash (host cian), solo mensajes en vivo y no de sistema, tope de 12 a la vez (decisión nuestra) y se limpian al salir.
       Lógica pura en `net/DanmakuLogic.kt` (17 tests); `RoomViewModel.liveChat` y `ui/room/RoomDanmaku.kt`. La persona probó los 10 puntos de la lista y
       funcionaron todos.
+- [x] **Arreglo del teclado en vertical** (`5fdcb40`): con el teclado abierto el video se achica (tope 38 % del alto visible, piso 90 dp, como la web) en vez de
+      esconderse. Lógica pura en `net/PortraitVideoLogic.kt` (9 tests). La persona probó los 5 puntos de la lista en vivo y funcionaron todos.
 - [ ] **Parte 2B: reacciones (emojis que suben sobre el video), sin empezar.** Hay que parsear y enviar `reaction`, validar al recibir y limitar al enviar (el
       servidor no lo hace) y decidir si salen también en vertical, como la web. Antes de escribir código se confirma con la persona.
-- [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, el teclado, sin video o con error,
+- [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, sin video o con error,
       el volumen del invitado en pantalla completa, PiP desde pantalla completa, y `gradlew testDebugUnitTest`.
 - [ ] **Decisiones abiertas (la persona no pidió cambiarlas):** los controles se esconden también con el video en pausa; en vertical no hay botón de
       volumen para invitados.

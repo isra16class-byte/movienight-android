@@ -5,6 +5,26 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-11 — Arreglo: con el teclado abierto el video se achica en vez de esconderse (vista vertical), confirmado por la persona
+
+- **Problema:** al tocar el campo del chat en vertical el video desaparecía. No era un bug: `RoomContent` no lo dibujaba con el teclado abierto ("dejaría el chat
+  aplastado"). La web hace lo contrario a propósito (`public/style.css`, `html.keyboard-open:not(.device-landscape) .screen-wrap`, rama `plan-produccion`): el
+  video puede achicarse a un tope de 38 % del alto visible, con piso de 90 px, porque la prioridad es que se siga viendo grande. Commit `5fdcb40`.
+- **Ahora:** sin teclado el video es 16:9 como siempre; con teclado es el 16:9 limitado al 38 % del alto que queda sobre el teclado, con piso de 90 dp y sin
+  agrandarse nunca. Queda con bandas negras a los lados. Ya no se desmonta al abrir o cerrar el teclado.
+- **Código:** `net/PortraitVideoLogic.kt` (`portraitVideoHeightDp`, lógica pura con 9 tests); `RoomScreen.kt`: `RoomContent` mide el espacio con
+  `BoxWithConstraints` y pasa el alto a `RoomVideo`/`RoomVideoBox` (`height(videoHeight)` en lugar de `aspectRatio(16/9)`); el cuerpo anterior pasa a
+  `RoomContentBody` sin cambios. Sin cambios en el servidor, `RoomPlayer`, `RoomViewModel` ni dependencias.
+- **Verificado por el asistente:** los 9 tests pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); `kotlinc` da los mismos tipos de error antes y
+  después sobre `RoomScreen.kt` (solo referencias sin resolver por no tener Compose) y ningún error de sintaxis. La UI no se pudo compilar fuera de Android Studio.
+- **Confirmado por la persona:** probó en vivo los 5 puntos de la lista y funcionaron todos (video visible y más bajo al abrir el teclado, vuelve al cerrarlo,
+  sin cortes al abrir y cerrar varias veces con el video reproduciéndose, controles al tocar el video con el teclado abierto, y paso a pantalla completa al girar
+  con el teclado abierto). No dijo si fue en teléfono o emulador ni pidió ajustar el 38 % ni el piso de 90.
+- **Nota:** el 38 % se calcula sobre el alto que queda bajo la cabecera de la sala, algo menos que el alto de la web, así que el video puede salir un poco más bajo
+  que allá. El pendiente de la 7A "girar el teléfono con `configChanges`" no se marca como cubierto: no se probó por separado.
+
+---
+
 ## 2026-10-11 — Fase 7, parte 2A: comentarios flotantes del chat sobre el video en pantalla completa, confirmado por la persona
 
 - **Qué es:** como el "danmaku" de la web (`public/room.html`, rama `plan-produccion`). Cada mensaje de chat que llega en vivo cruza el video de derecha a
@@ -44,7 +64,7 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
   `ColumnScope` de afuera. El `Box` pasó a `RoomVideoBox`, sin cambios de lógica.
 - **Confirmado** por la persona: funcionó tras compilar con `2c5dd21`, sin detalle punto por punto (el dispositivo no quedó registrado). Sobre la pantalla
   completa, el mensaje de la sesión anterior que pegó dice que "los 12 puntos funcionaron".
-- **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin esconder los controles, el teclado, sin video o con error, el volumen del
+- **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin esconder los controles, sin video o con error, el volumen del
   invitado en pantalla completa, PiP desde pantalla completa y `gradlew testDebugUnitTest`.
 - **Decisiones abiertas** (no se pidió cambiarlas): los controles se esconden también con el video en pausa; en vertical no hay botón de volumen para invitados.
 - Sin cambios en el servidor, `RoomPlayer`, `RoomViewModel`, `MainActivity` ni PiP; sin dependencias nuevas.
