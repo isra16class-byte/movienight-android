@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -32,6 +33,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -166,31 +168,20 @@ internal fun RoomFullscreen(
     BackHandler(onBack = onExit)
     VideoProgressTicker(rp)
 
-    var overlay by remember { mutableStateOf(OverlayState.shown(SystemClock.elapsedRealtime())) }
-    var now by remember { mutableLongStateOf(SystemClock.elapsedRealtime()) }
-
-    // Despierta la vista justo cuando un grupo tiene que esconderse.
-    LaunchedEffect(overlay) {
-        while (true) {
-            val t = SystemClock.elapsedRealtime()
-            now = t
-            val next = overlay.nextExpiry(t) ?: break
-            delay(next - t)
-        }
-    }
+    val overlay = rememberOverlayController()
     LaunchedEffect(viewersDialogOpen) {
-        overlay = if (viewersDialogOpen) overlay.pinAside() else overlay.unpinAside(SystemClock.elapsedRealtime())
+        overlay.update { s, t -> if (viewersDialogOpen) s.pinAside() else s.unpinAside(t) }
     }
 
-    val controlsVisible = overlay.controlsVisible(now)
-    val asideVisible = overlay.asideVisible(now)
+    val controlsVisible = overlay.controlsVisible
+    val asideVisible = overlay.asideVisible
 
     Box(Modifier.fillMaxSize().background(Color.Black)) {
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
         VideoSurface(
             rp,
             Modifier.fillMaxSize().pointerInput(Unit) {
-                detectTapGestures { overlay = overlay.onTapVideo(SystemClock.elapsedRealtime()) }
+                detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
             },
         )
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(8.dp)) {
@@ -235,7 +226,7 @@ internal fun RoomFullscreen(
                         .clip(RoundedCornerShape(20.dp))
                         .background(Scrim)
                         .clickable {
-                            overlay = overlay.touchAside(SystemClock.elapsedRealtime())
+                            overlay.update { s, t -> s.touchAside(t) }
                             onShowViewers()
                         }
                         .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -253,32 +244,83 @@ internal fun RoomFullscreen(
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
-                FullscreenControlsBar(
-                    vm = vm,
-                    onTouch = { overlay = overlay.touchControls(SystemClock.elapsedRealtime()) },
-                    onExit = onExit,
-                )
+                val onTouch = { overlay.update { s, t -> s.touchControls(t) } }
+                PlayerControlsBar(
+                    rp = rp,
+                    isHost = vm.isHost,
+                    onTogglePlay = vm::hostTogglePlay,
+                    onSeek = vm::hostSeekTo,
+                    onTouch = onTouch,
+                ) {
+                    // El volumen es solo del invitado (como en la web); la ✕ vuelve a la vista vertical.
+                    if (!vm.isHost) VolumeControl(rp, onTouch)
+                    IconButton(onClick = onExit) {
+                        Icon(painterResource(R.drawable.ic_close), contentDescription = "Salir de pantalla completa", tint = Color.White)
+                    }
+                }
             }
         }
     }
 }
 
 /**
- * Barra de abajo. El host tiene play/pausa y una barra para saltar; el invitado, una barra de solo lectura y el
- * volumen (como en la web, el volumen es solo del invitado). Ambos tienen la ✕ para volver a la vista vertical.
+ * Estado de los dos grupos de controles ([OverlayState]) con su reloj. Lo usan la vista normal (solo el grupo de
+ * controles) y la pantalla completa (los dos), así hay una sola implementación de los tiempos.
+ */
+@Stable
+internal class OverlayController {
+    var overlay by mutableStateOf(OverlayState.shown(SystemClock.elapsedRealtime()))
+        private set
+    var now by mutableLongStateOf(SystemClock.elapsedRealtime())
+        internal set
+
+    val controlsVisible: Boolean get() = overlay.controlsVisible(now)
+    val asideVisible: Boolean get() = overlay.asideVisible(now)
+
+    /** Aplica un cambio de [OverlayState] con la hora actual (tocar el video, tocar un control...). */
+    fun update(change: (OverlayState, Long) -> OverlayState) {
+        overlay = change(overlay, SystemClock.elapsedRealtime())
+    }
+}
+
+/** Crea el [OverlayController] y lo despierta justo cuando un grupo tiene que esconderse. */
+@Composable
+internal fun rememberOverlayController(): OverlayController {
+    val controller = remember { OverlayController() }
+    LaunchedEffect(controller.overlay) {
+        while (true) {
+            val t = SystemClock.elapsedRealtime()
+            controller.now = t
+            val next = controller.overlay.nextExpiry(t) ?: break
+            delay(next - t)
+        }
+    }
+    return controller
+}
+
+/**
+ * Barra de controles sobre el video, la misma en la vista normal y en pantalla completa. El host tiene play/pausa y
+ * una barra para saltar; el invitado, una barra de solo lectura. [trailing] son los botones del extremo (pantalla
+ * completa en la vista normal; volumen y ✕ en pantalla completa). [onTouch] refresca el reloj de los controles.
  */
 @Composable
-private fun FullscreenControlsBar(vm: RoomViewModel, onTouch: () -> Unit, onExit: () -> Unit) {
-    val rp = vm.player
-    val isHost = vm.isHost
+internal fun PlayerControlsBar(
+    rp: RoomPlayer,
+    isHost: Boolean,
+    onTogglePlay: () -> Unit,
+    onSeek: (Float) -> Unit,
+    onTouch: () -> Unit,
+    modifier: Modifier = Modifier,
+    trailing: @Composable RowScope.() -> Unit,
+) {
     val healthy = rp.hasVideo && rp.error == null
     Row(
-        Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Scrim).padding(horizontal = 6.dp, vertical = 2.dp),
+        modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Scrim).padding(horizontal = 6.dp, vertical = 2.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         if (isHost) {
-            IconButton(onClick = { onTouch(); vm.hostTogglePlay() }, enabled = healthy) {
+            IconButton(onClick = { onTouch(); onTogglePlay() }, enabled = healthy) {
                 Icon(
                     painterResource(if (rp.showsPause) R.drawable.ic_pause else R.drawable.ic_play),
                     contentDescription = if (rp.showsPause) "Pausar" else "Reproducir",
@@ -291,7 +333,7 @@ private fun FullscreenControlsBar(vm: RoomViewModel, onTouch: () -> Unit, onExit
                 HostSeekBar(
                     positionMs = rp.positionMs,
                     durationMs = rp.durationMs,
-                    onSeek = vm::hostSeekTo,
+                    onSeek = onSeek,
                     modifier = Modifier.weight(1f),
                     labelColor = Color.White,
                     onInteract = onTouch,
@@ -302,10 +344,7 @@ private fun FullscreenControlsBar(vm: RoomViewModel, onTouch: () -> Unit, onExit
         } else {
             Spacer(Modifier.weight(1f))
         }
-        if (!isHost) VolumeControl(rp, onTouch)
-        IconButton(onClick = onExit) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = "Salir de pantalla completa", tint = Color.White)
-        }
+        trailing()
     }
 }
 

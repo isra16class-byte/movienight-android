@@ -2,7 +2,11 @@ package com.isra16.movienight.ui.room
 
 import android.content.res.Configuration
 import android.util.Log
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -48,6 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -381,8 +386,10 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
 }
 
 /**
- * El video de la sala. Los controles van debajo del video y no encima: así no hay nada dibujado sobre
- * la `SurfaceView` del `PlayerView` (que además no usa los controles nativos de Media3).
+ * El video de la sala. Los controles van encima del video, como en un reproductor normal (Fase 7C; antes iban
+ * debajo): aparecen al tocar el video y se esconden solos a los 3 s. Dibujar Compose encima de la `SurfaceView` del
+ * `PlayerView` (que no usa los controles nativos de Media3) ya se comprobó en la pantalla completa. Debajo del
+ * video quedan el nombre de la cinta y "Cambiar video".
  *
  * Quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto: la sala la
  * maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host (confirmado por el
@@ -399,20 +406,44 @@ private fun RoomVideo(
     onEnterFullscreen: () -> Unit,
 ) {
     VideoProgressTicker(rp)
+    val overlay = rememberOverlayController()
 
     Column(Modifier.fillMaxWidth()) {
-        VideoSurface(rp, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
+        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+            // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
+            VideoSurface(
+                rp,
+                Modifier.fillMaxSize().pointerInput(Unit) {
+                    detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
+                },
+            )
+            if (rp.hasVideo && rp.error == null && rp.isBuffering) {
+                CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp), color = Color.White, strokeWidth = 3.dp)
+            }
+            AnimatedVisibility(
+                visible = overlay.controlsVisible,
+                modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp),
+                enter = fadeIn(),
+                exit = fadeOut(),
+            ) {
+                PlayerControlsBar(
+                    rp = rp,
+                    isHost = isHost,
+                    onTogglePlay = onTogglePlay,
+                    onSeek = onSeek,
+                    onTouch = { overlay.update { s, t -> s.touchControls(t) } },
+                ) {
+                    IconButton(onClick = onEnterFullscreen) {
+                        Icon(painterResource(R.drawable.ic_fullscreen), contentDescription = "Pantalla completa", tint = Color.White)
+                    }
+                }
+            }
+        }
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (isHost) {
-                OutlinedButton(onClick = onTogglePlay, enabled = rp.hasVideo && rp.error == null) {
-                    Text(if (rp.showsPause) "Pausar" else "Reproducir")
-                }
-            }
-            if (rp.isBuffering) CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
             Text(
                 if (videoName.isNotEmpty()) videoName else "Sin cinta",
                 modifier = Modifier.weight(1f),
@@ -421,16 +452,6 @@ private fun RoomVideo(
                 maxLines = 1,
             )
             if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
-            IconButton(onClick = onEnterFullscreen) {
-                Icon(painterResource(R.drawable.ic_fullscreen), contentDescription = "Pantalla completa")
-            }
-        }
-        if (rp.hasVideo && rp.error == null) {
-            if (isHost) {
-                HostSeekBar(positionMs = rp.positionMs, durationMs = rp.durationMs, onSeek = onSeek)
-            } else {
-                GuestProgressBar(positionMs = rp.positionMs, durationMs = rp.durationMs)
-            }
         }
     }
 }
