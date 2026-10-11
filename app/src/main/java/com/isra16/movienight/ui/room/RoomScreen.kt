@@ -1,5 +1,6 @@
 package com.isra16.movienight.ui.room
 
+import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -24,6 +25,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -45,8 +48,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -58,17 +63,22 @@ import androidx.core.util.Consumer
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import com.isra16.movienight.R
 import com.isra16.movienight.net.ChatMessage
+import com.isra16.movienight.net.FullscreenState
 import com.isra16.movienight.net.PauseOnStopTracker
 import com.isra16.movienight.net.PipConditions
 import com.isra16.movienight.net.PipContent
 import com.isra16.movienight.net.PipRequest
+import com.isra16.movienight.net.RoomLayout
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.isBusy
+import com.isra16.movienight.net.orientationRequestFor
 import com.isra16.movienight.net.pipAspectFor
 import com.isra16.movienight.net.pipContentFor
 import com.isra16.movienight.net.progressFraction
+import com.isra16.movienight.net.roomLayoutFor
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
 import com.isra16.movienight.room.RoomPlayer
@@ -88,6 +98,21 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     PictureInPictureRequests(vm)
     // Mientras el host sube un video la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
     KeepScreenOn(vm.upload.isBusy())
+    // Este estado vive acá, antes del `return` de la ventana flotante y fuera de la vista que se muestre: si viviera
+    // dentro de RoomContent o RoomHeader se perdería al cambiar entre la vista normal y la pantalla completa.
+    var fullscreen by rememberSaveable(stateSaver = FullscreenStateSaver) { mutableStateOf(FullscreenState()) }
+    var draft by rememberSaveable { mutableStateOf("") }
+    var showViewers by rememberSaveable { mutableStateOf(false) }
+    val inRoom = vm.phase == RoomPhase.InRoom
+    val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // Horizontal = pantalla completa (la vista normal no sirve acostado); también si se pidió con el botón.
+    val layout = roomLayoutFor(inRoom = inRoom, fullscreenRequested = fullscreen.requested, landscape = landscape)
+    FullscreenWindowEffects(
+        layout = layout,
+        orientation = orientationRequestFor(inRoom, fullscreen.requested, fullscreen.portraitHold),
+        holdActive = inRoom && fullscreen.portraitHold,
+        onPhysicalAngle = { fullscreen = fullscreen.onPhysicalAngle(it) },
+    )
     // En la ventana flotante solo va el video: sin chat, cabecera ni controles ni cuadros.
     if (rememberIsInPictureInPicture(LocalContext.current.findActivity())) {
         PipVideo(vm)
@@ -95,8 +120,19 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     }
     // El cuadro "Cambiar video" es solo del host: si pierde el rol, el ViewModel lo cierra.
     if (vm.showChangeVideo && vm.isHost) ChangeVideoDialog(vm)
+    // La lista de conectados (con la moderación) se abre desde la cabecera o desde la pantalla completa.
+    if (showViewers) ViewersDialog(vm = vm, onDismiss = { showViewers = false })
+    if (layout == RoomLayout.FULLSCREEN) {
+        RoomFullscreen(
+            vm = vm,
+            viewersDialogOpen = showViewers,
+            onExit = { fullscreen = fullscreen.exit() },
+            onShowViewers = { showViewers = true },
+        )
+        return
+    }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
-        RoomHeader(vm = vm, onLeave = onLeave)
+        RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
         HorizontalDivider()
         when (val phase = vm.phase) {
             RoomPhase.Checking -> CenteredStatus("Comprobando la sala…", vm.notice)
@@ -104,14 +140,18 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
             is RoomPhase.AskPassword -> PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword)
             RoomPhase.Kicked -> KickedState(onLeave = onLeave)
             is RoomPhase.Failed -> FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave)
-            RoomPhase.InRoom -> RoomContent(vm)
+            RoomPhase.InRoom -> RoomContent(
+                vm = vm,
+                draft = draft,
+                onDraftChange = { draft = it },
+                onEnterFullscreen = { fullscreen = fullscreen.enter() },
+            )
         }
     }
 }
 
 @Composable
-private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit) {
-    var showViewers by rememberSaveable { mutableStateOf(false) }
+private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit) {
     val inRoom = vm.phase == RoomPhase.InRoom
 
     Row(
@@ -126,13 +166,11 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit) {
             }
         }
         if (inRoom) {
-            TextButton(onClick = { showViewers = true }) {
+            TextButton(onClick = onShowViewers) {
                 Text(if (vm.viewerCount == 1) "1 conectado" else "${vm.viewerCount} conectados")
             }
         }
     }
-
-    if (showViewers) ViewersDialog(vm = vm, onDismiss = { showViewers = false })
 }
 
 @Composable
@@ -213,12 +251,11 @@ private fun FailedState(message: String, canRetry: Boolean, onRetry: () -> Unit,
 }
 
 @Composable
-private fun RoomContent(vm: RoomViewModel) {
-    var draft by rememberSaveable { mutableStateOf("") }
+private fun RoomContent(vm: RoomViewModel, draft: String, onDraftChange: (String) -> Unit, onEnterFullscreen: () -> Unit) {
     val canSend = draft.isNotBlank() && vm.isConnected && !vm.isMuted
 
     fun send() {
-        if (vm.sendChat(draft)) draft = ""
+        if (vm.sendChat(draft)) onDraftChange("")
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -231,6 +268,7 @@ private fun RoomContent(vm: RoomViewModel) {
                 onTogglePlay = vm::hostTogglePlay,
                 onSeek = vm::hostSeekTo,
                 onChangeVideo = vm::openChangeVideo,
+                onEnterFullscreen = onEnterFullscreen,
             )
 
         // Avance de una subida cuando el cuadro "Cambiar video" está oculto.
@@ -271,7 +309,7 @@ private fun RoomContent(vm: RoomViewModel) {
 
         if (vm.isMuted) {
             Text(
-                "El host te silenció: no podés escribir en el chat.",
+                MUTED_CHAT_NOTICE,
                 modifier = Modifier.fillMaxWidth().padding(12.dp),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.error,
@@ -286,7 +324,7 @@ private fun RoomContent(vm: RoomViewModel) {
                 OutlinedTextField(
                     value = draft,
                     onValueChange = {
-                        draft = it.take(500)
+                        onDraftChange(it.take(500))
                         if (it.isNotEmpty()) vm.onTyping()
                     },
                     modifier = Modifier.weight(1f),
@@ -358,51 +396,12 @@ private fun RoomVideo(
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
     onChangeVideo: () -> Unit,
+    onEnterFullscreen: () -> Unit,
 ) {
-    // La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe.
-    LaunchedEffect(rp, rp.hasVideo) {
-        while (true) {
-            rp.refreshProgress()
-            delay(PROGRESS_REFRESH_MS)
-        }
-    }
+    VideoProgressTicker(rp)
 
     Column(Modifier.fillMaxWidth()) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Color.Black),
-            contentAlignment = Alignment.Center,
-        ) {
-            val exo = rp.player
-            val error = rp.error
-            when {
-                !rp.hasVideo -> Text("Sin cinta", style = MaterialTheme.typography.titleMedium, color = Color.White)
-                error != null -> Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                ) {
-                    Text(error, style = MaterialTheme.typography.bodyMedium, color = Color.White, textAlign = TextAlign.Center)
-                    OutlinedButton(onClick = rp::retry) { Text("Reintentar") }
-                }
-                exo != null -> {
-                    // El reproductor vive más que esta vista (teclado que la esconde, girar el teléfono): hay que
-                    // soltarlo del PlayerView al salir, o cada PlayerView viejo seguiría escuchándolo.
-                    val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
-                    DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
-                    AndroidView(
-                        factory = { context ->
-                            PlayerView(context).apply { useController = false }.also { viewHolder[0] = it }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        update = { view ->
-                            view.player = exo
-                            view.keepScreenOn = rp.showsPause // que la pantalla no se apague a mitad de la peli
-                        },
-                    )
-                }
-                else -> Unit
-            }
-        }
+        VideoSurface(rp, Modifier.fillMaxWidth().aspectRatio(16f / 9f))
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -422,6 +421,9 @@ private fun RoomVideo(
                 maxLines = 1,
             )
             if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
+            IconButton(onClick = onEnterFullscreen) {
+                Icon(painterResource(R.drawable.ic_fullscreen), contentDescription = "Pantalla completa")
+            }
         }
         if (rp.hasVideo && rp.error == null) {
             if (isHost) {
@@ -434,25 +436,88 @@ private fun RoomVideo(
 }
 
 /**
- * Barra con la que el host salta en el video. Mientras se arrastra solo se mueve la barra; al soltar se
- * salta (un solo `seek` hacia la sala, no uno por cada pixel del arrastre, como el `seeked` de la web).
+ * La caja del video: el `PlayerView`, "Sin cinta" o el error con "Reintentar". La usan la vista normal (16:9) y la
+ * pantalla completa (toda la ventana); el `PlayerView` se ajusta al espacio con franjas negras, sin recortar.
  */
 @Composable
-private fun HostSeekBar(positionMs: Long, durationMs: Long, onSeek: (Float) -> Unit) {
+internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier) {
+    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+        val exo = rp.player
+        val error = rp.error
+        when {
+            !rp.hasVideo -> Text("Sin cinta", style = MaterialTheme.typography.titleMedium, color = Color.White)
+            error != null -> Column(
+                Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Text(error, style = MaterialTheme.typography.bodyMedium, color = Color.White, textAlign = TextAlign.Center)
+                OutlinedButton(onClick = rp::retry) { Text("Reintentar") }
+            }
+            exo != null -> {
+                // El reproductor vive más que esta vista (teclado que la esconde, girar el teléfono, pasar a pantalla
+                // completa): hay que soltarlo del PlayerView al salir, o cada PlayerView viejo seguiría escuchándolo.
+                val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
+                DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
+                AndroidView(
+                    factory = { context ->
+                        PlayerView(context).apply { useController = false }.also { viewHolder[0] = it }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                    update = { view ->
+                        view.player = exo
+                        view.keepScreenOn = rp.showsPause // que la pantalla no se apague a mitad de la peli
+                    },
+                )
+            }
+            else -> Unit
+        }
+    }
+}
+
+/** La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe. */
+@Composable
+internal fun VideoProgressTicker(rp: RoomPlayer) {
+    LaunchedEffect(rp, rp.hasVideo) {
+        while (true) {
+            rp.refreshProgress()
+            delay(PROGRESS_REFRESH_MS)
+        }
+    }
+}
+
+/**
+ * Barra con la que el host salta en el video. Mientras se arrastra solo se mueve la barra; al soltar se
+ * salta (un solo `seek` hacia la sala, no uno por cada pixel del arrastre, como el `seeked` de la web).
+ * [onInteract] avisa de cada toque o movimiento (en pantalla completa refresca el reloj de los controles).
+ */
+@Composable
+internal fun HostSeekBar(
+    positionMs: Long,
+    durationMs: Long,
+    onSeek: (Float) -> Unit,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    onInteract: () -> Unit = {},
+) {
     var dragFraction by remember { mutableStateOf<Float?>(null) }
     val shown = dragFraction ?: progressFraction(positionMs, durationMs)
     val shownMs = if (dragFraction != null) seekTargetMs(shown, durationMs) else positionMs
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 2.dp),
+        modifier.padding(horizontal = 12.dp, vertical = 2.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Slider(
             value = shown,
-            onValueChange = { dragFraction = it },
+            onValueChange = {
+                dragFraction = it
+                onInteract()
+            },
             onValueChangeFinished = {
                 dragFraction?.let(onSeek)
                 dragFraction = null
+                onInteract()
             },
             modifier = Modifier.weight(1f),
             enabled = durationMs > 0L,
@@ -460,16 +525,21 @@ private fun HostSeekBar(positionMs: Long, durationMs: Long, onSeek: (Float) -> U
         Text(
             "${formatPlaybackTime(shownMs)} / ${if (durationMs > 0L) formatPlaybackTime(durationMs) else "--:--"}",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = labelColor,
         )
     }
 }
 
 /** Barra de progreso de solo lectura para quien no es host: no se puede tocar ni arrastrar. */
 @Composable
-private fun GuestProgressBar(positionMs: Long, durationMs: Long) {
+internal fun GuestProgressBar(
+    positionMs: Long,
+    durationMs: Long,
+    modifier: Modifier = Modifier.fillMaxWidth(),
+    labelColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+) {
     Row(
-        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier.padding(horizontal = 12.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -480,12 +550,15 @@ private fun GuestProgressBar(positionMs: Long, durationMs: Long) {
         Text(
             "${formatPlaybackTime(positionMs)} / ${if (durationMs > 0L) formatPlaybackTime(durationMs) else "--:--"}",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = labelColor,
         )
     }
 }
 
 private const val PROGRESS_REFRESH_MS = 500L
+
+/** Aviso de que el host silenció al usuario (en el campo de texto de la vista normal y arriba en pantalla completa). */
+internal const val MUTED_CHAT_NOTICE = "El host te silenció: no podés escribir en el chat."
 
 /**
  * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla, cerrar la ventana flotante...), pero no
