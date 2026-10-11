@@ -104,6 +104,7 @@ movienight-android/
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        VideoFitLogic.kt        # 7C: niveles de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine) y videoScale() según ventana y video (JVM puro, 14 tests)
         PortraitVideoLogic.kt   # alto del video en vertical: 16:9, o más bajo con el teclado abierto (38 % del alto visible, piso de 90 dp) (JVM puro, 9 tests)
         DanmakuLogic.kt         # 7 (2A): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes (JVM puro, 17 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
@@ -204,6 +205,32 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Niveles de ajuste del video en pantalla completa hechos y confirmados por la persona (2026-10-11): Entero, Medio, Llenar y Cine.** La 7B y la parte 2B (reacciones)
+siguen sin empezar. Salió de una captura con márgenes negros ("que los videos se adapten a la pantalla"), en dos pasos: primero "Llenar" y después "unos 3" niveles más
+para distintos tipos de video, con el recordatorio de que la app la van a usar otras personas con otros teléfonos.
+- **Commits (los tres en `origin/main`):** `1e769d8` (botón Ajustar / Llenar), `ea5379e` (los cuatro niveles) y `a9458b2` (arreglo de una anotación mía). Solo UI y lógica
+  pura; sin servidor, `RoomPlayer`, `RoomViewModel`, vista vertical ni PiP; sin dependencias nuevas.
+- **Qué se vio y qué se interpretó:** visto, medido por el asistente sobre la captura (estimación): franjas negras a los lados y arriba y abajo, con una imagen de ~2,4:1 en una
+  pantalla de ~2,2:1. Interpretado, sin confirmar con el archivo: un 16:9 con franjas de cine metidas en el propio video. La app no fijaba ningún modo de escala (grep) y la web
+  no define `object-fit` en `public/*.css` ni `public/*.html` (rama `plan-produccion`): las dos muestran el video entero, no era un fallo.
+- **Investigación (guías generales, sin porcentajes de uso):** 16:9 es lo más común; en cine 1.85:1 y 2.39:1; 4:3 es contenido viejo o de definición estándar; 2:1 (Univisium) lo
+  popularizó Netflix; 9:16 es video vertical (ahí conviene Entero).
+- **Qué hace:** en pantalla completa, un botón junto a la ✕ (icono + nombre) recorre Entero (el de siempre, inicial) → Medio (mitad de camino entre Entero y Llenar, para 4:3) → Llenar
+  (cubre la ventana sin deformar, recorta lo que sobre) → Cine (cubre la ventana tratando el cuadro como 2,39:1, quita franjas de cine incrustadas; con un video ya igual o más ancho que
+  2,39:1 queda igual que Llenar) → Entero. Se recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se pierde al salir. Solo visual y local: no se sincroniza. Cuentas
+  del asistente para una pantalla de ~2,22:1 (los tests las comprueban): un 16:9 con Llenar recorta el 20 % del alto, un 4:3 el 40 % (Medio recorta menos), una película 2,39:1 ya recortada
+  el 7 % del ancho; un 16:9 con franjas incrustadas queda con ~3,5 % de franja con Llenar y sin franja con Cine.
+- **Dónde está:** `net/VideoFitLogic.kt` (`VideoFit`, `videoScale`, textos) con `VideoFitLogicTest` (14 tests, 5 proporciones de pantalla por 6 de video); `VideoSurface` en `RoomScreen.kt` (recibe
+  `fit`); el botón en `RoomFullscreen.kt`; el estado (`rememberSaveable`) en `RoomScreen`. Entero y Llenar usan `RESIZE_MODE_FIT` / `ZOOM`; Medio y Cine dejan el `PlayerView` en FIT con un tamaño propio
+  (`requiredSize`, centrado) calculado con la ventana (`BoxWithConstraints`) y el tamaño del video (`Player.Listener.onVideoSizeChanged`, solo lectura). Sin tamaño conocido se ven como Entero.
+- **Error mío corregido (`a9458b2`):** el `@OptIn` de Kotlin no tiene efecto con Media3; Android Studio marcaba 4 errores de lint (no impedían compilar). Ahora es `@androidx.annotation.OptIn(UnstableApi::class)`.
+  La persona confirmó que se quitaron.
+- **Qué verificó el asistente:** los 14 tests pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); sin errores de sintaxis en la UI. En el fuente de Media3 1.10.1: `UnstableApi` usa el
+  `RequiresOptIn` de AndroidX; `setResizeMode`, `getResizeMode` y `AspectRatioFrameLayout` son `@UnstableApi`; `VideoSize`, `Player.getVideoSize()` y `onVideoSizeChanged` son estables. La UI no se pudo compilar aquí.
+- **Qué confirmó la persona:** "Ajustar / Llenar": todas las pruebas dieron resultados positivos. Niveles: todos los puntos de prueba pasaron bien (12). No detalló punto por punto ni dijo si fue en teléfono
+  o emulador (su captura mostraba el emulador Medium Phone API 36.1 con la app abierta). El punto 12 (otra proporción de pantalla, probada por otra persona) no se detalló: sigue como pendiente.
+- **Límites conocidos:** Cine en un 16:9 sin franjas recorta bastante arriba y abajo (esperado); no se tiene en cuenta `unappliedRotationDegrees`; el nivel no se guarda entre salas.
 
 **Arreglo del teclado en vertical hecho y confirmado por la persona (2026-10-11): con el teclado abierto el video se achica en vez de esconderse.** La 7B y la
 parte 2B (reacciones) siguen sin empezar.
@@ -672,6 +699,11 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Comentarios flotantes (7, parte 2A):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
   existe dentro de `RoomFullscreen`, así que salir de pantalla completa limpia comentarios y carriles. El tope de 12 es nuestro (la web no limita) y el color
   del nombre usa el mismo hash que la web, con tests contra sus valores.
+- **Niveles de ajuste del video (7C):** `VideoFit` (FIT, MEDIUM, FILL, CINEMA) y `videoScale` (`net/VideoFitLogic.kt`) calculan la escala con la ventana y el video reales, sin valores de un aparato. Medio = promedio
+  de las escalas de Entero y Llenar; Cine = cubrir la ventana con el cuadro recortado a 2,39:1 (`CINEMA_ASPECT`), nunca menor que Llenar. Solo Entero y Llenar usan el `resizeMode` de `PlayerView`; Medio y Cine
+  usan un tamaño propio. El estado vive en `RoomScreen` y no se guarda entre salas.
+- **Media3 y las APIs inestables:** `UnstableApi` usa el `RequiresOptIn` de AndroidX, no el de Kotlin. El `@OptIn` de Kotlin no tiene efecto (el IDE marca errores de lint); se usa
+  `@androidx.annotation.OptIn(UnstableApi::class)`, disponible porque `media3-common` expone `annotation-experimental`. Son inestables `PlayerView.resizeMode` y `AspectRatioFrameLayout`.
 - **Sala en horizontal (7C):** la vista la decide `roomLayoutFor` (`net/FullscreenLogic.kt`): pantalla completa si se pidió con el icono o si el teléfono
   está en horizontal. Los controles (3 s) y el contador de conectados (5 s) tienen cada uno su reloj (`OverlayState`); `PlayerControlsBar` es la misma barra en
   vertical y en pantalla completa. Dentro de un `Column`, un `Box` con `AnimatedVisibility` no compila: va en su propia función (`RoomVideoBox`).
@@ -690,6 +722,8 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   principal y el login sin ventana, el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y
   ser expulsado con la ventana abierta. Quedan los logs `MovieNightPip` y `MovieNightSync` en el código; sin botones de reproducir/pausar en la
   ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
+- **Niveles de ajuste del video (7C):** sin confirmar Medio y Cine en una pantalla de otra proporción que la de la persona (la usarán otras personas con otros teléfonos), ni con videos con rotación sin aplicar
+  (`unappliedRotationDegrees`, no se tiene en cuenta). Ver la primera entrada de "Por dónde seguir".
 - **Reacciones (parte 2B):** sin empezar; ver los hallazgos en la primera entrada de "Por dónde seguir".
 - **Sala en horizontal y controles sobre el video (7C):** funciona según la persona, sin detalle punto por punto. Sin confirmar uno por uno: lo listado en la
   primera entrada de "Por dónde seguir" (host/invitado en vertical, sin video o con error, volumen del invitado, PiP desde pantalla completa).

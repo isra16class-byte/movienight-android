@@ -5,6 +5,46 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-11 — Fase 7C: niveles de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine), confirmado por la persona
+
+- **Pedido:** la persona mandó una captura con márgenes negros alrededor del video en horizontal y pidió que los videos se adapten a la pantalla. Se hizo en
+  dos pasos: primero un botón "Ajustar / Llenar" (`1e769d8`) y después, a pedido suyo, más niveles ("unos 3") para distintos tipos de video, recordando que la
+  app la van a usar otras personas con otros teléfonos. Los niveles quedaron en `ea5379e`; un arreglo de una anotación mía, en `a9458b2`.
+- **Qué se vio y qué se interpretó (captura):** *visto/medido por el asistente, estimación sobre la imagen:* franjas negras a los lados (unos 86 px por lado de 816) y
+  arriba y abajo, con una imagen de cerca de 2,4:1 en una pantalla de unos 2,2:1. *Interpretado, sin confirmar con el archivo:* un video 16:9 con franjas de cine
+  metidas en el propio archivo. La app no fijaba ningún modo de escala (grep) y la web tampoco define `object-fit` (grep en `public/*.css` y `public/*.html`, rama
+  `plan-produccion`): las dos muestran el video entero. Por eso no era un fallo; los niveles son propios de la app.
+- **Investigación de proporciones (guías generales, sin porcentajes de uso):** 16:9 es la más común hoy; en cine, 1.85:1 y 2.39:1 (CinemaScope); 4:3 es el
+  contenido viejo o de definición estándar; 2:1 (Univisium) lo popularizó Netflix; 9:16 es el video vertical del celular (ahí conviene Entero).
+- **Qué hace:** en pantalla completa, un botón junto a la ✕ (icono + nombre del nivel) recorre cuatro niveles, de menos a más zoom: **Entero** (el video completo,
+  el de siempre y el inicial), **Medio** (a mitad de camino entre Entero y Llenar; pensado para 4:3 y videos que Llenar recorta demasiado), **Llenar** (cubre la
+  ventana sin deformar y recorta lo que sobre) y **Cine** (cubre la ventana tratando el cuadro como 2,39:1, para quitar las franjas de cine incrustadas; si el
+  video ya es igual o más ancho que 2,39:1 queda igual que Llenar). La descripción para el lector de pantalla dice el nivel actual y el siguiente. El nivel se
+  recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se pierde al salir. Es solo visual y local: no se sincroniza.
+- **Cuentas del asistente para una pantalla de ~2,22:1 (los tests las comprueban):** un 16:9 con Llenar recorta el 20 % del alto; un 4:3, el 40 % (Medio recorta
+  menos); una película 2,39:1 ya recortada, el 7 % del ancho; un 16:9 con franjas incrustadas deja con Llenar unas franjas finas de 3,5 % que Cine quita. En una
+  pantalla 16:9, Cine recorta cerca de un cuarto del ancho del cuadro 2,39:1.
+- **Código:** `net/VideoFitLogic.kt` (lógica pura: `VideoFit`, `videoScale`, nombres y textos) con `VideoFitLogicTest` (14 tests: 5 proporciones de pantalla por 6 de
+  video); `VideoSurface` (`RoomScreen.kt`) recibe `fit`; `RoomFullscreen.kt` tiene el botón; dos iconos nuevos (`ic_video_fit`, `ic_video_fill`). Entero y Llenar usan
+  `RESIZE_MODE_FIT` / `RESIZE_MODE_ZOOM` de `PlayerView`. Medio y Cine no existen en `PlayerView`: se deja el `PlayerView` en modo FIT con un tamaño propio
+  (`requiredSize`, centrado, mayor que la ventana) calculado con el tamaño real de la ventana (`BoxWithConstraints`) y del video (`Player.Listener.onVideoSizeChanged`,
+  solo lectura). Mientras el video no informa su tamaño, Medio y Cine se ven como Entero. Sin cambios en el servidor, `RoomPlayer`, `RoomViewModel`, la vista
+  vertical ni PiP; sin dependencias nuevas.
+- **Error mío corregido (`a9458b2`):** puse el `@OptIn(UnstableApi::class)` de Kotlin y no tiene efecto, porque `UnstableApi` usa el `RequiresOptIn` de AndroidX (lo
+  revisa el lint). Android Studio marcaba 4 errores de lint (más el aviso "has no effect") en `RoomScreen.kt`; no impedían compilar. Ahora es
+  `@androidx.annotation.OptIn(UnstableApi::class)`. La persona confirmó que los errores se quitaron.
+- **Verificado por el asistente:** los 14 tests pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); sin errores de sintaxis en `RoomScreen.kt` ni
+  `RoomFullscreen.kt`. En el fuente de Media3 1.10.1 (GitHub): `UnstableApi` usa el `RequiresOptIn` de AndroidX; `setResizeMode`, `getResizeMode` y
+  `AspectRatioFrameLayout` son `@UnstableApi`; `media3-common` expone `annotation-experimental` como `api`; `VideoSize` (`width`, `height`,
+  `pixelWidthHeightRatio`), `Player.getVideoSize()` y `onVideoSizeChanged` son API estable. La UI no se pudo compilar fuera de Android Studio.
+- **Confirmado por la persona:** el botón "Ajustar / Llenar" (primer paso): dijo que todas las pruebas dieron resultados positivos. Los niveles: dijo que todos los
+  puntos de prueba pasaron bien (la lista de 12). No detalló punto por punto ni dijo si fue en teléfono o emulador (su captura de Android Studio mostraba el
+  emulador Medium Phone API 36.1 con la app abierta). El punto 12 (que alguien con otra proporción de pantalla mire Medio y Cine) no se detalló: no se marca como cubierto.
+- **Límites conocidos:** Cine en un video 16:9 sin franjas recorta bastante arriba y abajo (es el comportamiento esperado de ese nivel); no se tiene en cuenta la
+  rotación sin aplicar del video (`unappliedRotationDegrees`), y no se verificó si algún video llega con ella; el nivel no se guarda entre salas.
+
+---
+
 ## 2026-10-11 — Arreglo: con el teclado abierto el video se achica en vez de esconderse (vista vertical), confirmado por la persona
 
 - **Problema:** al tocar el campo del chat en vertical el video desaparecía. No era un bug: `RoomContent` no lo dibujaba con el teclado abierto ("dejaría el chat

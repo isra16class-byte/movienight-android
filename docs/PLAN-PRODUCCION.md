@@ -269,7 +269,7 @@ del servidor.
 
 > **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
 > se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
-> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa); la parte 2B (reacciones) sin empezar.** Dos mejoras distintas, con costo y
+> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa) y los niveles de ajuste del video en pantalla completa; la parte 2B (reacciones) sin empezar.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -395,6 +395,12 @@ servidor, sin tocar `RoomPlayer`/`RoomViewModel`/`MainActivity`/PiP y sin depend
       funcionaron todos.
 - [x] **Arreglo del teclado en vertical** (`5fdcb40`): con el teclado abierto el video se achica (tope 38 % del alto visible, piso 90 dp, como la web) en vez de
       esconderse. Lógica pura en `net/PortraitVideoLogic.kt` (9 tests). La persona probó los 5 puntos de la lista en vivo y funcionaron todos.
+- [x] **Niveles de ajuste del video en pantalla completa** (`1e769d8`, `ea5379e`, `a9458b2`): un botón junto a la ✕ recorre Entero (el de siempre), Medio, Llenar y Cine
+      (quita franjas de cine incrustadas, tratando el cuadro como 2,39:1). Calculado con el tamaño real de la ventana y del video, no con un aparato en particular;
+      solo visual y local, se recuerda mientras la sala siga abierta. Lógica pura en `net/VideoFitLogic.kt` (14 tests). La persona dijo que todos los puntos de prueba
+      pasaron bien; no detalló punto por punto.
+- [ ] **Niveles de ajuste, sin confirmar:** Medio y Cine en una pantalla de otra proporción que la de la persona (la app la van a usar otras personas), y videos con
+      rotación sin aplicar (`unappliedRotationDegrees`, no se tiene en cuenta).
 - [ ] **Parte 2B: reacciones (emojis que suben sobre el video), sin empezar.** Hay que parsear y enviar `reaction`, validar al recibir y limitar al enviar (el
       servidor no lo hace) y decidir si salen también en vertical, como la web. Antes de escribir código se confirma con la persona.
 - [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, sin video o con error,
@@ -421,7 +427,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
    real del proyecto, dejarla para cuando el resto ya esté sólido.
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
-6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes); la parte 2B (reacciones) está pendiente.
+6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes) y los niveles de ajuste del video; la parte 2B (reacciones) está pendiente.
 
 ---
 
