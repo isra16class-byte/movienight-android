@@ -62,7 +62,9 @@ import com.isra16.movienight.net.FullscreenState
 import com.isra16.movienight.net.OrientationRequest
 import com.isra16.movienight.net.OverlayState
 import com.isra16.movienight.net.RoomLayout
+import com.isra16.movienight.net.VideoFit
 import com.isra16.movienight.net.connectionBanner
+import com.isra16.movienight.net.videoFitButtonLabel
 import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
 import kotlinx.coroutines.delay
@@ -155,11 +157,14 @@ internal fun FullscreenWindowEffects(
  * con reloj propio. Tocar el video los muestra o los esconde; los avisos de conexión y de silencio no tienen reloj.
  *
  * [viewersDialogOpen]: la lista de conectados (que vive en `RoomScreen`) está abierta; mientras tanto no corre ningún reloj.
+ * [videoFit] / [onToggleFit]: "Ajustar" (video entero) o "Llenar" (cubre la ventana y recorta); el estado vive en `RoomScreen`.
  */
 @Composable
 internal fun RoomFullscreen(
     vm: RoomViewModel,
     viewersDialogOpen: Boolean,
+    videoFit: VideoFit,
+    onToggleFit: () -> Unit,
     onExit: () -> Unit,
     onShowViewers: () -> Unit,
 ) {
@@ -183,6 +188,7 @@ internal fun RoomFullscreen(
             Modifier.fillMaxSize().pointerInput(Unit) {
                 detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
             },
+            fit = videoFit,
         )
         Box(Modifier.fillMaxSize().safeDrawingPadding().padding(8.dp)) {
             Column(
@@ -254,6 +260,13 @@ internal fun RoomFullscreen(
                 ) {
                     // El volumen es solo del invitado (como en la web); la ✕ vuelve a la vista vertical.
                     if (!vm.isHost) VolumeControl(rp, onTouch)
+                    IconButton(onClick = { onTouch(); onToggleFit() }) {
+                        Icon(
+                            painterResource(if (videoFit == VideoFit.FIT) R.drawable.ic_video_fill else R.drawable.ic_video_fit),
+                            contentDescription = videoFitButtonLabel(videoFit),
+                            tint = Color.White,
+                        )
+                    }
                     IconButton(onClick = onExit) {
                         Icon(painterResource(R.drawable.ic_close), contentDescription = "Salir de pantalla completa", tint = Color.White)
                     }

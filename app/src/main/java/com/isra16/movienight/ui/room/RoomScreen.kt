@@ -68,6 +68,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.util.Consumer
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
 import com.isra16.movienight.R
@@ -78,6 +80,7 @@ import com.isra16.movienight.net.PipConditions
 import com.isra16.movienight.net.PipContent
 import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.RoomLayout
+import com.isra16.movienight.net.VideoFit
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.isBusy
@@ -110,6 +113,9 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // dentro de RoomContent o RoomHeader se perdería al cambiar entre la vista normal y la pantalla completa.
     var fullscreen by rememberSaveable(stateSaver = FullscreenStateSaver) { mutableStateOf(FullscreenState()) }
     var draft by rememberSaveable { mutableStateOf("") }
+    // "Llenar" de la pantalla completa: se recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se
+    // pierde al salir de ella. Solo visual y local: no toca la sincronización.
+    var videoFit by rememberSaveable { mutableStateOf(VideoFit.FIT) }
     var showViewers by rememberSaveable { mutableStateOf(false) }
     val inRoom = vm.phase == RoomPhase.InRoom
     val landscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -134,6 +140,8 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
         RoomFullscreen(
             vm = vm,
             viewersDialogOpen = showViewers,
+            videoFit = videoFit,
+            onToggleFit = { videoFit = videoFit.toggled() },
             onExit = { fullscreen = fullscreen.exit() },
             onShowViewers = { showViewers = true },
         )
@@ -507,10 +515,12 @@ private fun RoomVideoBox(
 
 /**
  * La caja del video: el `PlayerView`, "Sin cinta" o el error con "Reintentar". La usan la vista normal (16:9) y la
- * pantalla completa (toda la ventana); el `PlayerView` se ajusta al espacio con franjas negras, sin recortar.
+ * pantalla completa (toda la ventana). Con [VideoFit.FIT] (el de siempre) el `PlayerView` ajusta el video entero al espacio
+ * con franjas negras, sin recortar; con [VideoFit.FILL] lo agranda hasta cubrir todo, sin deformarlo, y recorta lo que sobre.
  */
+@OptIn(UnstableApi::class) // `resizeMode` y `AspectRatioFrameLayout` están marcados como API inestable en Media3
 @Composable
-internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier) {
+internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier, fit: VideoFit = VideoFit.FIT) {
     Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         val exo = rp.player
         val error = rp.error
@@ -536,6 +546,10 @@ internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier) {
                     modifier = Modifier.fillMaxSize(),
                     update = { view ->
                         view.player = exo
+                        view.resizeMode = when (fit) {
+                            VideoFit.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                            VideoFit.FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        }
                         view.keepScreenOn = rp.showsPause // que la pantalla no se apague a mitad de la peli
                     },
                 )
