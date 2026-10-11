@@ -9,13 +9,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -59,6 +60,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -82,6 +84,7 @@ import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.orientationRequestFor
 import com.isra16.movienight.net.pipAspectFor
 import com.isra16.movienight.net.pipContentFor
+import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.roomLayoutFor
 import com.isra16.movienight.net.seekTargetMs
@@ -257,6 +260,23 @@ private fun FailedState(message: String, canRetry: Boolean, onRetry: () -> Unit,
 
 @Composable
 private fun RoomContent(vm: RoomViewModel, draft: String, onDraftChange: (String) -> Unit, onEnterFullscreen: () -> Unit) {
+    // Con el teclado abierto el video NO se esconde (como en la web): se achica, ver `portraitVideoHeightDp`. El alto que
+    // queda sobre el teclado se mide aquí, en la misma pasada de layout, para que el video no parpadee al abrirlo.
+    BoxWithConstraints(Modifier.fillMaxSize()) {
+        val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+        val videoHeight = portraitVideoHeightDp(maxWidth.value, maxHeight.value, keyboardOpen).dp
+        RoomContentBody(vm, draft, onDraftChange, onEnterFullscreen, videoHeight)
+    }
+}
+
+@Composable
+private fun RoomContentBody(
+    vm: RoomViewModel,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    onEnterFullscreen: () -> Unit,
+    videoHeight: Dp,
+) {
     val canSend = draft.isNotBlank() && vm.isConnected && !vm.isMuted
 
     fun send() {
@@ -264,17 +284,16 @@ private fun RoomContent(vm: RoomViewModel, draft: String, onDraftChange: (String
     }
 
     Column(Modifier.fillMaxSize()) {
-        // Con el teclado abierto se esconde el recuadro del video: en un teléfono chico dejaría el chat aplastado.
-        val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
-        if (!keyboardOpen) RoomVideo(
-                vm.player,
-                videoName = vm.videoName,
-                isHost = vm.isHost,
-                onTogglePlay = vm::hostTogglePlay,
-                onSeek = vm::hostSeekTo,
-                onChangeVideo = vm::openChangeVideo,
-                onEnterFullscreen = onEnterFullscreen,
-            )
+        RoomVideo(
+            vm.player,
+            videoName = vm.videoName,
+            videoHeight = videoHeight,
+            isHost = vm.isHost,
+            onTogglePlay = vm::hostTogglePlay,
+            onSeek = vm::hostSeekTo,
+            onChangeVideo = vm::openChangeVideo,
+            onEnterFullscreen = onEnterFullscreen,
+        )
 
         // Avance de una subida cuando el cuadro "Cambiar video" está oculto.
         RoomUploadBanner(vm)
@@ -394,11 +413,15 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
  * Quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto: la sala la
  * maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host (confirmado por el
  * server) tiene play/pausa y una barra con la que puede saltar; todo eso llega a la sala (Fase 3C).
+ *
+ * [videoHeight] es el alto del recuadro: el 16:9 de siempre o, con el teclado abierto, uno más bajo (el video no se
+ * esconde, queda con bandas a los lados).
  */
 @Composable
 private fun RoomVideo(
     rp: RoomPlayer,
     videoName: String,
+    videoHeight: Dp,
     isHost: Boolean,
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
@@ -412,6 +435,7 @@ private fun RoomVideo(
         RoomVideoBox(
             rp = rp,
             overlay = overlay,
+            videoHeight = videoHeight,
             isHost = isHost,
             onTogglePlay = onTogglePlay,
             onSeek = onSeek,
@@ -443,12 +467,13 @@ private fun RoomVideo(
 private fun RoomVideoBox(
     rp: RoomPlayer,
     overlay: OverlayController,
+    videoHeight: Dp,
     isHost: Boolean,
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
     onEnterFullscreen: () -> Unit,
 ) {
-    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+    Box(Modifier.fillMaxWidth().height(videoHeight)) {
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
         VideoSurface(
             rp,
@@ -500,7 +525,7 @@ internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier) {
                 OutlinedButton(onClick = rp::retry) { Text("Reintentar") }
             }
             exo != null -> {
-                // El reproductor vive más que esta vista (teclado que la esconde, girar el teléfono, pasar a pantalla
+                // El reproductor vive más que esta vista (girar el teléfono, pasar a pantalla
                 // completa): hay que soltarlo del PlayerView al salir, o cada PlayerView viejo seguiría escuchándolo.
                 val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
                 DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
