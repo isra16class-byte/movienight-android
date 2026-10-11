@@ -87,6 +87,7 @@ movienight-android/
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
         room/PictureInPicture.kt # 7A: disponibilidad de PiP, actividad y PipHost
+        room/RoomFullscreen.kt  # 7C: pantalla completa horizontal, OverlayController (relojes de los controles), PlayerControlsBar (barra compartida con la vista vertical), volumen del invitado
         upload/NotificationPermissionGate.kt # 6C-A: rememberNotificationGate(): explica y pide POST_NOTIFICATIONS (Android 13+) antes de abrir el selector, una sola vez
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
@@ -102,6 +103,7 @@ movienight-android/
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
         AdminAccessLogic.kt    # 6B: si la cuenta es admin (respuesta de GET /admin/stats -> AdminAccess), cuándo mostrar el acceso, URL del panel (JVM puro)
@@ -199,6 +201,37 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 7C hecha y confirmada por la persona (2026-10-11): sala en horizontal (pantalla completa) y controles encima del video en vertical.** La 7B sigue sin
+empezar (solo si hace falta, y empieza preguntando). La 7C no estaba en el plan original: salió de que la sala no se veía bien en horizontal.
+- **Commits (los tres ya en `origin/main`):** `cc50f27` (pantalla completa horizontal), `05b571f` (controles sobre el video en vertical) y `2c5dd21`
+  (arreglo de compilación del anterior). Solo UI y lógica pura nueva; sin cambios en el servidor, `RoomPlayer`, `RoomViewModel`, `MainActivity` ni en la
+  lógica de PiP. Sin dependencias nuevas.
+- **Por qué (según el mensaje de `cc50f27`):** en horizontal la caja 16:9 del video superaba la altura de la pantalla y empujaba controles y chat fuera de
+  vista, sin scroll.
+- **Pantalla completa (`cc50f27`):** en horizontal, o con el icono de pantalla completa, se ve solo el video. Los controles aparecen al tocar y se esconden
+  solos (dos relojes como en la web: controles 3 s, contador de conectados 5 s; con la lista de conectados abierta no corre ninguno). El icono fija
+  horizontal aunque el giro automático esté apagado; la X y Atrás vuelven a vertical y retienen la vertical hasta que el teléfono queda derecho
+  (`OrientationEventListener`); Atrás no sale de la sala. Barras del sistema ocultas (aparecen al deslizar). Volumen solo para invitados (volumen local del
+  reproductor). Avisos de conexión y de silencio visibles. `draft` y `showViewers` se elevaron a `RoomScreen` para no perderlos al cambiar de vista.
+- **Controles en vertical (`05b571f`):** Pausar/Reproducir (host), la barra de progreso o de salto y el icono de pantalla completa pasan **encima** del
+  video; aparecen al tocar y se esconden a los 3 s. Debajo quedan el nombre de la cinta y "Cambiar video" (host). El indicador de carga pasa al centro del
+  video. Una sola `PlayerControlsBar` y un solo `OverlayController` para las dos vistas (cambian solo los botones del extremo).
+- **El error de compilación (`05b571f` salió sin compilar; el asistente no puede compilar):** Android Studio dio `RoomScreen.kt:423`
+  "`ColumnScope.AnimatedVisibility` cannot be called in this context with an implicit receiver" y, en cascada, `:429` "@Composable invocations can only
+  happen from the context of a @Composable function". **Interpretación (no se pudo compilar para confirmarla):** dentro del `Column` de `RoomVideo`, el
+  `Box` con `AnimatedVisibility` resolvía contra el `ColumnScope` de afuera, que Compose bloquea; el segundo error es consecuencia del primero. En
+  pantalla completa el mismo patrón compila porque ahí no hay `Column` alrededor. `2c5dd21` mueve el `Box` a `RoomVideoBox` sin cambiar lógica.
+- **Qué se confirmó:** la persona dijo que funcionó tras compilar con `2c5dd21`, **sin detallar punto por punto**. De la pantalla completa, el mensaje de la
+  sesión anterior que ella pegó dice que "los 12 puntos funcionaron" (no sé cuáles eran) y que los controles sobre el video en pantalla completa se veían
+  bien en su captura. El dispositivo (teléfono o emulador) no quedó registrado.
+- **Decisiones del código que la persona no pidió cambiar:** los controles se esconden solos incluso con el video en pausa; en vertical no hay botón de
+  volumen para invitados (la web móvil sí lo tiene).
+- **Sin confirmar uno por uno (no darlos por probados):** host y invitado en vertical (play/pausa, arrastrar la barra sin que se escondan los controles,
+  barra de solo lectura), tocar la franja oscura de los controles (se espera que esconda), el teclado abierto y cerrado, sin video o con error (el icono de
+  pantalla completa sigue y "Reintentar" no esconde los controles), el volumen del invitado en pantalla completa, y la interacción de la pantalla completa
+  con PiP (entrar en PiP desde pantalla completa). Que `gradlew testDebugUnitTest` pasa no se confirmó (hay 25 `@Test` en `FullscreenLogicTest`). Girar el
+  teléfono con `configChanges` (pendiente de la 7A) pudo quedar cubierto por las pruebas de esta fase, pero nadie lo confirmó expresamente.
 
 **Fase 7A, punto de la X resuelto y confirmado en el emulador (2026-10-10): cerrar la ventana flotante con la X ahora pausa.** Reemplaza el
 punto pendiente de la entrada siguiente. Queda sin probar lo que se detalla abajo; la 7B sigue sin empezar (solo si hace falta, y empieza preguntando).
@@ -586,6 +619,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Notificaciones y subida en segundo plano (6C):** canales `uploads` (aviso, id 1001) y `upload_progress` (avance, silencioso, id
   1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
+- **Sala en horizontal (7C):** la vista la decide `roomLayoutFor` (`net/FullscreenLogic.kt`): pantalla completa si se pidió con el icono o si el teléfono
+  está en horizontal. Los controles (3 s) y el contador de conectados (5 s) tienen cada uno su reloj (`OverlayState`); `PlayerControlsBar` es la misma barra en
+  vertical y en pantalla completa. Dentro de un `Column`, un `Box` con `AnimatedVisibility` no compila: va en su propia función (`RoomVideoBox`).
 - **PiP y rotación (7A):** `MainActivity` declara `configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: girar el teléfono o entrar
   y salir de PiP no recrean la actividad; tema, idioma y tamaño de letra sí. Sin ese `configChanges`, cerrar la ventana con la X no avisa a la
   actividad y el video no se pausa.
@@ -601,6 +637,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   principal y el login sin ventana, el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y
   ser expulsado con la ventana abierta. Quedan los logs `MovieNightPip` y `MovieNightSync` en el código; sin botones de reproducir/pausar en la
   ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
+- **Sala en horizontal y controles sobre el video (7C):** funciona según la persona, sin detalle punto por punto. Sin confirmar uno por uno: lo listado en la
+  primera entrada de "Por dónde seguir" (host/invitado en vertical, teclado, sin video o con error, volumen del invitado, PiP desde pantalla completa).
+  Decisiones sin cambiar: controles que se esconden también en pausa y sin volumen en vertical.
 - **Notificaciones y servicio de subida (6C):** sin confirmar uno por uno el cuadro de permiso, "Ahora no" y el permiso negado,
   ni los avisos de "Subir y crear sala" y "Cambiar video"; sin probar con un video de varios GB ni en un teléfono real (el
   comportamiento de los servicios cambia con la batería y el fabricante); no se registra el error técnico de red de una subida

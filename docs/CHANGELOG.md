@@ -5,6 +5,27 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-11 — Fase 7C: sala en horizontal (pantalla completa) y controles encima del video, confirmado por la persona
+
+- **Problema:** en horizontal la caja 16:9 del video superaba la altura de la pantalla y empujaba controles y chat fuera de vista, sin scroll.
+- **Pantalla completa** (`cc50f27`): en horizontal o con el icono, solo el video; controles que aparecen al tocar y se esconden a los 3 s, contador de conectados
+  5 s; la X y Atrás vuelven a vertical (retienen la vertical hasta que el teléfono queda derecho); barras del sistema ocultas; volumen solo para invitados;
+  avisos de conexión y silencio. Lógica pura en `net/FullscreenLogic.kt` con 25 tests (`FullscreenLogicTest`). Archivos nuevos: `ui/room/RoomFullscreen.kt` y
+  seis iconos (`ic_close`, `ic_fullscreen`, `ic_group`, `ic_pause`, `ic_play`, `ic_volume_up`).
+- **Controles sobre el video en vertical** (`05b571f`): play/pausa (host), barra de progreso o de salto e icono de pantalla completa encima del video; debajo,
+  el nombre de la cinta y "Cambiar video". Una sola `PlayerControlsBar` y un solo `OverlayController` para las dos vistas.
+- **Arreglo de compilación** (`2c5dd21`): `05b571f` no compilaba (`RoomScreen.kt:423` "`ColumnScope.AnimatedVisibility` cannot be called in this context with an
+  implicit receiver" y, en cascada, `:429`). Interpretación, no confirmada con el compilador: dentro del `Column`, el `Box` resolvía `AnimatedVisibility` contra el
+  `ColumnScope` de afuera. El `Box` pasó a `RoomVideoBox`, sin cambios de lógica.
+- **Confirmado** por la persona: funcionó tras compilar con `2c5dd21`, sin detalle punto por punto (el dispositivo no quedó registrado). Sobre la pantalla
+  completa, el mensaje de la sesión anterior que pegó dice que "los 12 puntos funcionaron".
+- **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin esconder los controles, el teclado, sin video o con error, el volumen del
+  invitado en pantalla completa, PiP desde pantalla completa y `gradlew testDebugUnitTest`.
+- **Decisiones abiertas** (no se pidió cambiarlas): los controles se esconden también con el video en pausa; en vertical no hay botón de volumen para invitados.
+- Sin cambios en el servidor, `RoomPlayer`, `RoomViewModel`, `MainActivity` ni PiP; sin dependencias nuevas.
+
+---
+
 ## 2026-10-10 — Fase 7A: la X de la ventana flotante ya pausa (`configChanges`), confirmado en el emulador
 
 - **Defecto:** sin `configChanges`, cerrar la ventana flotante con la X recreaba la actividad y Android no mandaba el cambio de modo de PiP; el video

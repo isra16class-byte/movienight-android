@@ -269,7 +269,7 @@ del servidor.
 
 > **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
 > se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
-> abajo); 7B sin empezar.** Dos mejoras distintas, con costo y
+> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -378,6 +378,25 @@ notificaciones fuera de lugar.
 así que cada paso se descubre en el emulador. Los servicios y su ciclo de vida se comportan distinto en un teléfono real
 que en el emulador (ahorro de batería, límites del fabricante): conviene probar también en uno real antes de darlo por bueno.
 
+### 7C — Sala en horizontal y controles encima del video (agregada el 2026-10-10; no estaba en el plan original)
+
+En horizontal la caja 16:9 del video superaba la altura y empujaba controles y chat fuera de vista, sin scroll. Solo UI y lógica pura; sin
+servidor, sin tocar `RoomPlayer`/`RoomViewModel`/`MainActivity`/PiP y sin dependencias nuevas.
+
+- [x] **Pantalla completa horizontal** (`cc50f27`): en horizontal o con el icono se ve solo el video; controles que aparecen al tocar y se esconden a los 3 s,
+      contador de conectados 5 s; la X y Atrás vuelven a vertical (retienen la vertical hasta que el teléfono queda derecho); barras del sistema ocultas;
+      volumen solo para invitados; avisos de conexión y de silencio. Lógica pura en `net/FullscreenLogic.kt` (25 tests).
+- [x] **Controles encima del video en vertical** (`05b571f`): play/pausa (host), barra de progreso o de salto e icono de pantalla completa sobre el video;
+      debajo, nombre de la cinta y "Cambiar video". Una sola `PlayerControlsBar` y un solo `OverlayController` para las dos vistas.
+- [x] **Arreglo de compilación** (`2c5dd21`): `05b571f` no compilaba (`AnimatedVisibility` de un `Box` dentro de un `Column`); el `Box` pasó a `RoomVideoBox`.
+- [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, el teclado, sin video o con error,
+      el volumen del invitado en pantalla completa, PiP desde pantalla completa, y `gradlew testDebugUnitTest`.
+- [ ] **Decisiones abiertas (la persona no pidió cambiarlas):** los controles se esconden también con el video en pausa; en vertical no hay botón de
+      volumen para invitados.
+
+**Hecho cuando:** la sala se usa en vertical y en horizontal sin que los controles ni el chat queden fuera de vista. *(La persona confirmó el 2026-10-11 que
+funcionó, sin detallar punto por punto; ver la lista de arriba para lo que queda sin confirmar.)*
+
 **Reglas de trabajo de esta fase** (las mismas de siempre): no se modifica el servidor; un solo patch de código por
 subfase y otro de docs aparte, tras la prueba de la persona; no se tilda nada como probado sin que ella lo confirme; no se
 agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10.1, AGP 8.13.2) sin avisar.
@@ -394,7 +413,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
    real del proyecto, dejarla para cuando el resto ya esté sólido.
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
-6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta.
+6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha.
 
 ---
 
