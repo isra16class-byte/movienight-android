@@ -87,6 +87,7 @@ movienight-android/
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
         room/PictureInPicture.kt # 7A: disponibilidad de PiP, actividad y PipHost
+        room/RoomDanmaku.kt     # 7 (2A): DanmakuLayer, comentarios flotantes del chat sobre el video; solo existe dentro de RoomFullscreen
         room/RoomFullscreen.kt  # 7C: pantalla completa horizontal, OverlayController (relojes de los controles), PlayerControlsBar (barra compartida con la vista vertical), volumen del invitado
         upload/NotificationPermissionGate.kt # 6C-A: rememberNotificationGate(): explica y pide POST_NOTIFICATIONS (Android 13+) antes de abrir el selector, una sola vez
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
@@ -103,6 +104,7 @@ movienight-android/
         RoomVideoLogic.kt      # 4B: cuerpos y respuestas de create-room-from-upload y change-video-from-upload (JVM puro)
         ModerationLogic.kt     # 5: acciones de moderación del host: qué se ofrece según el rol, comprobaciones, textos, pedidos en curso (JVM puro)
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
+        DanmakuLogic.kt         # 7 (2A): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes (JVM puro, 17 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
@@ -201,6 +203,31 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 7, parte 2A hecha y confirmada por la persona (2026-10-11): comentarios flotantes del chat sobre el video en pantalla completa.** La 7B y la parte 2B
+(reacciones) siguen sin empezar. Es una extensión de la 7C (el siguiente bloque), pedida como "parte 2".
+- **Commit:** `5c4a99b` (en `origin/main`). Solo UI, lógica pura y un flujo en `RoomViewModel`; sin servidor, `RoomPlayer`, `MainActivity` ni PiP; sin
+  dependencias nuevas.
+- **Qué hace (copiado de `spawnDanmaku` en `public/room.html`, rama `plan-produccion`):** cada `chat-message` en vivo cruza el video de derecha a izquierda
+  en uno de 6 carriles (10 % de altura + 7,5 % por carril). Un carril se reserva 1300 ms; si todos están ocupados se usa el que se libera antes y pueden
+  encimarse. Duración `min(15, max(7, largo/10 + 6))` s. Se descartan los mensajes de sistema; los propios se muestran. El historial no crea flotantes.
+  Nombre en negrita con el color por hash de la web (host cian). Letra de 16 px hasta 820 dp de ancho y 22 px en adelante. Sin toques y fuera del lector de
+  pantalla. Solo en pantalla completa: al salir se descarta todo.
+- **Decisión nuestra, no está en la web:** tope de 12 comentarios a la vez; los de más se descartan sin gastar carril.
+- **Dónde está:** `net/DanmakuLogic.kt` (lógica), `ui/room/RoomDanmaku.kt` (la capa, que `RoomFullscreen` dibuja al final para quedar sobre los controles) y
+  `RoomViewModel.liveChat`, un `SharedFlow` que emite solo los `chat-message` en vivo (`chat-history` no lo emite; sin nadie escuchando se descarta). `messages`
+  y el chat vertical no cambian.
+- **Qué verificó el asistente:** los 17 tests de `DanmakuLogicTest` y los 25 de `FullscreenLogicTest` pasan con `kotlinc` 2.0.21 y un arnés propio (no con
+  `gradlew`). Color, duración y altura se contrastaron con las funciones de la web ejecutadas en node. La UI no se pudo compilar aquí.
+- **Qué confirmó la persona:** compiló y probó los 10 puntos de la lista y dijo que todos funcionaron como debían (incluidos mensaje largo, muchos seguidos,
+  toques sobre los controles, limpiar al salir, sincronización del video y avisos de sistema). El dispositivo (teléfono o emulador) no quedó registrado.
+  Que `gradlew testDebugUnitTest` pasa no se confirmó. Lo que seguía sin confirmar de la 7C sigue igual (ver la entrada siguiente).
+- **Hallazgos para la parte 2B (reacciones), nada hecho:** la app no recibe ni envía `reaction`. No está en `HANDLED_SERVER_EVENTS` y `RoomEventsTest` fija que
+  un `reaction` con objeto da `null`; el payload real es el emoji suelto, así que hay que cambiar ese test. El servidor reenvía lo que le manden a toda la sala,
+  incluido quien lo envía, sin validar ni limitar, así que la app tendría que validar al recibir y limitar al enviar. La web tiene 14 emojis (🙌 😴 😱 😭 😠 😍
+  😅 😂 🔥 💀 👏 👍 🎉 ❤️), los muestra también fuera de pantalla completa (suben 280 px en 2,5 s) y en pantalla completa los elige desde un botón 😊 bajo el
+  contador. El contador de espectadores sobre el video ya existía desde la 7C. Decisión abierta: si en la app los emojis salen solo en pantalla completa o
+  también en vertical, como la web.
 
 **Fase 7C hecha y confirmada por la persona (2026-10-11): sala en horizontal (pantalla completa) y controles encima del video en vertical.** La 7B sigue sin
 empezar (solo si hace falta, y empieza preguntando). La 7C no estaba en el plan original: salió de que la sala no se veía bien en horizontal.
@@ -619,6 +646,9 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Notificaciones y subida en segundo plano (6C):** canales `uploads` (aviso, id 1001) y `upload_progress` (avance, silencioso, id
   1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
+- **Comentarios flotantes (7, parte 2A):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
+  existe dentro de `RoomFullscreen`, así que salir de pantalla completa limpia comentarios y carriles. El tope de 12 es nuestro (la web no limita) y el color
+  del nombre usa el mismo hash que la web, con tests contra sus valores.
 - **Sala en horizontal (7C):** la vista la decide `roomLayoutFor` (`net/FullscreenLogic.kt`): pantalla completa si se pidió con el icono o si el teléfono
   está en horizontal. Los controles (3 s) y el contador de conectados (5 s) tienen cada uno su reloj (`OverlayState`); `PlayerControlsBar` es la misma barra en
   vertical y en pantalla completa. Dentro de un `Column`, un `Box` con `AnimatedVisibility` no compila: va en su propia función (`RoomVideoBox`).
@@ -637,6 +667,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   principal y el login sin ventana, el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y
   ser expulsado con la ventana abierta. Quedan los logs `MovieNightPip` y `MovieNightSync` en el código; sin botones de reproducir/pausar en la
   ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
+- **Reacciones (parte 2B):** sin empezar; ver los hallazgos en la primera entrada de "Por dónde seguir".
 - **Sala en horizontal y controles sobre el video (7C):** funciona según la persona, sin detalle punto por punto. Sin confirmar uno por uno: lo listado en la
   primera entrada de "Por dónde seguir" (host/invitado en vertical, teclado, sin video o con error, volumen del invitado, PiP desde pantalla completa).
   Decisiones sin cambiar: controles que se esconden también en pausa y sin volumen en vertical.

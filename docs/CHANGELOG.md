@@ -5,6 +5,31 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-11 — Fase 7, parte 2A: comentarios flotantes del chat sobre el video en pantalla completa, confirmado por la persona
+
+- **Qué es:** como el "danmaku" de la web (`public/room.html`, rama `plan-produccion`). Cada mensaje de chat que llega en vivo cruza el video de derecha a
+  izquierda en pantalla completa. Commit `5c4a99b`.
+- **Copiado de la web:** 6 carriles a 10 % de altura + 7,5 % por carril; un carril se reserva 1300 ms y, si todos están ocupados, se usa el que se libera
+  antes (pueden encimarse); duración `min(15, max(7, largo/10 + 6))` s; los mensajes de sistema se descartan y los propios se muestran; el historial del chat
+  no crea flotantes; nombre en negrita con el color por hash de la web (host cian); letra de 16 px hasta 820 dp de ancho y 22 px en adelante; sin toques; al
+  salir de pantalla completa se limpia todo.
+- **Decisión nuestra (la web no la tiene):** tope de 12 comentarios a la vez; los de más se descartan.
+- **Código:** `net/DanmakuLogic.kt` (lógica pura), `ui/room/RoomDanmaku.kt` (la capa, al final de la pantalla completa para quedar sobre los controles),
+  `RoomViewModel.liveChat` (un `SharedFlow` que emite solo los `chat-message` en vivo; sin nadie escuchando se descarta) y una línea en `RoomFullscreen.kt`.
+  Sin cambios en el servidor, `RoomPlayer`, `MainActivity` ni PiP; sin dependencias nuevas.
+- **Verificado por el asistente:** los 17 tests de `DanmakuLogicTest` y los 25 de `FullscreenLogicTest` pasan compilados con `kotlinc` 2.0.21 y un arnés propio
+  (no con `gradlew`). Los valores de color, duración y altura salen de ejecutar las funciones de la web en node; cambiar el multiplicador del hash hace
+  fallar el test de colores. La UI no se pudo compilar fuera de Android Studio.
+- **Confirmado por la persona:** compiló y probó los 10 puntos de la lista (sin flotantes en vertical, comentarios en pantalla completa con el nombre en
+  color y el host en cian, mensajes propios y de la web, mensaje largo, muchos seguidos, que no bloqueen los toques sobre los controles, que se limpien al salir,
+  que no afecte la sincronización del video y que los avisos de sistema no salgan) y dijo que **todos funcionaron como debían**. El dispositivo (teléfono o
+  emulador) no quedó registrado. Que `gradlew testDebugUnitTest` pasa no se confirmó.
+- **Reacciones (parte 2B), sin empezar.** Hallazgos para cuando se haga: la app no recibe ni envía `reaction` (no está en `HANDLED_SERVER_EVENTS`); el servidor
+  reenvía el emoji suelto a toda la sala, incluido quien lo envía, sin validar ni limitar; la web tiene 14 emojis y los muestra también fuera de pantalla
+  completa. El contador de espectadores sobre el video ya existía desde la 7C.
+
+---
+
 ## 2026-10-11 — Fase 7C: sala en horizontal (pantalla completa) y controles encima del video, confirmado por la persona
 
 - **Problema:** en horizontal la caja 16:9 del video superaba la altura de la pantalla y empujaba controles y chat fuera de vista, sin scroll.

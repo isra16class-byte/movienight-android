@@ -269,7 +269,7 @@ del servidor.
 
 > **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
 > se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
-> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11.** Dos mejoras distintas, con costo y
+> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa); la parte 2B (reacciones) sin empezar.** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -389,6 +389,12 @@ servidor, sin tocar `RoomPlayer`/`RoomViewModel`/`MainActivity`/PiP y sin depend
 - [x] **Controles encima del video en vertical** (`05b571f`): play/pausa (host), barra de progreso o de salto e icono de pantalla completa sobre el video;
       debajo, nombre de la cinta y "Cambiar video". Una sola `PlayerControlsBar` y un solo `OverlayController` para las dos vistas.
 - [x] **Arreglo de compilación** (`2c5dd21`): `05b571f` no compilaba (`AnimatedVisibility` de un `Box` dentro de un `Column`); el `Box` pasó a `RoomVideoBox`.
+- [x] **Parte 2A: comentarios flotantes del chat sobre el video en pantalla completa** (`5c4a99b`), como el "danmaku" de la web: 6 carriles, duración según el
+      largo, color del nombre por hash (host cian), solo mensajes en vivo y no de sistema, tope de 12 a la vez (decisión nuestra) y se limpian al salir.
+      Lógica pura en `net/DanmakuLogic.kt` (17 tests); `RoomViewModel.liveChat` y `ui/room/RoomDanmaku.kt`. La persona probó los 10 puntos de la lista y
+      funcionaron todos.
+- [ ] **Parte 2B: reacciones (emojis que suben sobre el video), sin empezar.** Hay que parsear y enviar `reaction`, validar al recibir y limitar al enviar (el
+      servidor no lo hace) y decidir si salen también en vertical, como la web. Antes de escribir código se confirma con la persona.
 - [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, el teclado, sin video o con error,
       el volumen del invitado en pantalla completa, PiP desde pantalla completa, y `gradlew testDebugUnitTest`.
 - [ ] **Decisiones abiertas (la persona no pidió cambiarlas):** los controles se esconden también con el video en pausa; en vertical no hay botón de
@@ -413,7 +419,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
    real del proyecto, dejarla para cuando el resto ya esté sólido.
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
-6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha.
+6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes); la parte 2B (reacciones) está pendiente.
 
 ---
 
