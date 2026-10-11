@@ -54,8 +54,11 @@ import com.isra16.movienight.net.resolveVideoUrl
 import com.isra16.movienight.net.serverErrorMessage
 import com.isra16.movienight.net.videoDisplayName
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 
 /** En qué punto de "entrar a la sala" está la pantalla. */
@@ -114,6 +117,16 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     var phase by mutableStateOf<RoomPhase>(RoomPhase.Checking)
         private set
     val messages = mutableStateListOf<ChatMessage>()
+
+    private val _liveChat = MutableSharedFlow<ChatMessage>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Cada mensaje que llega EN VIVO por `chat-message` (no el historial de `chat-history`, que solo reemplaza
+     * [messages]). Sin nadie escuchando se descarta, así que no se acumula nada: lo usan los comentarios flotantes
+     * de la pantalla completa (Fase 7, parte 2A). No cambia [messages] ni el chat de la vista vertical.
+     */
+    val liveChat: SharedFlow<ChatMessage> = _liveChat
+
     var viewerCount by mutableIntStateOf(0)
         private set
     var viewers by mutableStateOf<List<Viewer>>(emptyList())
@@ -491,6 +504,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 if (messages.size > MAX_MESSAGES) messages.removeAt(0)
                 // Quien acaba de escribir ya no está "escribiendo".
                 if (typingUser != null && typingUser == event.message.user) typingUser = null
+                _liveChat.tryEmit(event.message)
             }
             is RoomEvent.HostStatus -> {
                 isHost = event.isHost

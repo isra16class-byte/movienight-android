@@ -260,6 +260,9 @@ internal fun RoomFullscreen(
                 }
             }
         }
+        // Al final, para dibujarse por encima de los controles. Comentarios flotantes del chat (parte 2A): solo existen
+        // mientras se está en pantalla completa; al salir se descartan junto con esta función.
+        DanmakuLayer(vm.liveChat)
     }
 }
 
