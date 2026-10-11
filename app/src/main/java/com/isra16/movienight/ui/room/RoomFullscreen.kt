@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -24,12 +25,14 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -50,6 +53,9 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
@@ -65,6 +71,7 @@ import com.isra16.movienight.net.RoomLayout
 import com.isra16.movienight.net.VideoFit
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.videoFitButtonLabel
+import com.isra16.movienight.net.videoFitName
 import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
 import kotlinx.coroutines.delay
@@ -157,14 +164,15 @@ internal fun FullscreenWindowEffects(
  * con reloj propio. Tocar el video los muestra o los esconde; los avisos de conexión y de silencio no tienen reloj.
  *
  * [viewersDialogOpen]: la lista de conectados (que vive en `RoomScreen`) está abierta; mientras tanto no corre ningún reloj.
- * [videoFit] / [onToggleFit]: "Ajustar" (video entero) o "Llenar" (cubre la ventana y recorta); el estado vive en `RoomScreen`.
+ * [videoFit] / [onNextFit]: nivel de ajuste del video (Entero, Medio, Llenar, Cine); cada toque pasa al siguiente. El estado
+ * vive en `RoomScreen`.
  */
 @Composable
 internal fun RoomFullscreen(
     vm: RoomViewModel,
     viewersDialogOpen: Boolean,
     videoFit: VideoFit,
-    onToggleFit: () -> Unit,
+    onNextFit: () -> Unit,
     onExit: () -> Unit,
     onShowViewers: () -> Unit,
 ) {
@@ -260,12 +268,21 @@ internal fun RoomFullscreen(
                 ) {
                     // El volumen es solo del invitado (como en la web); la ✕ vuelve a la vista vertical.
                     if (!vm.isHost) VolumeControl(rp, onTouch)
-                    IconButton(onClick = { onTouch(); onToggleFit() }) {
+                    // Icono + nombre del nivel actual, para ver en cuál estás sin adivinar; cada toque pasa al siguiente.
+                    TextButton(
+                        onClick = { onTouch(); onNextFit() },
+                        modifier = Modifier.semantics { contentDescription = videoFitButtonLabel(videoFit) },
+                        colors = ButtonDefaults.textButtonColors(contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 8.dp),
+                    ) {
                         Icon(
-                            painterResource(if (videoFit == VideoFit.FIT) R.drawable.ic_video_fill else R.drawable.ic_video_fit),
-                            contentDescription = videoFitButtonLabel(videoFit),
-                            tint = Color.White,
+                            painterResource(if (videoFit == VideoFit.FIT) R.drawable.ic_video_fit else R.drawable.ic_video_fill),
+                            contentDescription = null,
+                            modifier = Modifier.size(20.dp),
                         )
+                        Spacer(Modifier.width(4.dp))
+                        // El botón ya lo describe entero (nivel actual y siguiente): el texto no se lee dos veces.
+                        Text(videoFitName(videoFit), modifier = Modifier.clearAndSetSemantics { }, style = MaterialTheme.typography.labelLarge)
                     }
                     IconButton(onClick = onExit) {
                         Icon(painterResource(R.drawable.ic_close), contentDescription = "Salir de pantalla completa", tint = Color.White)

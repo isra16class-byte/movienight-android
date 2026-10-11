@@ -19,6 +19,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
@@ -68,6 +69,8 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.core.app.PictureInPictureModeChangedInfo
 import androidx.core.util.Consumer
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.media3.common.Player
+import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -90,6 +93,7 @@ import com.isra16.movienight.net.pipContentFor
 import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.roomLayoutFor
+import com.isra16.movienight.net.videoScale
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
 import com.isra16.movienight.room.RoomPlayer
@@ -113,7 +117,7 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // dentro de RoomContent o RoomHeader se perdería al cambiar entre la vista normal y la pantalla completa.
     var fullscreen by rememberSaveable(stateSaver = FullscreenStateSaver) { mutableStateOf(FullscreenState()) }
     var draft by rememberSaveable { mutableStateOf("") }
-    // "Llenar" de la pantalla completa: se recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se
+    // Nivel de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine): se recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se
     // pierde al salir de ella. Solo visual y local: no toca la sincronización.
     var videoFit by rememberSaveable { mutableStateOf(VideoFit.FIT) }
     var showViewers by rememberSaveable { mutableStateOf(false) }
@@ -141,7 +145,7 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
             vm = vm,
             viewersDialogOpen = showViewers,
             videoFit = videoFit,
-            onToggleFit = { videoFit = videoFit.toggled() },
+            onNextFit = { videoFit = videoFit.next() },
             onExit = { fullscreen = fullscreen.exit() },
             onShowViewers = { showViewers = true },
         )
@@ -515,13 +519,17 @@ private fun RoomVideoBox(
 
 /**
  * La caja del video: el `PlayerView`, "Sin cinta" o el error con "Reintentar". La usan la vista normal (16:9) y la
- * pantalla completa (toda la ventana). Con [VideoFit.FIT] (el de siempre) el `PlayerView` ajusta el video entero al espacio
- * con franjas negras, sin recortar; con [VideoFit.FILL] lo agranda hasta cubrir todo, sin deformarlo, y recorta lo que sobre.
+ * pantalla completa (toda la ventana). Según [fit]:
+ * - [VideoFit.FIT] (el de siempre): el video entero con franjas negras, sin recortar.
+ * - [VideoFit.FILL]: lo agranda hasta cubrir todo, sin deformarlo, y recorta lo que sobre (`RESIZE_MODE_ZOOM`).
+ * - [VideoFit.MEDIUM] y [VideoFit.CINEMA]: `PlayerView` no los trae. Se deja el `PlayerView` en modo FIT pero con un
+ *   tamaño propio (mayor que la ventana, centrado) calculado por `videoScale` con el tamaño real de la ventana y del
+ *   video; lo que sobresale queda fuera de la ventana. Mientras el video no informe su tamaño se ve como FIT.
  */
 @OptIn(UnstableApi::class) // `resizeMode` y `AspectRatioFrameLayout` están marcados como API inestable en Media3
 @Composable
 internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier, fit: VideoFit = VideoFit.FIT) {
-    Box(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
+    BoxWithConstraints(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
         val exo = rp.player
         val error = rp.error
         when {
@@ -539,16 +547,31 @@ internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier, fit: VideoFit = Vi
                 // completa): hay que soltarlo del PlayerView al salir, o cada PlayerView viejo seguiría escuchándolo.
                 val viewHolder = remember { arrayOfNulls<PlayerView>(1) }
                 DisposableEffect(exo) { onDispose { viewHolder[0]?.player = null } }
+                // Tamaño propio solo para MEDIUM y CINEMA y solo si ya se conoce el tamaño del video.
+                val videoSize = rememberVideoSize(exo)
+                val shownW = videoSize.width * videoSize.pixelWidthHeightRatio
+                val scale = if (fit.usesCustomScale) {
+                    videoScale(fit, constraints.maxWidth.toFloat(), constraints.maxHeight.toFloat(), shownW, videoSize.height.toFloat())
+                } else {
+                    null
+                }
+                val density = LocalDensity.current
+                val videoModifier = if (scale != null) {
+                    with(density) { Modifier.requiredSize((shownW * scale).toDp(), (videoSize.height * scale).toDp()) }
+                } else {
+                    Modifier.fillMaxSize()
+                }
                 AndroidView(
                     factory = { context ->
                         PlayerView(context).apply { useController = false }.also { viewHolder[0] = it }
                     },
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = videoModifier,
                     update = { view ->
                         view.player = exo
-                        view.resizeMode = when (fit) {
-                            VideoFit.FIT -> AspectRatioFrameLayout.RESIZE_MODE_FIT
-                            VideoFit.FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        view.resizeMode = if (fit == VideoFit.FILL) {
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                        } else {
+                            AspectRatioFrameLayout.RESIZE_MODE_FIT
                         }
                         view.keepScreenOn = rp.showsPause // que la pantalla no se apague a mitad de la peli
                     },
@@ -557,6 +580,26 @@ internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier, fit: VideoFit = Vi
             else -> Unit
         }
     }
+}
+
+/**
+ * El tamaño del video que se está reproduciendo, siempre al día. Solo se lee del reproductor y se escucha su aviso de
+ * cambio (`onVideoSizeChanged`); no toca la sincronización. `VideoSize.UNKNOWN` (0 x 0) mientras no se conoce.
+ */
+@Composable
+private fun rememberVideoSize(player: Player): VideoSize {
+    var size by remember(player) { mutableStateOf(player.videoSize) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onVideoSizeChanged(videoSize: VideoSize) {
+                size = videoSize
+            }
+        }
+        player.addListener(listener)
+        size = player.videoSize // por si cambió entre crear el estado y registrar el aviso
+        onDispose { player.removeListener(listener) }
+    }
+    return size
 }
 
 /** La posición no es un evento del reproductor: se consulta unas veces por segundo mientras la vista existe. */
