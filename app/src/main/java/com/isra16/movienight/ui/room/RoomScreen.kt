@@ -526,7 +526,7 @@ private fun RoomVideoBox(
  *   tamaño propio (mayor que la ventana, centrado) calculado por `videoScale` con el tamaño real de la ventana y del
  *   video; lo que sobresale queda fuera de la ventana. Mientras el video no informe su tamaño se ve como FIT.
  */
-@OptIn(UnstableApi::class) // `resizeMode` y `AspectRatioFrameLayout` están marcados como API inestable en Media3
+@androidx.annotation.OptIn(UnstableApi::class) // `UnstableApi` usa el RequiresOptIn de AndroidX: el `@OptIn` de Kotlin no sirve
 @Composable
 internal fun VideoSurface(rp: RoomPlayer, modifier: Modifier, fit: VideoFit = VideoFit.FIT) {
     BoxWithConstraints(modifier.background(Color.Black), contentAlignment = Alignment.Center) {
