@@ -409,36 +409,14 @@ private fun RoomVideo(
     val overlay = rememberOverlayController()
 
     Column(Modifier.fillMaxWidth()) {
-        Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
-            // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
-            VideoSurface(
-                rp,
-                Modifier.fillMaxSize().pointerInput(Unit) {
-                    detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
-                },
-            )
-            if (rp.hasVideo && rp.error == null && rp.isBuffering) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp), color = Color.White, strokeWidth = 3.dp)
-            }
-            AnimatedVisibility(
-                visible = overlay.controlsVisible,
-                modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp),
-                enter = fadeIn(),
-                exit = fadeOut(),
-            ) {
-                PlayerControlsBar(
-                    rp = rp,
-                    isHost = isHost,
-                    onTogglePlay = onTogglePlay,
-                    onSeek = onSeek,
-                    onTouch = { overlay.update { s, t -> s.touchControls(t) } },
-                ) {
-                    IconButton(onClick = onEnterFullscreen) {
-                        Icon(painterResource(R.drawable.ic_fullscreen), contentDescription = "Pantalla completa", tint = Color.White)
-                    }
-                }
-            }
-        }
+        RoomVideoBox(
+            rp = rp,
+            overlay = overlay,
+            isHost = isHost,
+            onTogglePlay = onTogglePlay,
+            onSeek = onSeek,
+            onEnterFullscreen = onEnterFullscreen,
+        )
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -452,6 +430,52 @@ private fun RoomVideo(
                 maxLines = 1,
             )
             if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
+        }
+    }
+}
+
+/**
+ * El video con sus controles encima. Va en una función aparte a propósito: dentro del `Column` de [RoomVideo] el
+ * compilador resolvía `AnimatedVisibility` contra el `ColumnScope` de afuera (que Compose bloquea desde el `Box`) y
+ * fallaba con "cannot be called in this context with an implicit receiver". Aquí solo hay `BoxScope`.
+ */
+@Composable
+private fun RoomVideoBox(
+    rp: RoomPlayer,
+    overlay: OverlayController,
+    isHost: Boolean,
+    onTogglePlay: () -> Unit,
+    onSeek: (Float) -> Unit,
+    onEnterFullscreen: () -> Unit,
+) {
+    Box(Modifier.fillMaxWidth().aspectRatio(16f / 9f)) {
+        // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
+        VideoSurface(
+            rp,
+            Modifier.fillMaxSize().pointerInput(Unit) {
+                detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
+            },
+        )
+        if (rp.hasVideo && rp.error == null && rp.isBuffering) {
+            CircularProgressIndicator(Modifier.align(Alignment.Center).size(32.dp), color = Color.White, strokeWidth = 3.dp)
+        }
+        AnimatedVisibility(
+            visible = overlay.controlsVisible,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(6.dp),
+            enter = fadeIn(),
+            exit = fadeOut(),
+        ) {
+            PlayerControlsBar(
+                rp = rp,
+                isHost = isHost,
+                onTogglePlay = onTogglePlay,
+                onSeek = onSeek,
+                onTouch = { overlay.update { s, t -> s.touchControls(t) } },
+            ) {
+                IconButton(onClick = onEnterFullscreen) {
+                    Icon(painterResource(R.drawable.ic_fullscreen), contentDescription = "Pantalla completa", tint = Color.White)
+                }
+            }
         }
     }
 }
