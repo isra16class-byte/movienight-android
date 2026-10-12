@@ -89,7 +89,7 @@ internal val FullscreenStateSaver = listSaver<FullscreenState, Boolean>(
 )
 
 /** Fondo semitransparente de los controles sobre el video (el mismo tono oscuro que usa la web). */
-private val Scrim = Color(0xCC0C0616)
+internal val Scrim = Color(0xCC0C0616)
 
 private fun OrientationRequest.toActivityOrientation(): Int = when (this) {
     OrientationRequest.FREE -> ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
@@ -182,8 +182,12 @@ internal fun RoomFullscreen(
     VideoProgressTicker(rp)
 
     val overlay = rememberOverlayController()
-    LaunchedEffect(viewersDialogOpen) {
-        overlay.update { s, t -> if (viewersDialogOpen) s.pinAside() else s.unpinAside(t) }
+    // Panel de reacciones (parte 2B): abierto, fija el grupo lateral como la lista de conectados y no se cierra solo
+    // (la web tampoco). Vive aquí: al salir de pantalla completa se descarta y la próxima vez arranca cerrado.
+    var reactionPanelOpen by remember { mutableStateOf(false) }
+    val asidePinned = viewersDialogOpen || reactionPanelOpen
+    LaunchedEffect(asidePinned) {
+        overlay.update { s, t -> if (asidePinned) s.pinAside() else s.unpinAside(t) }
     }
 
     val controlsVisible = overlay.controlsVisible
@@ -193,8 +197,9 @@ internal fun RoomFullscreen(
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
         VideoSurface(
             rp,
-            Modifier.fillMaxSize().pointerInput(Unit) {
-                detectTapGestures { overlay.update { s, t -> s.onTapVideo(t) } }
+            Modifier.fillMaxSize().pointerInput(reactionPanelOpen) {
+                // Con el panel de reacciones abierto, tocar el video no esconde nada (en la web el panel abierto tampoco se esconde).
+                detectTapGestures { if (!reactionPanelOpen) overlay.update { s, t -> s.onTapVideo(t) } }
             },
             fit = videoFit,
         )
@@ -235,20 +240,29 @@ internal fun RoomFullscreen(
                 enter = fadeIn(),
                 exit = fadeOut(),
             ) {
-                Row(
-                    Modifier
-                        .clip(RoundedCornerShape(20.dp))
-                        .background(Scrim)
-                        .clickable {
-                            overlay.update { s, t -> s.touchAside(t) }
-                            onShowViewers()
-                        }
-                        .padding(horizontal = 12.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    Icon(painterResource(R.drawable.ic_group), contentDescription = "Conectados", tint = Color.White, modifier = Modifier.size(20.dp))
-                    Text("${vm.viewerCount}", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(
+                        Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(Scrim)
+                            .clickable {
+                                // Con el panel abierto el grupo ya está fijo: refrescar el reloj lo des-fijaría.
+                                if (!reactionPanelOpen) overlay.update { s, t -> s.touchAside(t) }
+                                onShowViewers()
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Icon(painterResource(R.drawable.ic_group), contentDescription = "Conectados", tint = Color.White, modifier = Modifier.size(20.dp))
+                        Text("${vm.viewerCount}", style = MaterialTheme.typography.titleSmall, color = Color.White)
+                    }
+                    // Reacciones (parte 2B). Elegir un emoji no toca el reloj: el panel abierto mantiene el grupo fijo.
+                    ReactionPicker(
+                        open = reactionPanelOpen,
+                        onToggle = { reactionPanelOpen = !reactionPanelOpen },
+                        onPick = { vm.sendReaction(it) },
+                    )
                 }
             }
 
@@ -290,8 +304,9 @@ internal fun RoomFullscreen(
                 }
             }
         }
-        // Al final, para dibujarse por encima de los controles. Comentarios flotantes del chat (parte 2A): solo existen
-        // mientras se está en pantalla completa; al salir se descartan junto con esta función.
+        // Al final, para dibujarse por encima de los controles. Emojis (parte 2B) y comentarios flotantes del chat
+        // (parte 2A): solo existen mientras se está en pantalla completa; al salir se descartan junto con esta función.
+        ReactionLayer(vm.liveReactions)
         DanmakuLayer(vm.liveChat)
     }
 }

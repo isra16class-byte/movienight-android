@@ -155,6 +155,8 @@ class RoomEventsTest {
         assertNull(parse("sync", "no soy un objeto"))
         assertNull(parse("sync", JSONObject("""{"type":"heartbeat"}""")))
         assertNull(parse("reaction", JSONObject("""{"emoji":"x"}""")))
+        assertNull(parse("reaction", ""))
+        assertNull(parse("reaction"))
         assertNull(parse("evento-desconocido"))
     }
 
@@ -189,5 +191,16 @@ class RoomEventsTest {
     @Test
     fun subtitleChangedEstaEntreLosEventosEscuchados() {
         assertTrue("subtitle-changed" in com.isra16.movienight.net.HANDLED_SERVER_EVENTS)
+    }
+
+    @Test
+    fun reactionLlegaComoTextoPlanoConElEmoji() {
+        assertEquals(RoomEvent.Reaction("🔥"), parse("reaction", "🔥"))
+        assertEquals(RoomEvent.Reaction("❤️"), parse("reaction", "❤️"))
+    }
+
+    @Test
+    fun reactionEstaEntreLosEventosEscuchados() {
+        assertTrue("reaction" in com.isra16.movienight.net.HANDLED_SERVER_EVENTS)
     }
 }

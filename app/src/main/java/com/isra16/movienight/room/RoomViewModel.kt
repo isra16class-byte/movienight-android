@@ -49,6 +49,7 @@ import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.net.Viewer
 import com.isra16.movienight.net.apiErrorMessage
 import com.isra16.movienight.net.isRoomPasswordError
+import com.isra16.movienight.net.isSendableReaction
 import com.isra16.movienight.net.parseJsonObject
 import com.isra16.movienight.net.resolveVideoUrl
 import com.isra16.movienight.net.serverErrorMessage
@@ -126,6 +127,15 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
      * de la pantalla completa (Fase 7, parte 2A). No cambia [messages] ni el chat de la vista vertical.
      */
     val liveChat: SharedFlow<ChatMessage> = _liveChat
+
+    private val _liveReactions = MutableSharedFlow<String>(extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+    /**
+     * Cada emoji que llega EN VIVO por `reaction` (también los propios: el server los devuelve a toda la sala). Sin
+     * nadie escuchando se descarta; lo usan los emojis flotantes de la pantalla completa (Fase 7, parte 2B). No toca
+     * el video, el chat ni la sincronización.
+     */
+    val liveReactions: SharedFlow<String> = _liveReactions
 
     var viewerCount by mutableIntStateOf(0)
         private set
@@ -419,6 +429,16 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         return true
     }
 
+    /**
+     * Manda una reacción (uno de `REACTION_EMOJIS`). `false` si no se pudo (sin conexión o emoji que no está en la
+     * lista). Silenciado se puede reaccionar: el server solo bloquea el chat (`chat-message`), no `reaction`. No se
+     * dibuja nada aquí: el emoji aparece cuando el server lo devuelve (ver [liveReactions]).
+     */
+    fun sendReaction(emoji: String): Boolean {
+        if (!isConnected || !isSendableReaction(emoji)) return false
+        return roomSocket.sendReaction(emoji)
+    }
+
     /** El server retransmite cada `typing`; se limita a uno cada 2 s para no inundar la sala. */
     fun onTyping() {
         val now = System.currentTimeMillis()
@@ -557,6 +577,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
                 resolveModerations(event.viewers)
             }
             is RoomEvent.Typing -> showTyping(event.username)
+            is RoomEvent.Reaction -> _liveReactions.tryEmit(event.emoji)
             is RoomEvent.ChatRateLimited -> showNotice(event.message, clearAfterMs = NOTICE_MS)
             RoomEvent.Kicked -> {
                 clearRestart()

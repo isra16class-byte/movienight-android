@@ -63,14 +63,18 @@ sealed interface RoomEvent {
     data class ViewerCount(val count: Int) : RoomEvent
     data class ViewerList(val viewers: List<Viewer>) : RoomEvent
     data class Typing(val username: String) : RoomEvent
+
+    /** `reaction`: el emoji que alguien (también uno mismo: el server la devuelve a toda la sala) mandó. */
+    data class Reaction(val emoji: String) : RoomEvent
     data object Kicked : RoomEvent
     data object ServerRestarting : RoomEvent
 }
 
-/** Eventos del server que [parseServerEvent] sabe interpretar (los demás —`reaction`...— llegan después). */
+/** Eventos del server que [parseServerEvent] sabe interpretar. */
 val HANDLED_SERVER_EVENTS: List<String> = listOf(
     "room-error", "chat-history", "chat-message", "chat-rate-limited", "host-status", "room-data",
     "video-changed", "subtitle-changed", "sync", "mute-status", "viewer-count", "viewer-list", "typing", "kicked", "server-restarting",
+    "reaction",
 )
 
 /**
@@ -105,6 +109,7 @@ fun parseServerEvent(name: String, args: Array<out Any?>): RoomEvent? {
         "viewer-count" -> (first as? Number)?.let { RoomEvent.ViewerCount(it.toInt()) }
         "viewer-list" -> (first as? JSONArray)?.let { RoomEvent.ViewerList(parseViewers(it)) }
         "typing" -> (first as? JSONObject)?.optStringOrNull("username")?.let { RoomEvent.Typing(it) }
+        "reaction" -> parseReactionEmoji(first)?.let { RoomEvent.Reaction(it) }
         "kicked" -> RoomEvent.Kicked
         "server-restarting" -> RoomEvent.ServerRestarting
         else -> null

@@ -93,6 +93,17 @@ class RoomSocket(
     }
 
     /**
+     * `reaction` (el emoji en texto plano, como la web). Igual que [sendSync], no se encola si no hay conexión: un
+     * emoji que llegara minutos tarde no tiene sentido. Devuelve `false` si no se pudo emitir. El server la
+     * retransmite a toda la sala, también a quien la manda.
+     */
+    fun sendReaction(emoji: String): Boolean {
+        val s = socket?.takeIf { it.connected() } ?: return false
+        s.emit("reaction", emoji)
+        return true
+    }
+
+    /**
      * Emite un `sync` del host. No hace nada si el socket no está conectado: socket.io dejaría el
      * mensaje en cola y lo soltaría al reconectar, con una posición vieja y antes del `join-room`.
      * Quien llama decide si corresponde (ver `canEmitSync`).
