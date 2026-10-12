@@ -23,8 +23,27 @@ const val DANMAKU_MAX_ACTIVE = 12
 private const val DANMAKU_MIN_SECONDS = 7.0
 private const val DANMAKU_MAX_SECONDS = 15.0
 
-/** Primer carril a 10 % de la altura y 7,5 % más por cada carril siguiente (`10 + lane * 7.5` en la web). */
-fun danmakuTopFraction(lane: Int): Float = 0.10f + lane * 0.075f
+/** Separación entre carriles: 7,5 % de la altura (`10 + lane * 7.5` en la web). */
+const val DANMAKU_TOP_STEP = 0.075f
+
+/** Primer carril a 10 % de la altura y [step] más por cada carril siguiente (por defecto, 7,5 % como la web). */
+fun danmakuTopFraction(lane: Int, step: Float = DANMAKU_TOP_STEP): Float = 0.10f + lane * step
+
+/**
+ * Cómo se reparten y dibujan los comentarios según dónde estén: [laneCount] carriles separados [topStep] (fracción de
+ * la altura), hasta [maxActive] a la vez y letra de [fontSp] (`null`: la decide la UI según el ancho de pantalla,
+ * 22 o 16 como la web). [FULLSCREEN] es la pantalla completa (2A, sin cambios). [PIP] es la ventana flotante, muy
+ * chica: letra de 11 sp, 3 carriles (a 10, 25 y 40 % del alto, para que no se encimen) y 4 a la vez. Los valores de
+ * [PIP] son estimaciones, a ajustar probando en el teléfono.
+ */
+data class DanmakuProfile(val laneCount: Int, val topStep: Float, val maxActive: Int, val fontSp: Float?) {
+    fun newLanes() = DanmakuLanes(laneCount, topStep, maxActive)
+
+    companion object {
+        val FULLSCREEN = DanmakuProfile(DANMAKU_LANES, DANMAKU_TOP_STEP, DANMAKU_MAX_ACTIVE, null)
+        val PIP = DanmakuProfile(laneCount = 3, topStep = 0.15f, maxActive = 4, fontSp = 11f)
+    }
+}
 
 /**
  * Lo que tarda un comentario en cruzar la pantalla: `min(15, max(7, largo / 10 + 6))` segundos. Los mensajes largos
@@ -75,7 +94,11 @@ data class DanmakuSpec(
  * Se crea uno por cada entrada a pantalla completa: al salir se descarta y los carriles vuelven a empezar, como
  * `clearDanmaku` en la web.
  */
-class DanmakuLanes(private val laneCount: Int = DANMAKU_LANES) {
+class DanmakuLanes(
+    private val laneCount: Int = DANMAKU_LANES,
+    private val topStep: Float = DANMAKU_TOP_STEP,
+    private val maxActive: Int = DANMAKU_MAX_ACTIVE,
+) {
     private val freeAt = LongArray(laneCount)
 
     /**
@@ -95,16 +118,16 @@ class DanmakuLanes(private val laneCount: Int = DANMAKU_LANES) {
 
     /**
      * Decide si un mensaje en vivo se muestra y cómo; `null` si se descarta (mensaje de sistema o vacío, o ya hay
-     * [DANMAKU_MAX_ACTIVE] en pantalla). Un mensaje descartado no gasta carril.
+     * [maxActive] en pantalla). Un mensaje descartado no gasta carril.
      */
     fun plan(message: ChatMessage, activeCount: Int, now: Long): DanmakuSpec? {
         if (!shouldShowDanmaku(message)) return null
-        if (activeCount >= DANMAKU_MAX_ACTIVE) return null
+        if (activeCount >= maxActive) return null
         val text = danmakuText(message.text)
         val lane = pick(now)
         return DanmakuSpec(
             lane = lane,
-            topFraction = danmakuTopFraction(lane),
+            topFraction = danmakuTopFraction(lane, topStep),
             durationMs = danmakuDurationMs(text.length),
             user = message.user,
             text = text,

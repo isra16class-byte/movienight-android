@@ -430,7 +430,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     /**
-     * Manda una reacción (uno de `REACTION_EMOJIS`). `false` si no se pudo (sin conexión o emoji que no está en la
+     * Manda una reacción (uno de `REACTION_BAR_EMOJIS`). `false` si no se pudo (sin conexión o emoji que no está en la
      * lista). Silenciado se puede reaccionar: el server solo bloquea el chat (`chat-message`), no `reaction`. No se
      * dibuja nada aquí: el emoji aparece cuando el server lo devuelve (ver [liveReactions]).
      */

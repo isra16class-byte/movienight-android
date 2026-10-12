@@ -75,13 +75,16 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.SharedFlow
 import com.isra16.movienight.R
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.FullscreenState
 import com.isra16.movienight.net.PauseOnStopTracker
+import com.isra16.movienight.net.DanmakuProfile
 import com.isra16.movienight.net.PipConditions
 import com.isra16.movienight.net.PipContent
 import com.isra16.movienight.net.PipRequest
+import com.isra16.movienight.net.ReactionSurface
 import com.isra16.movienight.net.RoomLayout
 import com.isra16.movienight.net.VideoFit
 import com.isra16.movienight.net.connectionBanner
@@ -277,7 +280,7 @@ private fun RoomContent(vm: RoomViewModel, draft: String, onDraftChange: (String
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
         val videoHeight = portraitVideoHeightDp(maxWidth.value, maxHeight.value, keyboardOpen).dp
-        RoomContentBody(vm, draft, onDraftChange, onEnterFullscreen, videoHeight)
+        RoomContentBody(vm, draft, onDraftChange, onEnterFullscreen, videoHeight, keyboardOpen)
     }
 }
 
@@ -288,6 +291,7 @@ private fun RoomContentBody(
     onDraftChange: (String) -> Unit,
     onEnterFullscreen: () -> Unit,
     videoHeight: Dp,
+    keyboardOpen: Boolean,
 ) {
     val canSend = draft.isNotBlank() && vm.isConnected && !vm.isMuted
 
@@ -305,6 +309,7 @@ private fun RoomContentBody(
             onSeek = vm::hostSeekTo,
             onChangeVideo = vm::openChangeVideo,
             onEnterFullscreen = onEnterFullscreen,
+            liveReactions = vm.liveReactions,
         )
 
         // Avance de una subida cuando el cuadro "Cambiar video" está oculto.
@@ -342,6 +347,10 @@ private fun RoomContentBody(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+
+        // Reacciones (parte 2D): la fila de la web móvil, encima del campo de chat; se esconde con el teclado abierto,
+        // como la web. Silenciado se puede reaccionar (el server solo bloquea el chat), así que sigue visible.
+        if (!keyboardOpen) ReactionBar(onPick = { vm.sendReaction(it) })
 
         if (vm.isMuted) {
             Text(
@@ -439,6 +448,7 @@ private fun RoomVideo(
     onSeek: (Float) -> Unit,
     onChangeVideo: () -> Unit,
     onEnterFullscreen: () -> Unit,
+    liveReactions: SharedFlow<String>,
 ) {
     VideoProgressTicker(rp)
     val overlay = rememberOverlayController()
@@ -452,6 +462,7 @@ private fun RoomVideo(
             onTogglePlay = onTogglePlay,
             onSeek = onSeek,
             onEnterFullscreen = onEnterFullscreen,
+            liveReactions = liveReactions,
         )
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
@@ -484,6 +495,7 @@ private fun RoomVideoBox(
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
     onEnterFullscreen: () -> Unit,
+    liveReactions: SharedFlow<String>,
 ) {
     Box(Modifier.fillMaxWidth().height(videoHeight)) {
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
@@ -514,6 +526,9 @@ private fun RoomVideoBox(
                 }
             }
         }
+        // Al final, para dibujarse por encima de los controles. Emojis que mandan los demás (parte 2D), como los
+        // `.float-emoji` de la web móvil: solo sobre el video, recortados a su caja. Los comentarios no: ya se ven en el chat.
+        ReactionLayer(liveReactions, surface = ReactionSurface.PORTRAIT)
     }
 }
 
@@ -801,6 +816,12 @@ private fun PipVideo(vm: RoomViewModel) {
                 color = Color.White,
                 textAlign = TextAlign.Center,
             )
+        }
+        // Emojis y comentarios de los demás también en la ventana flotante (parte 2D), en chico: solo se ven, desde
+        // aquí no se puede mandar nada. Son capas de dibujo sin toques; no tocan el reproductor ni la sincronización.
+        if (content == PipContent.VIDEO) {
+            ReactionLayer(vm.liveReactions, surface = ReactionSurface.PIP)
+            DanmakuLayer(vm.liveChat, profile = DanmakuProfile.PIP)
         }
     }
 }

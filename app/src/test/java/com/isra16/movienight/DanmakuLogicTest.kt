@@ -5,7 +5,9 @@ import com.isra16.movienight.net.DANMAKU_HOST_COLOR
 import com.isra16.movienight.net.DANMAKU_LANES
 import com.isra16.movienight.net.DANMAKU_LANE_RESERVE_MS
 import com.isra16.movienight.net.DANMAKU_MAX_ACTIVE
+import com.isra16.movienight.net.DANMAKU_TOP_STEP
 import com.isra16.movienight.net.DanmakuLanes
+import com.isra16.movienight.net.DanmakuProfile
 import com.isra16.movienight.net.danmakuDurationMs
 import com.isra16.movienight.net.danmakuNameColor
 import com.isra16.movienight.net.danmakuText
@@ -193,5 +195,44 @@ class DanmakuLogicTest {
         val carriles = (0 until 8).map { i -> lanes.plan(chat("m$i"), activeCount = i, now = 10_000)!!.lane }
         // Seis carriles distintos; con todos ocupados y empatados se repite el primero (igual que la web).
         assertEquals(listOf(0, 1, 2, 3, 4, 5, 0, 0), carriles)
+    }
+
+    @Test
+    fun elPerfilDePantallaCompletaEsElDeSiempre() {
+        val p = DanmakuProfile.FULLSCREEN
+        assertEquals(DANMAKU_LANES, p.laneCount)
+        assertEquals(DANMAKU_TOP_STEP, p.topStep, 0f)
+        assertEquals(DANMAKU_MAX_ACTIVE, p.maxActive)
+        assertNull(p.fontSp) // la UI elige 22 o 16 según el ancho de la pantalla
+        assertEquals(0.10f + 3 * 0.075f, danmakuTopFraction(3, p.topStep), 1e-6f)
+    }
+
+    @Test
+    fun elPerfilDeLaVentanaFlotanteTiene3CarrilesSeparadosYLetraChica() {
+        val p = DanmakuProfile.PIP
+        assertEquals(3, p.laneCount)
+        assertEquals(4, p.maxActive)
+        assertEquals(11f, p.fontSp!!, 0f)
+        assertEquals(listOf(0.10f, 0.25f, 0.40f), (0 until 3).map { danmakuTopFraction(it, p.topStep) })
+    }
+
+    @Test
+    fun laVentanaFlotanteRepartePor3CarrilesYDescartaDesdeElCuarto() {
+        val lanes = DanmakuProfile.PIP.newLanes()
+        val usados = (0 until 3).map { lanes.plan(chat("m$it"), activeCount = it, now = 10_000L)!!.lane }
+        assertEquals(listOf(0, 1, 2), usados)
+        // Con 4 en pantalla ya no entra otro, y el descartado no gasta carril.
+        assertNull(lanes.plan(chat("de más"), activeCount = 4, now = 10_000L))
+        val siguiente = lanes.plan(chat("otro"), activeCount = 3, now = 12_000L)!!
+        assertEquals(0, siguiente.lane)
+        assertEquals(0.10f, siguiente.topFraction, 1e-6f)
+    }
+
+    @Test
+    fun laVentanaFlotanteUsaLaSeparacionDeSusCarriles() {
+        val spec = DanmakuProfile.PIP.newLanes().plan(chat("hola"), activeCount = 0, now = 5_000L)!!
+        val segundo = DanmakuProfile.PIP.newLanes().also { it.pick(5_000L) }.plan(chat("hola"), activeCount = 0, now = 5_100L)!!
+        assertEquals(0.10f, spec.topFraction, 1e-6f)
+        assertEquals(0.25f, segundo.topFraction, 1e-6f)
     }
 }

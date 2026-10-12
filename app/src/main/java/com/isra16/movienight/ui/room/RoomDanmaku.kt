@@ -34,7 +34,7 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.sp
 import com.isra16.movienight.net.ChatMessage
-import com.isra16.movienight.net.DanmakuLanes
+import com.isra16.movienight.net.DanmakuProfile
 import com.isra16.movienight.net.DanmakuSpec
 import kotlin.math.roundToInt
 import kotlinx.coroutines.flow.SharedFlow
@@ -46,18 +46,23 @@ private class DanmakuItem(val id: Long, val spec: DanmakuSpec)
  * llega EN VIVO ([live], ver `RoomViewModel.liveChat`) cruza la pantalla de derecha a izquierda en un carril; las
  * reglas (carriles, tope, duración, color) viven en `net/DanmakuLogic.kt` y tienen tests.
  *
- * Solo se compone dentro de la pantalla completa: al salir de ella este estado se descarta (comentarios y carriles),
- * como `clearDanmaku()` en la web, así que nada queda "congelado" para la próxima vez. Va al final del `Box` de la
+ * Solo se compone dentro de la pantalla completa y de la ventana flotante (PiP, parte 2D: con [profile] =
+ * `DanmakuProfile.PIP`, letra de 11 sp, 3 carriles y 4 a la vez): al salir de ahí este estado se descarta (comentarios
+ * y carriles), como `clearDanmaku()` en la web, así que nada queda "congelado" para la próxima vez. Va al final del `Box` de la
  * pantalla completa para dibujarse por encima de los controles, y no recibe toques. Es solo una capa de dibujo: no
  * toca `RoomPlayer` ni la sincronización del video.
  */
 @Composable
-internal fun DanmakuLayer(live: SharedFlow<ChatMessage>, modifier: Modifier = Modifier) {
-    val lanes = remember { DanmakuLanes() }
+internal fun DanmakuLayer(
+    live: SharedFlow<ChatMessage>,
+    modifier: Modifier = Modifier,
+    profile: DanmakuProfile = DanmakuProfile.FULLSCREEN,
+) {
+    val lanes = remember(profile) { profile.newLanes() }
     val items = remember { mutableStateListOf<DanmakuItem>() }
     val nextId = remember { longArrayOf(0L) }
 
-    LaunchedEffect(live) {
+    LaunchedEffect(live, lanes) {
         live.collect { message ->
             val spec = lanes.plan(message, activeCount = items.size, now = SystemClock.elapsedRealtime())
                 ?: return@collect
@@ -73,6 +78,7 @@ internal fun DanmakuLayer(live: SharedFlow<ChatMessage>, modifier: Modifier = Mo
             key(item.id) {
                 DanmakuView(
                     spec = item.spec,
+                    fontSp = profile.fontSp,
                     containerWidthPx = widthPx,
                     containerHeightPx = heightPx,
                     onFinished = { items.remove(item) },
@@ -90,6 +96,7 @@ internal fun DanmakuLayer(live: SharedFlow<ChatMessage>, modifier: Modifier = Mo
 @Composable
 private fun DanmakuView(
     spec: DanmakuSpec,
+    fontSp: Float?,
     containerWidthPx: Float,
     containerHeightPx: Int,
     onFinished: () -> Unit,
@@ -102,7 +109,7 @@ private fun DanmakuView(
         onFinished()
     }
 
-    // La web baja la letra de 22 a 16 px en pantallas de hasta 820 px de ancho.
+    // La web baja la letra de 22 a 16 px en pantallas de hasta 820 px de ancho. Un perfil con letra propia (PiP) la fija.
     val compact = LocalConfiguration.current.screenWidthDp <= 820
     val label = remember(spec) {
         buildAnnotatedString {
@@ -113,7 +120,7 @@ private fun DanmakuView(
     Text(
         text = label,
         color = Color.White,
-        fontSize = if (compact) 16.sp else 22.sp,
+        fontSize = (fontSp ?: if (compact) 16f else 22f).sp,
         fontWeight = FontWeight.SemiBold,
         maxLines = 1,
         softWrap = false,
