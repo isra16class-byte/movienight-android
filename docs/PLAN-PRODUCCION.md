@@ -427,6 +427,43 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 
 ---
 
+## Fase 8 — Rediseño visual de la app (propuesta, solo documentación por ahora)
+
+> **Estado (2026-10-12): nada empezado, ni diseño ni código.** Esta fase solo recoge lo conversado: qué decidió la persona, qué es todavía una propuesta del asistente y qué
+> falta decidir. No se escribe código hasta que se elija la temática. La app hoy usa el tema Material 3 por defecto de Android Studio (`ui/theme/`), con color dinámico en Android 12+
+> y tipografía del sistema; la web usa su propio sistema "Videoclub" (VHS/vaporwave de los 80/90, morado oscuro con rosa y cian neón; `public/style.css`). Se quiere una identidad
+> **distinta a la de la web**. La app la van a usar otras personas con otros teléfonos: nada debe depender de un aparato.
+
+**Decidido por la persona**
+- [x] Dos modos, **claro y oscuro**, con un **interruptor dentro de la app** (no seguir automáticamente al teléfono).
+- [x] Efecto de **vidrio esmerilado** (fondo nítido con paneles semitransparentes que difuminan lo que hay detrás), como el de una web que vio y de la que no recuerda el nombre.
+- [x] Dirección de referencia: naturaleza luminosa (dos imágenes de Pinterest de copas de árboles vistas desde abajo, con verdes lima, azul cielo y acentos rosa y naranja). Solo como inspiración.
+- [x] Intro: animación de **tiempo fijo** (~1 s) al abrir la app desde cero; si el servidor aún no respondió la comprobación de sesión, pasar a la pantalla de "cargando" que ya existe.
+
+**Propuestas del asistente, sin decidir**
+- Aplicar el vidrio en login, registro, inicio y diálogos, **no sobre el video** en la sala (desenfoque sobre video en movimiento: batería, rendimiento y legibilidad); ahí los controles
+  siguen con su fondo oscuro semitransparente.
+- Tres técnicas para el vidrio: (1) panel semitransparente con borde fino sobre el fondo, sin dependencias; (2) desenfoque nativo `Modifier.blur`, que de memoria solo funciona desde Android 12
+  (API 31) y el `minSdk` es 26, con alternativa para teléfonos viejos; (3) una librería de vidrio, que sería una dependencia nueva y se avisa antes si exige un Kotlin más nuevo que el 2.0.21. *Sin verificar en la documentación.*
+- Apagar el color dinámico para que todos vean la misma paleta.
+- Orden de trabajo sugerido: brief de 3 palabras, moodboard de ~20 imágenes, elegir 2 o 3 direcciones, logo, paleta y tipografías, y recién entonces las pantallas.
+- Para el logo, conceptos con significado: luna con play; dos mitades que se juntan; dos pantallas superpuestas cuya intersección es un play; ramas que parten de un mismo tronco ("gente distinta, un mismo plan"); hoja o flor con un play al centro.
+  Hay un prompt para un generador de imágenes en la conversación; no hay resultado elegido.
+
+**Por decidir**
+- [ ] Temática final, **paleta de cada modo** (claro y oscuro), tipografías y logo (con búsqueda inversa de imágenes para comprobar que no se parezca a otro; términos de uso del generador, sin revisar).
+- [ ] Imagen de fondo: las de Pinterest **no se usan en la app** (no se sabe su origen ni si hay derecho de uso, y no se suben al repo). Hace falta una propia, generada (revisando sus términos) o de un banco libre de derechos; con un peso razonable para móvil.
+- [ ] Qué modo arranca la primera vez y **dónde se guarda** la preferencia (la app ya guarda ajustes en `notify/NotificationPrefs.kt` y `auth/UserIdStore.kt`; no se revisó cómo).
+- [ ] Qué hace la intro con la pantalla de arranque propia de Android 12+ (no investigado) y que no se repita al girar el teléfono ni al volver de segundo plano.
+
+**Pantallas a cubrir (verificadas en `AppRoot.kt` y `ui/`):** carga, error de conexión (con "Reintentar"), iniciar sesión, registro, recuperar contraseña (no funciona de punta a punta: falta el envío de emails en el servidor, y esta fase no lo arregla), inicio
+(biblioteca, unirse con código o link, subir video, acceso a administración, cerrar sesión) y sala (vertical, pantalla completa horizontal y ventana flotante, con los diálogos de cambiar video, conectados y progreso de subida). Prioridad de pulido: login, inicio y sala.
+
+**Reglas al implementar (las de siempre):** el servidor no se toca; el rediseño es solo visual y no toca `RoomPlayer` ni `RoomViewModel`; sin dependencias que exijan un Kotlin más nuevo que el 2.0.21 sin avisar; la decisión de a qué pantalla ir tras la
+intro, como función pura con tests; lo que dependa de Android (animación, arranque, modo claro y oscuro, el vidrio) solo se confirma en el teléfono.
+
+---
+
 ## Resumen — por dónde empezar
 
 1. **Fase 1** (spike técnico) — es la que más barato prueba si el enfoque es
@@ -438,6 +475,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
 6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes), los niveles de ajuste del video y la parte 2 de reacciones (2B en pantalla completa y 2D en vertical y PiP).
+7. **Fase 8** — rediseño visual de la app, distinto al de la web: solo documentación por ahora, nada empezado; falta elegir la temática.
 
 ---
 

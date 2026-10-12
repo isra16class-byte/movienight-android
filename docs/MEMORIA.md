@@ -208,6 +208,13 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Rediseño visual de la app: solo decisiones y propuestas, nada empezado (2026-10-12).** No hay código ni pruebas; el detalle está en la **Fase 8** del plan. Lo decidido por la persona: modo
+claro y oscuro con un interruptor dentro de la app; efecto de vidrio esmerilado; referencia de naturaleza luminosa (dos imágenes de Pinterest de copas de árboles, solo como inspiración, sin subirlas
+al repo y sin verificar sus derechos); intro de tiempo fijo (~1 s) que, si el servidor aún no comprobó la sesión, pasa a la pantalla de carga existente. **Sin elegir todavía:** la temática final, la
+paleta de cada modo, las tipografías, el logo y la imagen de fondo. Propuestas del asistente: vidrio en login, registro, inicio y diálogos, no sobre el video; apagar el color dinámico; el orden
+brief, moodboard, direcciones, logo, paleta y pantallas. La app hoy usa el tema Material 3 por defecto y la web su sistema "Videoclub" (VHS/vaporwave); la idea es que la app tenga uno distinto.
+Sin verificar: que `Modifier.blur` funcione solo desde Android 12 (de memoria) y cómo convive la intro con la pantalla de arranque de Android 12+. La 7B sigue sin empezar.
+
 **Fase 7, parte 2 hecha: reacciones y emojis flotantes en pantalla completa (2B), en vertical y en la ventana flotante (2D). La 2D la confirmó la persona (2026-10-11); la 2B no se confirmó por separado.** La 7B sigue sin empezar. Salió de dos pedidos: la "parte 2"
 original (chat y espectadores flotantes sobre el video en pantalla completa, como la web) y, después, que los emojis de los demás salgan también en vertical y en la
 ventana flotante (con los comentarios del chat) y una fila para mandarlos cerca del chat en vertical, como en la web móvil.
@@ -760,6 +767,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
+- **Rediseño visual (Fase 8):** solo documentado; falta elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros. No empezar a escribir código hasta entonces.
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
 - **Sin prueba explícita:** la

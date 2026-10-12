@@ -5,6 +5,23 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-12 — Rediseño visual de la app: decisiones y propuestas (solo documentación, sin código)
+
+- **Qué es esta entrada:** no hay cambios en la app. Solo se anota lo conversado para no perderlo; se detalla en la Fase 8 del plan.
+- **Origen:** la persona preguntó con qué temática de diseño cuenta la app web y quiso que la app tenga una propia, distinta. Se leyó en el código: la web usa "Videoclub" (VHS/vaporwave, fondo
+  morado, rosa y cian neón; fuentes Monoton, Space Grotesk y VT323); la app usa el tema Material 3 por defecto de Android Studio (`Theme.kt`, `Color.kt`, `Type.kt`), con color dinámico en Android 12+.
+  Sus colores propios son solo el fondo oscuro semitransparente de la pantalla completa y un aviso ámbar.
+- **Decidido por la persona:** modo claro y oscuro con un interruptor dentro de la app; efecto de vidrio esmerilado; referencia de naturaleza luminosa (dos imágenes de Pinterest de copas de árboles);
+  intro de tiempo fijo que, si el servidor aún no comprobó la sesión, pasa a la pantalla de carga existente.
+- **Visto en las imágenes de referencia (medición automática del asistente, aproximada):** predominan verdes lima y amarillos (32 % a 48 % de lo vivo) y azul cielo (11 % a 30 %), con acentos rosa y naranja;
+  azul cerca de `#399DE2`–`#5BA8EB` y lima cerca de `#A6A236`–`#BCC53F`. *Interpretado:* ambiente de primavera, de día, saturado. Las imágenes no están en el repo ni en la app: de Pinterest, origen y derechos sin verificar.
+- **Verificado en el código:** las 7 pantallas de la app (carga, error de conexión, iniciar sesión, registro, recuperar contraseña, inicio y sala); la comprobación de sesión (`/auth/me`) corre al crearse `SessionViewModel`,
+  o sea al abrir la app desde cero. **Sin verificar:** que `Modifier.blur` solo funcione desde Android 12 (de memoria), el comportamiento con la pantalla de arranque de Android 12+, y las condiciones de uso de cualquier generador de imágenes.
+- **Pendiente de decidir:** temática final, paleta de cada modo, tipografías, logo, imagen de fondo con derechos claros, qué modo arranca primero y dónde se guarda la preferencia.
+- **Nada probado ni implementado.**
+
+---
+
 ## 2026-10-11 — Fase 7, parte 2: reacciones y emojis flotantes (2B en pantalla completa, 2D en vertical y en la ventana flotante), 2D confirmada por la persona
 
 - **Pedido:** la "parte 2" original (chat y espectadores flotantes sobre el video en pantalla completa, como la web) y, después, que los emojis de los demás salgan también en vertical y en la ventana
