@@ -87,6 +87,9 @@ dependencies {
     // los botones son de Compose, porque en la sala el host manda y los demás no pueden mover el video).
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.ui)
+    // Fase 7B: MediaSession + notificación de reproducción (audio con la pantalla apagada). MISMA versión que el resto de
+    // Media3 (1.10.1). Si el Sync marca un error de metadata de Kotlin, esta librería exige un Kotlin más nuevo: no usar.
+    implementation(libs.androidx.media3.session)
     testImplementation(libs.junit)
     // org.json real para los tests unitarios: el de android.jar viene "mockeado" y no parsea nada.
     testImplementation(libs.org.json)

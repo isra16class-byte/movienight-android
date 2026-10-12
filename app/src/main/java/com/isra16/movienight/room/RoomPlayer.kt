@@ -9,6 +9,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
@@ -21,6 +22,7 @@ import com.isra16.movienight.net.RoomPosition
 import com.isra16.movienight.net.SyncMessage
 import com.isra16.movienight.net.SyncType
 import com.isra16.movienight.net.hostReferenceFrom
+import com.isra16.movienight.net.isSystemPause
 import com.isra16.movienight.net.planReadyResync
 import com.isra16.movienight.net.planRejoin
 import com.isra16.movienight.net.planSync
@@ -47,7 +49,8 @@ import kotlin.math.roundToInt
  * Ningún listener del ExoPlayer emite `sync` hacia el server: así lo que se aplica por orden del server
  * nunca se confunde con una acción de la persona (la web lo resuelve con una bandera `ignoreSync` y un
  * `setTimeout` de 300 ms; acá no hace falta ninguna de las dos). El único listener que avisa algo al
- * server es el del buffering ([onBufferingChange]), que no mueve el video de nadie.
+ * server es el del buffering ([onBufferingChange]), que no mueve el video de nadie. El de las pausas del sistema
+ * ([onSystemPause], 7B) solo avisa al [RoomViewModel], que es quien emite.
  */
 class RoomPlayer(private val context: Context) {
 
@@ -68,6 +71,14 @@ class RoomPlayer(private val context: Context) {
      * `shouldReportBuffering`); el [RoomViewModel] lo manda como `buffering-status`.
      */
     var onBufferingChange: ((Boolean) -> Unit)? = null
+
+    /**
+     * Se llama (hilo principal) cuando el SISTEMA pausó el video de forma deliberada (Fase 7B): otra app tomó el audio
+     * para siempre o se desenchufaron los auriculares (ver `isSystemPause`). Solo AVISA: este reproductor no emite
+     * nada; si somos host, el [RoomViewModel] manda el `pause` con [pausedMessage]. Una llamada (pérdida pasajera)
+     * no llega acá: ExoPlayer la suprime y se reanuda solo.
+     */
+    var onSystemPause: (() -> Unit)? = null
 
     /** Momento (reloj del sistema) del último salto por heartbeat; 0 = ninguno. Ver `planSync`. */
     private var lastHardSeekAt = 0L
@@ -130,6 +141,7 @@ class RoomPlayer(private val context: Context) {
         override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
             this@RoomPlayer.playWhenReady = playWhenReady
             updateBufferingReport()
+            if (isSystemPause(playWhenReady, reason)) onSystemPause?.invoke()
         }
 
         override fun onVideoSizeChanged(videoSize: VideoSize) {
@@ -381,6 +393,24 @@ class RoomPlayer(private val context: Context) {
         return if (wasPlaying) SyncMessage(SyncType.PAUSE, p.currentPosition.coerceAtLeast(0L), null) else null
     }
 
+    /** Un `pause` con la posición actual, o `null` si no hay un video sano. NO pausa nada ni emite: solo arma el mensaje (ver [onSystemPause]). */
+    fun pausedMessage(): SyncMessage? {
+        val p = exo ?: return null
+        if (!hasVideo || error != null) return null
+        return SyncMessage(SyncType.PAUSE, p.currentPosition.coerceAtLeast(0L), null)
+    }
+
+    /**
+     * Reproducir en local (el botón de la notificación, solo para quien no es host: no emite nada; el host usa
+     * [togglePlay]). Si el video quedó parado o en error, se prepara antes.
+     */
+    fun playLocal() {
+        val p = exo ?: return
+        if (!hasVideo || error != null) return
+        if (p.playbackState == Player.STATE_IDLE) p.prepare()
+        p.play()
+    }
+
     /**
      * El `heartbeat` del host (posición + si está en pausa), o `null` si no hay un video sano que reportar:
      * con la cinta caída no se manda, o el host le pondría la sala en el segundo 0 y en pausa a todos.
@@ -432,7 +462,14 @@ class RoomPlayer(private val context: Context) {
     }
 
     private fun createPlayer(): ExoPlayer {
-        val p = ExoPlayer.Builder(context).build()
+        // Fase 7B: audio que sigue en segundo plano. Foco de audio (pérdida permanente = pausa; la pasajera la maneja
+        // ExoPlayer), pausa al desenchufar auriculares y bloqueo de red/CPU solo mientras reproduce.
+        val attrs = AudioAttributes.Builder().setUsage(C.USAGE_MEDIA).setContentType(C.AUDIO_CONTENT_TYPE_MOVIE).build()
+        val p = ExoPlayer.Builder(context)
+            .setAudioAttributes(attrs, true)
+            .setHandleAudioBecomingNoisy(true)
+            .setWakeMode(C.WAKE_MODE_NETWORK)
+            .build()
         p.addListener(listener)
         exo = p
         player = p

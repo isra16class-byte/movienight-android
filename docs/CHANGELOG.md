@@ -5,6 +5,13 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-12 — Fase 7B: audio de la sala con la pantalla apagada o en otra app (escrita, sin compilar ni probar)
+
+- **Qué:** servicio de reproducción (`MediaSessionService`) con notificación de reproducir/pausar; el audio sigue con la pantalla apagada o en otra app y se detiene solo al salir de la sala.
+- **Archivos nuevos:** `net/PlaybackServiceLogic.kt` (lógica pura), `notify/PlaybackBridge.kt`, `notify/PlaybackService.kt`, `PlaybackServiceLogicTest.kt`.
+- **Archivos tocados:** `RoomPlayer` (foco de audio, auriculares, `onSystemPause`, `pausedMessage`, `playLocal`), `RoomViewModel` (controles de la notificación, evaluación del servicio, `onCleared`), `PauseOnStopTracker` (parámetro `backgroundAudioActive`), `RoomScreen`, `AppContainer`, `SessionViewModel` (cerrar sesión detiene el servicio), manifiesto (`FOREGROUND_SERVICE_MEDIA_PLAYBACK`, `WAKE_LOCK`, servicio `mediaPlayback`), `strings.xml`, `libs.versions.toml` y `build.gradle.kts` (`media3-session` 1.10.1).
+- **No hecho / sin comprobar:** no se pudo compilar ni correr tests (sin Android SDK ni acceso a Maven); ver la primera entrada de "Por dónde seguir" para la lista de lo que hay que confirmar.
+
 ## 2026-10-12 — Rediseño visual de la app: decisiones y propuestas (solo documentación, sin código)
 
 - **Qué es esta entrada:** no hay cambios en la app. Solo se anota lo conversado para no perderlo; se detalla en la Fase 8 del plan.

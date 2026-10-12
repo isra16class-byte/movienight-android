@@ -9,6 +9,7 @@ import com.isra16.movienight.net.VisibilityCounter
 import com.isra16.movienight.net.VideoUploader
 import com.isra16.movienight.net.normalizeBaseUrl
 import com.isra16.movienight.notify.NotificationPrefs
+import com.isra16.movienight.notify.PlaybackBridge
 import com.isra16.movienight.notify.UploadKeepAlive
 import com.isra16.movienight.notify.UploadNotifier
 import com.isra16.movienight.room.RoomPasswordCache
@@ -61,4 +62,7 @@ class AppContainer(context: Context) {
 
     /** Mantiene vivo el proceso (servicio en primer plano) mientras hay una subida en marcha. */
     val uploadKeepAlive = UploadKeepAlive(context)
+
+    /** Puente entre la sala y el servicio de reproducción (Fase 7B): audio con la pantalla apagada. No es dueño del reproductor. */
+    val playbackBridge = PlaybackBridge(context)
 }

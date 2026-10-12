@@ -8,6 +8,9 @@
     <!-- Servicio en primer plano que mantiene viva una subida de video con la app en segundo plano (Fase 6C, opción B). -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- Fase 7B: audio de la sala con la pantalla apagada o en otra app (servicio de reproducción). Son permisos normales: sin diálogo. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
 
     <application
         android:name=".MovieNightApp"
@@ -47,6 +50,16 @@
             android:name=".notify.UploadService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Fase 7B: MediaSession sobre el reproductor de la sala; lo arranca y lo detiene PlaybackBridge. -->
+        <service
+            android:name=".notify.PlaybackService"
+            android:exported="true"
+            android:foregroundServiceType="mediaPlayback">
+            <intent-filter>
+                <action android:name="androidx.media3.session.MediaSessionService" />
+            </intent-filter>
+        </service>
     </application>
 
 </manifest>

@@ -33,6 +33,7 @@ class SessionViewModel(app: Application) : AndroidViewModel(app) {
     fun logout() {
         if (isLoggingOut) return
         isLoggingOut = true
+        container.playbackBridge.stopAll() // Fase 7B: sin sesión no hay sala; el servicio de audio no puede quedar vivo.
         viewModelScope.launch {
             try {
                 session.logout()

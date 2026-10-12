@@ -111,7 +111,7 @@ import com.isra16.movienight.ui.upload.KeepScreenOn
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada), salvo que
     // pase a la ventana flotante (PiP): ahí sigue, y se pausa cuando la ventana se cierra o deja de verse.
-    PauseWhenAppStops(onStop = vm::onAppStopped)
+    PauseWhenAppStops(onStop = vm::onAppStopped, backgroundAudioActive = vm::hasBackgroundAudio)
     // Le dice a la actividad cuándo tiene sentido una ventana flotante (y la desactiva al salir de la sala).
     PictureInPictureRequests(vm)
     // Mientras el host sube un video la pantalla no se apaga: apagada, Android puede congelar la app y cortar la subida.
@@ -710,7 +710,7 @@ internal const val MUTED_CHAT_NOTICE = "El host te silenció: no podés escribir
  * acá solo se le pasan los eventos de Android. Los logs `MovieNightPip` dejan ver el orden real de los eventos.
  */
 @Composable
-private fun PauseWhenAppStops(onStop: () -> Unit) {
+private fun PauseWhenAppStops(onStop: () -> Unit, backgroundAudioActive: () -> Boolean) {
     val activity = LocalContext.current.findActivity()
     val currentOnStop by rememberUpdatedState(onStop)
     DisposableEffect(activity) {
@@ -737,6 +737,7 @@ private fun PauseWhenAppStops(onStop: () -> Unit) {
                         changingConfigurations = activity.isChangingConfigurations,
                         inPipNow = activity.isInPictureInPictureMode,
                         screenOn = activity.isScreenInteractive(),
+                        backgroundAudioActive = backgroundAudioActive(),
                     ),
                     "ON_STOP ${state()}",
                 )

@@ -101,17 +101,25 @@ class PauseOnStopTracker(startInPip: Boolean = false) {
 
     /**
      * `ON_STOP`. `true` = hay que pausar ya. [inPipNow] = lo que dice la actividad en este instante
-     * (`isInPictureInPictureMode`); [screenOn] = la pantalla está encendida.
+     * (`isInPictureInPictureMode`); [screenOn] = la pantalla está encendida; [backgroundAudioActive] = el servicio
+     * de audio de la 7B está activo (ver `PlaybackBridge`).
      *
      * Sin PiP, o con la pantalla apagada, se pausa (el video no debe seguir sonando con la pantalla apagada). Un
      * cambio de configuración (girar el teléfono) no pausa. Detenida estando en PiP con la pantalla encendida:
      * puede ser que se cerró la ventana (llega el cambio de modo enseguida) o una parada que no es de cierre; no se
      * pausa todavía, se decide en [onPipModeChanged].
      */
-    fun onStopped(changingConfigurations: Boolean, inPipNow: Boolean, screenOn: Boolean): Boolean {
+    fun onStopped(
+        changingConfigurations: Boolean,
+        inPipNow: Boolean,
+        screenOn: Boolean,
+        backgroundAudioActive: Boolean = false,
+    ): Boolean {
         if (changingConfigurations) return false
-        if (!inPip && !inPipNow) return true
-        if (!screenOn) return true
+        // Fase 7B: con el servicio de audio activo, Home / otra app / pantalla apagada NO pausan (la sala sigue). Cerrar la
+        // ventana flotante con la X sí sigue pausando: eso va por [onPipModeChanged], que no mira el servicio.
+        if (!inPip && !inPipNow) return !backgroundAudioActive
+        if (!screenOn) return !backgroundAudioActive
         stoppedInPip = true
         return false
     }

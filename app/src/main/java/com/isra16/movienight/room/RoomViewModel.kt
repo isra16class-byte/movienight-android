@@ -6,6 +6,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -16,6 +17,7 @@ import com.isra16.movienight.auth.defaultUsername
 import android.net.Uri
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.home.fetchLibrary
+import com.isra16.movienight.notify.PlaybackControls
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.FollowUpOutcome
 import com.isra16.movienight.net.JoinParams
@@ -23,6 +25,7 @@ import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.ModerationAction
 import com.isra16.movienight.net.ModerationCheck
 import com.isra16.movienight.net.PendingModerations
+import com.isra16.movienight.net.PlaybackSnapshot
 import com.isra16.movienight.net.canCancel
 import com.isra16.movienight.net.checkModeration
 import com.isra16.movienight.net.moderationTimeoutMessage
@@ -230,10 +233,44 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     val upload: UploadState
         get() = flow.state
 
+    /**
+     * Lo que pide la notificación de reproducción (Fase 7B). El host emite el `sync` igual que desde la sala; el invitado
+     * solo mueve su reproductor. Reproducir/pausar pasa por acá y NO por el ExoPlayer directamente: así no se duplica la
+     * sincronización ni hay otro camino que emita.
+     */
+    private val playbackControls = object : PlaybackControls {
+        override fun onRemotePlay() {
+            if (isHost) {
+                if (!player.showsPause) hostTogglePlay()
+            } else {
+                player.playLocal()
+            }
+        }
+
+        override fun onRemotePause() = pauseAndNotifyRoom()
+    }
+
     init {
         viewModelScope.launch { for (event in events) handle(event) }
         viewModelScope.launch { checkRoom() }
         player.onBufferingChange = { roomSocket.sendBuffering(it) }
+        // Pausa del sistema (otra app tomó el audio, auriculares desenchufados): ExoPlayer ya pausó; si somos host, la sala también.
+        player.onSystemPause = { if (isHost) player.pausedMessage()?.let(::emitSync) }
+        viewModelScope.launch {
+            // Fase 7B: el puente decide si arranca o detiene el servicio de audio con lo que se ve acá. Cada cambio de estado
+            // (fase de la sala, cinta, error, reproduciendo, nombre del video) vuelve a evaluarse.
+            snapshotFlow {
+                PlaybackSnapshot(
+                    inRoom = phase is RoomPhase.InRoom,
+                    hasVideo = player.hasVideo,
+                    hasError = player.error != null,
+                    playing = player.showsPause,
+                    appVisible = container.visibility.isVisible,
+                ) to videoName
+            }.collect { (snapshot, name) ->
+                container.playbackBridge.update(this@RoomViewModel, player.player, playbackControls, name, snapshot)
+            }
+        }
         viewModelScope.launch {
             // Red de seguridad del host por si se pierde algún evento (igual que `setInterval` en room.html).
             while (true) {
@@ -330,9 +367,17 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     /** La app dejó de verse: el video se pausa, y si somos host la sala también (como pausar en el navegador). */
-    fun onAppStopped() {
+    fun onAppStopped() = pauseAndNotifyRoom()
+
+    private fun pauseAndNotifyRoom() {
         player.pause()?.let { if (isHost) emitSync(it) }
     }
+
+    /**
+     * ¿El audio sigue con la app fuera de pantalla (servicio de la 7B activo)? Con eso, Home, otra app o la pantalla apagada
+     * NO pausan la sala; cerrar la ventana flotante con la X sí (ver `PauseOnStopTracker`).
+     */
+    fun hasBackgroundAudio(): Boolean = container.playbackBridge.isActive(this)
 
     fun retry() {
         phase = RoomPhase.Checking
@@ -638,6 +683,8 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
     }
 
     override fun onCleared() {
+        // Primero el servicio de audio (Fase 7B), antes de soltar el reproductor: sin notificación zombi.
+        container.playbackBridge.stop(this)
         flow.release()
         player.release()
         roomSocket.disconnect()
