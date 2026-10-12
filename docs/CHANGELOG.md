@@ -5,6 +5,36 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-11 — Fase 7, parte 2: reacciones y emojis flotantes (2B en pantalla completa, 2D en vertical y en la ventana flotante), 2D confirmada por la persona
+
+- **Pedido:** la "parte 2" original (chat y espectadores flotantes sobre el video en pantalla completa, como la web) y, después, que los emojis de los demás salgan también en vertical y en la ventana
+  flotante (con los comentarios del chat) y una fila para mandarlos cerca del chat en vertical, como la web móvil. Dos patches: `5128170` (2B) y `ebef887` (2D), los dos en `origin/main`.
+- **Qué se vio y qué se interpretó:** *visto (grep en `public/room.html`, `public/style.css` y `server.js`, rama `plan-produccion`):* el servidor reenvía `reaction` a toda la sala, incluido quien la manda, con el
+  emoji como texto suelto, sin validar, sin limitar y sin mirar el silencio; `.float-emoji` nace entre 0 y 80 % del ancho, a 70 px del borde de abajo, sube 280 px en 2,5 s con ease-out y se desvanece, sin
+  tope; el panel `.fs-emoji` tiene 4 columnas y no se cierra al elegir; `.reactions` tiene 14 botones en una fila que se desplaza y se esconde con el teclado abierto; los comentarios solo se crean en pantalla
+  completa. *Interpretado, sin abrir la web en un navegador:* los emojis salen también en vertical porque se agregan a `.screen-wrap` sin comprobar pantalla completa.
+- **Qué hace:** `reaction` se escucha (`RoomEvent.Reaction`; la app ignora lo que no sea texto de hasta 16 unidades) y se manda (`RoomSocket.sendReaction`, sin cola; `RoomViewModel.sendReaction`, solo los 14
+  emojis). No se dibuja nada local: el emoji aparece cuando el servidor lo devuelve. **Pantalla completa (2B):** botón 😊 bajo el contador con un panel de 8 emojis que fija el grupo lateral mientras está abierto;
+  los emojis suben sobre el video. **Vertical (2D):** los emojis suben sobre la caja del video (recorrido adaptado a su alto: nace al 15 % del alto, entre 4 y 70 dp, y sube hasta dejar el emoji dentro, máximo
+  280 dp) y una fila con los 14 emojis encima del campo de chat, escondida con el teclado abierto y visible si estás silenciado; los comentarios no se muestran. **Ventana flotante (2D):** emojis de 18 sp (hasta 8)
+  y comentarios de 11 sp en 3 carriles (hasta 4), solo para ver. Tope de emojis en pantalla completa y vertical: 20 (decisión nuestra, la web no tiene).
+- **Código:** `net/ReactionLogic.kt` (nuevo; `ReactionSurface`, `reactionLookFor`, `reactionTravel`) con `ReactionLogicTest` (20 tests); `net/DanmakuLogic.kt` suma `DanmakuProfile` (`FULLSCREEN` sin cambios y `PIP`) y
+  `DanmakuLanes` con separación y tope configurables (`DanmakuLogicTest`, 21); `ui/room/RoomReactions.kt` (nuevo: `ReactionLayer`, `ReactionPicker`, `ReactionBar`); cambios en `RoomFullscreen.kt`,
+  `RoomScreen.kt`, `RoomDanmaku.kt`, `RoomEvents.kt`, `RoomSocket.kt` y `RoomViewModel.kt`. `REACTION_EMOJIS` pasó a `REACTION_PANEL_EMOJIS` (8) y se agregó `REACTION_BAR_EMOJIS` (14). Sin cambios en el
+  servidor, `RoomPlayer`, la sincronización ni las dependencias.
+- **Error mío corregido antes de escribir código:** dije que la web tenía 8 emojis; mi lectura de `room.html` cortó la lista y eran 14. La persona había elegido "8 por ahora" con ese dato; ya con el dato
+  correcto pidió 14 en la barra y 8 en el panel.
+- **Verificado por el asistente:** `ReactionLogicTest` (20), `DanmakuLogicTest` (21) y `RoomEventsTest` (20) pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); una mutación de los números de
+  `ReactionLogic.kt` hizo fallar 5 tests; sin errores de sintaxis en los archivos de UI tocados; los dos patches aplicaron limpio sobre `origin/main` en un clon nuevo. La UI no se pudo compilar fuera de Android Studio.
+- **Confirmado por la persona:** la 2D, los 11 puntos de la lista: "todos los puntos funcionaron perfectamente probado en vivo"; y los tamaños de PiP: "sí quedaron bien". No detalló punto por punto ni dijo si fue
+  en teléfono o emulador.
+- **Sin confirmar:** la lista de 13 puntos de la 2B (la 2D cubrió parte: mandar y recibir emojis entre la web y el teléfono, el panel de 8 en horizontal y la sincronización; faltan el grupo lateral fijo con el
+  panel abierto, tocar el video con el panel abierto, la lista de conectados con el panel abierto, salir con el panel abierto y emojis a medias, y el silenciado dentro de pantalla completa). De la 2D: otros teléfonos y
+  tamaños de ventana de PiP (los números son estimaciones), y el recorrido en otras alturas de video.
+- **Límites conocidos:** sin conexión, tocar un emoji no hace nada y no avisa; el panel de pantalla completa ofrece 8 de los 14 emojis por decisión de la persona; desde la ventana flotante no se puede mandar nada.
+
+---
+
 ## 2026-10-11 — Fase 7C: niveles de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine), confirmado por la persona
 
 - **Pedido:** la persona mandó una captura con márgenes negros alrededor del video en horizontal y pidió que los videos se adapten a la pantalla. Se hizo en

@@ -68,8 +68,8 @@ más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
 - [x] Recibir `room-data`, `chat-history`, `viewer-list`, `viewer-count`.
 - [x] Mandar y recibir `chat-message` (en ambos sentidos web ↔ Android) y recibir
       `typing`.
-- [ ] Probar `reaction` (enviar y recibir) y confirmar en la web el `typing`
-      enviado desde la app — el código ya los emite, no se probaron todavía.
+- [x] Probar `reaction` (enviar y recibir). *(Hecho con la parte 2D de la Fase 7: la persona mandó y recibió emojis entre la web y el teléfono el 2026-10-11.)*
+- [ ] Confirmar en la web el `typing` enviado desde la app — el código ya lo emite, no se probó todavía.
 
 ### Riesgos técnicos detectados en esta fase (2026-09-26; resueltos el 2026-09-28)
 
@@ -104,7 +104,7 @@ más riesgoso del proyecto (sesión + Socket.io desde Android) funciona.
 
 **Estado del spike (2026-09-28)**: el proyecto compila y corre en un dispositivo
 Android real contra el servidor de producción (dominio propio por Cloudflare
-Tunnel). Solo queda pendiente probar `reaction` (ver checklist arriba); no bloquea
+Tunnel). Solo quedaba pendiente probar `reaction` (hecho después, ver checklist arriba); no bloqueaba
 pasar a la Fase 2.
 
 **Comportamiento observado que hay que tener presente (Fases 3 y 5)**: solo puede
@@ -269,7 +269,7 @@ del servidor.
 
 > **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
 > se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
-> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa) y los niveles de ajuste del video en pantalla completa; la parte 2B (reacciones) sin empezar.** Dos mejoras distintas, con costo y
+> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa), los niveles de ajuste del video en pantalla completa y la parte 2 de reacciones (2B en pantalla completa, sin confirmar uno por uno; 2D en vertical y en la ventana flotante, confirmada por la persona el 2026-10-11).** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -401,8 +401,18 @@ servidor, sin tocar `RoomPlayer`/`RoomViewModel`/`MainActivity`/PiP y sin depend
       pasaron bien; no detalló punto por punto.
 - [ ] **Niveles de ajuste, sin confirmar:** Medio y Cine en una pantalla de otra proporción que la de la persona (la app la van a usar otras personas), y videos con
       rotación sin aplicar (`unappliedRotationDegrees`, no se tiene en cuenta).
-- [ ] **Parte 2B: reacciones (emojis que suben sobre el video), sin empezar.** Hay que parsear y enviar `reaction`, validar al recibir y limitar al enviar (el
-      servidor no lo hace) y decidir si salen también en vertical, como la web. Antes de escribir código se confirma con la persona.
+- [ ] **Parte 2B: reacciones en pantalla completa** (`5128170`): se escucha y se manda `reaction` (texto suelto con el emoji; la app descarta lo que no sea texto de hasta 16 unidades y solo manda
+      los emojis de la lista; no se dibuja nada local, el emoji vuelve del servidor), emojis que suben sobre el video como los `.float-emoji` de la web (0-80 % del ancho, 70 dp de margen, 280 dp
+      de subida en 2,5 s, tope de 20 a la vez, decisión nuestra) y un botón 😊 con un panel de 8 emojis que fija el grupo lateral mientras está abierto. Lógica pura en `net/ReactionLogic.kt`
+      (`ReactionLogicTest`); `RoomViewModel.liveReactions` y `ui/room/RoomReactions.kt`. **Sin confirmar uno por uno:** la lista de 13 puntos. La 2D cubrió parte (mandar y recibir entre la web y el
+      teléfono, el panel de 8 en horizontal, sin efecto en la sincronización); falta el grupo lateral fijo con el panel abierto, tocar el video con el panel abierto, la lista de conectados con el
+      panel abierto, salir con el panel abierto y emojis a medias, y el silenciado dentro de pantalla completa.
+- [x] **Parte 2D: emojis en vertical, barra de reacciones y emojis + comentarios en PiP** (`ebef887`): en vertical, los emojis de los demás suben sobre la caja del video (recorrido adaptado a su alto) y una
+      fila de los 14 emojis de la web, encima del campo de chat, para mandarlos (se esconde con el teclado, como la web; sigue visible si estás silenciado); los comentarios no se muestran en vertical. En la ventana
+      flotante se ven emojis (18 sp, hasta 8) y comentarios (11 sp, 3 carriles, hasta 4), solo para ver. Lógica pura en `net/ReactionLogic.kt` (`ReactionSurface`, `reactionTravel`) y `DanmakuProfile` en
+      `net/DanmakuLogic.kt` (`ReactionLogicTest` 20 tests, `DanmakuLogicTest` 21). La persona probó los 11 puntos de la lista en vivo y funcionaron todos, y dijo que los tamaños de PiP le quedaron bien.
+- [ ] **Parte 2D, sin confirmar:** otros teléfonos y tamaños de ventana de PiP (los tamaños son estimaciones), el recorrido en otras alturas de video, y un aviso si se toca un emoji sin conexión (hoy no
+      hace nada). El panel de pantalla completa ofrece 8 de los 14 emojis por decisión de la persona.
 - [ ] **Sin confirmar uno por uno:** host e invitado en vertical, arrastrar la barra sin que se escondan los controles, sin video o con error,
       el volumen del invitado en pantalla completa, PiP desde pantalla completa, y `gradlew testDebugUnitTest`.
 - [ ] **Decisiones abiertas (la persona no pidió cambiarlas):** los controles se esconden también con el video en pausa; en vertical no hay botón de
@@ -427,7 +437,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
    real del proyecto, dejarla para cuando el resto ya esté sólido.
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
-6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes) y los niveles de ajuste del video; la parte 2B (reacciones) está pendiente.
+6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes), los niveles de ajuste del video y la parte 2 de reacciones (2B en pantalla completa y 2D en vertical y PiP).
 
 ---
 

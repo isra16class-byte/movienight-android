@@ -87,13 +87,14 @@ movienight-android/
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
         room/PictureInPicture.kt # 7A: disponibilidad de PiP, actividad y PipHost
-        room/RoomDanmaku.kt     # 7 (2A): DanmakuLayer, comentarios flotantes del chat sobre el video; solo existe dentro de RoomFullscreen
+        room/RoomDanmaku.kt     # 7 (2A, 2D): DanmakuLayer, comentarios flotantes del chat sobre el video; solo existe dentro de RoomFullscreen y de la ventana flotante (PiP), con un DanmakuProfile
+        room/RoomReactions.kt   # 7 (2B, 2D): ReactionLayer (emojis flotantes en pantalla completa, vertical y PiP), ReactionPicker (botón 😊 y panel de 8 de la pantalla completa) y ReactionBar (fila de 14 en vertical)
         room/RoomFullscreen.kt  # 7C: pantalla completa horizontal, OverlayController (relojes de los controles), PlayerControlsBar (barra compartida con la vista vertical), volumen del invitado
         upload/NotificationPermissionGate.kt # 6C-A: rememberNotificationGate(): explica y pide POST_NOTIFICATIONS (Android 13+) antes de abrir el selector, una sola vez
       net/                  # capa de red, sin nada de UI (pensada para reusarse)
         PersistentCookieJar.kt  # CookieJar persistente (movienight.sid)
         MovieNightApi.kt        # llamadas HTTP genéricas (get / postJson), devuelven código + cuerpo
-        RoomSocket.kt           # wrapper de Socket.IO: join-room, eventos del server como RoomEvent, sendSync / sendBuffering / sendModeration, socketId
+        RoomSocket.kt           # wrapper de Socket.IO: join-room, eventos del server como RoomEvent, sendSync / sendBuffering / sendModeration / sendReaction, socketId
         RoomEvents.kt           # RoomEvent, ChatMessage, Viewer y parseServerEvent() (JVM + org.json)
         LibraryParsing.kt       # parseLibrary(), parseCreatedRoomId(), formatFileSize()
         RoomIds.kt              # extractRoomId() (código o link), isRoomPasswordError(), videoDisplayName()
@@ -106,7 +107,8 @@ movienight-android/
         UploadNotificationLogic.kt # 6C-A: texto del aviso de subida según su estado final, cuándo pedir el permiso de notificaciones, VisibilityCounter (JVM puro)
         VideoFitLogic.kt        # 7C: niveles de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine) y videoScale() según ventana y video (JVM puro, 14 tests)
         PortraitVideoLogic.kt   # alto del video en vertical: 16:9, o más bajo con el teclado abierto (38 % del alto visible, piso de 90 dp) (JVM puro, 9 tests)
-        DanmakuLogic.kt         # 7 (2A): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes (JVM puro, 17 tests)
+        DanmakuLogic.kt         # 7 (2A, 2D): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes, y DanmakuProfile (pantalla completa / PiP) (JVM puro, 21 tests)
+        ReactionLogic.kt        # 7 (2B, 2D): emojis (barra de 14, panel de 8), validación, tope, posición, duración y recorrido según la superficie (pantalla completa, vertical, PiP) (JVM puro, 20 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
@@ -206,6 +208,45 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Fase 7, parte 2 hecha: reacciones y emojis flotantes en pantalla completa (2B), en vertical y en la ventana flotante (2D). La 2D la confirmó la persona (2026-10-11); la 2B no se confirmó por separado.** La 7B sigue sin empezar. Salió de dos pedidos: la "parte 2"
+original (chat y espectadores flotantes sobre el video en pantalla completa, como la web) y, después, que los emojis de los demás salgan también en vertical y en la
+ventana flotante (con los comentarios del chat) y una fila para mandarlos cerca del chat en vertical, como en la web móvil.
+- **Commits (los dos en `origin/main`):** `5128170` (2B) y `ebef887` (2D). Solo UI y lógica pura; sin servidor, `RoomPlayer`, sincronización ni dependencias nuevas.
+- **Qué se vio en la web (grep en `public/room.html`, `public/style.css` y `server.js`, rama `plan-produccion`):** el servidor reenvía `reaction` a toda la sala, también a quien la
+  manda, con el emoji como texto suelto, sin validar, sin limitar y sin mirar si estás silenciado. El emoji (`.float-emoji`) nace en un punto al azar entre 0 y 80 % del ancho,
+  a 70 px del borde de abajo, sube 280 px en 2,5 s con ease-out y se desvanece; la web no tiene tope. En pantalla completa se elige desde un botón 😊 con un panel de 4 columnas
+  que no se cierra al elegir; los 14 botones de `.reactions` son: 😂 😭 😍 😱 🔥 ❤️ 👍 👏 🙌 💀 🎉 😅 😠 😴. En la web móvil esos 14 van en una fila que se desplaza, entre el aviso de
+  "escribiendo" y el campo de chat, y se esconde con el teclado abierto. Los comentarios flotantes solo existen en pantalla completa. *Interpretado, sin abrir la web en un navegador:*
+  los emojis salen también en vertical porque `.float-emoji` se agrega a `.screen-wrap` sin comprobar pantalla completa.
+- **Qué hace la app:** (1) `reaction` se escucha (`RoomEvent.Reaction`; un texto vacío, que no sea texto o de más de 16 unidades se ignora, decisión nuestra) y se manda (`RoomSocket.sendReaction`,
+  sin cola si no hay conexión; `RoomViewModel.sendReaction`, que solo acepta los 14 emojis). No se dibuja nada local al mandar: el emoji aparece cuando el servidor lo devuelve.
+  `RoomViewModel.liveReactions` emite solo los emojis en vivo y se descarta si nadie escucha. (2) **Pantalla completa:** botón 😊 bajo el contador de conectados con un panel de **8** emojis
+  (los primeros 8 de la web, 2 filas de 4); el panel abierto fija el grupo lateral (no se esconde a los 5 s), elegir un emoji no toca el reloj y tocar el video con el panel abierto no
+  esconde nada. Como reutiliza `pinAside()`, abrir el panel también esconde la barra de controles, igual que la web. (3) **Vertical:** `ReactionLayer` sobre la caja del video, recortada a ella,
+  y `ReactionBar` encima del campo de chat con los **14** emojis en una fila que se desplaza; se esconde con el teclado abierto (como la web) y sigue visible si estás silenciado. Los
+  comentarios no se muestran en vertical (ya se ven en el chat; la web tampoco). (4) **Ventana flotante (PiP):** `PipVideo` suma `ReactionLayer` y `DanmakuLayer` en chico y solo se ven:
+  emoji de 18 sp, hasta 8 a la vez; comentarios de 11 sp, 3 carriles (a 10, 25 y 40 % del alto) y hasta 4 a la vez.
+- **Recorrido del emoji:** en pantalla completa, los números de la web (70 dp de margen, 280 dp de subida, sin cambios). En una caja más baja (video vertical, PiP) esos números se saldrían por
+  arriba: nace al 15 % del alto de la caja (entre 4 y 70 dp) y sube hasta dejar el emoji entero dentro, sin pasar de 280 dp. Tope de emojis a la vez: 20 en pantalla completa y vertical (decisión nuestra),
+  8 en PiP.
+- **Dónde está:** `net/ReactionLogic.kt` (lista de la barra y del panel, validación, tope, posición, duración, `ReactionSurface`, `reactionLookFor`, `reactionTravel`) con `ReactionLogicTest`;
+  `net/DanmakuLogic.kt` suma `DanmakuProfile` (`FULLSCREEN` sin cambios y `PIP`) y `DanmakuLanes` acepta separación y tope; `ui/room/RoomReactions.kt` (`ReactionLayer`, `ReactionPicker`, `ReactionBar`);
+  `RoomFullscreen.kt` (botón, panel y fijado del grupo lateral) y `RoomScreen.kt` (capa y barra en vertical, capas en `PipVideo`). `RoomEvents.kt`, `RoomSocket.kt` y `RoomViewModel.kt` para el evento.
+- **Error mío corregido antes de escribir código:** dije que la web tenía 8 emojis; mi lectura de `room.html` cortó la lista y eran 14. La persona había elegido "8 por ahora" con ese dato equivocado; después, ya con
+  el dato correcto, pidió **14 en la barra y 8 en el panel**, y así quedó.
+- **Verificado por el asistente:** `ReactionLogicTest` (20), `DanmakuLogicTest` (21) y `RoomEventsTest` (20) pasan con `kotlinc` 2.0.21 y un arnés propio (no con `gradlew`); una mutación de los números
+  de `ReactionLogic.kt` (tope, 80 %) hizo fallar 5 tests, o sea que los detectan. Sin errores de sintaxis en los archivos de UI tocados. Los dos patches aplicaron limpio sobre `origin/main` en un clon nuevo.
+  La UI no se pudo compilar fuera de Android Studio.
+- **Confirmado por la persona:** la 2D, los 11 puntos de la lista (emojis de los demás en vertical, barra de 14, esconderse con el teclado, silenciado, muchos emojis seguidos, pantalla completa sin cambios,
+  emojis y comentarios en PiP, salir de PiP, sin efecto en la sincronización): "todos los puntos funcionaron perfectamente probado en vivo". Y los tamaños de PiP: "sí quedaron bien". No detalló punto por punto
+  ni dijo si fue en teléfono o emulador.
+- **Sin confirmar:** la lista de 13 puntos de la 2B (pantalla completa). Los puntos de la 2D cubren parte (mandar y recibir emojis entre la web y el teléfono, el panel de 8 en horizontal, sin efecto en la
+  sincronización), pero no el resto: el grupo lateral fijo con el panel abierto, tocar el video con el panel abierto, abrir la lista de conectados con el panel abierto, salir de pantalla completa con
+  el panel abierto y emojis a medias, y el silenciado dentro de pantalla completa. Los tamaños de PiP son estimaciones confirmadas solo en la ventana de PiP de la persona: otros teléfonos o tamaños de ventana
+  no se probaron (la app la van a usar otras personas), y tampoco el recorrido adaptado en otras alturas de video.
+- **Límites conocidos:** si no hay conexión, tocar un emoji no hace nada y no avisa (`sendReaction` devuelve `false` y la UI lo ignora); el panel de pantalla completa ofrece 8 de los 14 por decisión de la persona
+  (agregar los otros 6 es cambiar `REACTION_PANEL_SIZE` y el test del panel); desde la ventana flotante no se puede mandar nada.
+
 **Niveles de ajuste del video en pantalla completa hechos y confirmados por la persona (2026-10-11): Entero, Medio, Llenar y Cine.** La 7B y la parte 2B (reacciones)
 siguen sin empezar. Salió de una captura con márgenes negros ("que los videos se adapten a la pantalla"), en dos pasos: primero "Llenar" y después "unos 3" niveles más
 para distintos tipos de video, con el recordatorio de que la app la van a usar otras personas con otros teléfonos.
@@ -276,6 +317,7 @@ parte 2B (reacciones) siguen sin empezar.
   😅 😂 🔥 💀 👏 👍 🎉 ❤️), los muestra también fuera de pantalla completa (suben 280 px en 2,5 s) y en pantalla completa los elige desde un botón 😊 bajo el
   contador. El contador de espectadores sobre el video ya existía desde la 7C. Decisión abierta: si en la app los emojis salen solo en pantalla completa o
   también en vertical, como la web.
+  **(Hecho después: ver la primera entrada de "Por dónde seguir". Se decidió 8 emojis en el panel y 14 en la barra de la vista vertical; en vertical los emojis también salen, como la web.)**
 
 **Fase 7C hecha y confirmada por la persona (2026-10-11): sala en horizontal (pantalla completa) y controles encima del video en vertical.** La 7B sigue sin
 empezar (solo si hace falta, y empieza preguntando). La 7C no estaba en el plan original: salió de que la sala no se veía bien en horizontal.
@@ -657,7 +699,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 
 - **Fase 1 (2026-09-28):** spike en un dispositivo real. Login por cookie, sesión persistente,
   `join-room` por Socket.IO con la cookie en el handshake y chat en ambos sentidos con la web. Validó que
-  **no hace falta tocar el servidor**. Falta probar `reaction` y el `typing` enviado.
+  **no hace falta tocar el servidor**. `reaction` se probó después (partes 2B y 2D de la Fase 7); falta confirmar el `typing` enviado.
 - **Fase 2, Sesión A (2026-10-02):** login, registro, logout, sesión persistente y el aviso "Reintentar"
   sin red.
 - **Fase 2, Sesión B (2026-10-02):** biblioteca (`GET /api/uploads` → `[{ filename, displayName, size,
@@ -696,9 +738,14 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
 - **Video con el teclado abierto (vertical):** no se esconde, se achica: `portraitVideoHeightDp` copia el criterio de la web (tope 38 % del alto visible, piso de
   90 dp, nunca más grande que el 16:9). Antes se escondía; esa decisión vieja ya no vale.
-- **Comentarios flotantes (7, parte 2A):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
-  existe dentro de `RoomFullscreen`, así que salir de pantalla completa limpia comentarios y carriles. El tope de 12 es nuestro (la web no limita) y el color
+- **Comentarios flotantes (7, parte 2A y 2D):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
+  existe dentro de `RoomFullscreen` y de `PipVideo` (con `DanmakuProfile.PIP`), así que salir de pantalla completa o de la ventana flotante limpia comentarios y carriles; en vertical no se dibujan. El tope de 12 es nuestro (la web no limita) y el color
   del nombre usa el mismo hash que la web, con tests contra sus valores.
+- **Reacciones (7, partes 2B y 2D):** el payload de `reaction` es el emoji como texto suelto, no un objeto. El servidor lo reenvía a toda la sala (también a quien lo manda), sin validar, sin limitar
+  y sin mirar el silencio: un invitado silenciado puede reaccionar, y la app no dibuja nada local al mandar (el emoji vuelve del servidor). La app descarta lo que no sea texto de hasta 16
+  unidades y solo manda los 14 emojis de la web (`REACTION_BAR_EMOJIS`); el panel de pantalla completa ofrece los primeros 8. `RoomViewModel.liveReactions` emite solo los emojis en vivo.
+  `ReactionLayer` existe en pantalla completa, en la caja del video en vertical y en `PipVideo`; el recorrido y el tope dependen de la superficie (`ReactionSurface`). Los tamaños de PiP
+  (emoji de 18 sp y 8 a la vez; comentarios de 11 sp, 3 carriles y 4 a la vez) son estimaciones confirmadas solo en la ventana de PiP de la persona.
 - **Niveles de ajuste del video (7C):** `VideoFit` (FIT, MEDIUM, FILL, CINEMA) y `videoScale` (`net/VideoFitLogic.kt`) calculan la escala con la ventana y el video reales, sin valores de un aparato. Medio = promedio
   de las escalas de Entero y Llenar; Cine = cubrir la ventana con el cuadro recortado a 2,39:1 (`CINEMA_ASPECT`), nunca menor que Llenar. Solo Entero y Llenar usan el `resizeMode` de `PlayerView`; Medio y Cine
   usan un tamaño propio. El estado vive en `RoomScreen` y no se guarda entre salas.
@@ -715,16 +762,19 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
-- **Sin prueba explícita:** la reacción (`reaction`) y la
-  red lenta con muchos saltos de sincronización. (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
+- **Sin prueba explícita:** la
+  red lenta con muchos saltos de sincronización. (`reaction` ya se probó con la 2D.) (El aviso `server-restarting` se probó en la 6A.) ("Te sacó de la sala" y el chat bloqueado al silenciar ya se probaron en la Fase 5.)
 - El último ajuste de la pausa de la 3B (exacta a 150 ms) no se confirmó en el emulador.
 - **PiP (7A):** la X ya se confirmó (ver la primera entrada). Sin probar: girar el teléfono y el tema oscuro con `configChanges`, la pantalla
   principal y el login sin ventana, el camino de antes de Android 12, PiP desactivado en Ajustes, "Subir uno nuevo" con el video reproduciéndose y
   ser expulsado con la ventana abierta. Quedan los logs `MovieNightPip` y `MovieNightSync` en el código; sin botones de reproducir/pausar en la
   ventana; el invitado que cierra la ventana vuelve a reproducir con el siguiente heartbeat del host (límite conocido, ver la primera entrada).
 - **Niveles de ajuste del video (7C):** sin confirmar Medio y Cine en una pantalla de otra proporción que la de la persona (la usarán otras personas con otros teléfonos), ni con videos con rotación sin aplicar
-  (`unappliedRotationDegrees`, no se tiene en cuenta). Ver la primera entrada de "Por dónde seguir".
-- **Reacciones (parte 2B):** sin empezar; ver los hallazgos en la primera entrada de "Por dónde seguir".
+  (`unappliedRotationDegrees`, no se tiene en cuenta). Ver la entrada de los niveles de ajuste en "Por dónde seguir".
+- **Reacciones, pantalla completa (parte 2B):** hecha, sin confirmar uno por uno (el grupo lateral fijo con el panel abierto, tocar el video con el panel abierto, la lista de conectados con el panel
+  abierto, salir con el panel abierto y emojis a medias, el silenciado dentro de pantalla completa). Ver la primera entrada de "Por dónde seguir".
+- **Reacciones en vertical y PiP (parte 2D):** confirmada por la persona. Sin confirmar: otros teléfonos y tamaños de ventana de PiP (los números son estimaciones) y el recorrido en otras alturas de video.
+  Sin aviso si se toca un emoji sin conexión. El panel de pantalla completa tiene 8 de los 14 emojis por decisión de la persona.
 - **Sala en horizontal y controles sobre el video (7C):** funciona según la persona, sin detalle punto por punto. Sin confirmar uno por uno: lo listado en la
   primera entrada de "Por dónde seguir" (host/invitado en vertical, sin video o con error, volumen del invitado, PiP desde pantalla completa).
   Decisiones sin cambiar: controles que se esconden también en pausa y sin volumen en vertical.
