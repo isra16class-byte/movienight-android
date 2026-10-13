@@ -145,7 +145,8 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
 /**
  * Panel de vidrio: lo que se ve detrás (la copia borrosa alineada con el fondo) más el velo, el tinte y un borde fino.
  * Debe ir dentro de [AuthBackdrop]; sin él, o con [USE_BLURRED_COPY] en `false`, es un panel solo con tinte.
- * Los textos del panel usan `onSurface` por defecto (con ese color se midió el contraste).
+ * Los textos del panel usan `onSurface` por defecto (con ese color se midió el contraste); en modo claro, con los
+ * colores de `GlassColors.content` (ver `Color.kt`).
  */
 @Composable
 internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
@@ -154,31 +155,50 @@ internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
     val shape = RoundedCornerShape(24.dp)
     // Posición del panel en la ventana; se actualiza al desplazar y solo se lee al dibujar.
     var panelOrigin by remember { mutableStateOf(Offset.Zero) }
+    // Modo claro: texto y contornos más oscuros SOLO dentro del panel, para poder dejarlo más transparente.
+    val baseScheme = MaterialTheme.colorScheme
+    val panelScheme = remember(baseScheme, glass) {
+        val c = glass.content
+        if (c == null) {
+            baseScheme
+        } else {
+            baseScheme.copy(
+                onSurface = c.onSurface,
+                onBackground = c.onSurface,
+                onSurfaceVariant = c.onSurfaceVariant,
+                primary = c.primary,
+                error = c.error,
+                outline = c.outline,
+            )
+        }
+    }
 
-    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurface) {
-        Column(
-            modifier = Modifier
-                .onGloballyPositioned { panelOrigin = it.positionInRoot() }
-                .clip(shape)
-                .drawBehind {
-                    val images = backdrop?.images
-                    if (USE_BLURRED_COPY && backdrop != null && images != null) {
-                        val image = coverCropRect(
-                            images.sharp.width, images.sharp.height,
-                            backdrop.size.width.toFloat(), backdrop.size.height.toFloat(),
-                        )
-                        drawCover(
-                            images.blurred,
-                            blurRectInPanel(image, panelOrigin.x - backdrop.origin.x, panelOrigin.y - backdrop.origin.y),
-                        )
-                        drawRect(glass.scrim)
+    MaterialTheme(colorScheme = panelScheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+        CompositionLocalProvider(LocalContentColor provides panelScheme.onSurface) {
+            Column(
+                modifier = Modifier
+                    .onGloballyPositioned { panelOrigin = it.positionInRoot() }
+                    .clip(shape)
+                    .drawBehind {
+                        val images = backdrop?.images
+                        if (USE_BLURRED_COPY && backdrop != null && images != null) {
+                            val image = coverCropRect(
+                                images.sharp.width, images.sharp.height,
+                                backdrop.size.width.toFloat(), backdrop.size.height.toFloat(),
+                            )
+                            drawCover(
+                                images.blurred,
+                                blurRectInPanel(image, panelOrigin.x - backdrop.origin.x, panelOrigin.y - backdrop.origin.y),
+                            )
+                            drawRect(glass.scrim)
+                        }
+                        drawRect(glass.panelTint)
                     }
-                    drawRect(glass.panelTint)
-                }
-                .border(1.dp, glass.panelBorder, shape)
-                .padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content,
-        )
+                    .border(1.dp, glass.panelBorder, shape)
+                    .padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
     }
 }

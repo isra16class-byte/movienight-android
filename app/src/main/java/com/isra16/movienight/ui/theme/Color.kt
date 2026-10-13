@@ -181,6 +181,20 @@ internal val MovieNightDarkColors = darkColorScheme(
 // --- Vidrio de las pantallas de entrada (Fase 8, paso 3; PROVISIONAL, igual que el resto de la paleta) ---------------
 
 /**
+ * Colores del texto DENTRO del panel de vidrio cuando el modo necesita más contraste que la paleta normal (hoy solo el
+ * claro: el panel es más transparente y el texto, más oscuro). [GlassPanel] los aplica solo a su contenido; el resto
+ * de la app sigue con el `ColorScheme` del modo.
+ */
+@Immutable
+class GlassContentColors(
+    val onSurface: Color,
+    val onSurfaceVariant: Color,
+    val primary: Color,
+    val error: Color,
+    val outline: Color,
+)
+
+/**
  * Colores del efecto de vidrio de login, registro y recuperar contraseña. Fuera del `ColorScheme` de Material porque
  * no son roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la imagen de fondo (nítida fuera del panel; su copia borrosa dentro);
@@ -197,14 +211,24 @@ class GlassColors(
     val scrim: Color,
     val panelTint: Color,
     val panelBorder: Color,
+    val content: GlassContentColors? = null,
 )
 
-// Medido (peor caso, ventana 9:16): onSurface 12,9 / onSurfaceVariant 7,0 / primary 4,9 / error 4,9 / contorno 3,4.
-// Es el modo que más tinte necesita: el texto es oscuro y la foto de día tiene zonas oscuras (troncos).
+// Medido (peor caso, 6 tamaños de ventana, con el texto de `content`): onSurface 8,6 / onSurfaceVariant 7,3 /
+// primary 4,7 / error 4,5 / contorno 5,3. Antes (velo 0,35 / tinte 0,80, paleta normal) el panel se veía lechoso.
+// Es el modo que más tinte necesita: el texto es oscuro y la foto de día tiene zonas oscuras (troncos), por eso el
+// texto del panel es más oscuro que el de la paleta y no se baja más el tinte.
 internal val MovieNightLightGlass = GlassColors(
-    scrim = LightBackground.copy(alpha = 0.35f),
-    panelTint = LightSurface.copy(alpha = 0.80f),
+    scrim = LightBackground.copy(alpha = 0.15f),
+    panelTint = LightSurface.copy(alpha = 0.55f),
     panelBorder = LightOutline.copy(alpha = 0.40f),
+    content = GlassContentColors(
+        onSurface = Color(0xFF0B100C),
+        onSurfaceVariant = Color(0xFF1A221D),
+        primary = Color(0xFF0B4A27),
+        error = Color(0xFF8A0000),
+        outline = Color(0xFF2F3A33),
+    ),
 )
 
 // Medido (peor caso, ventana 9:16): onSurface 8,4 / onSurfaceVariant 6,4 / primary 6,4 / error 6,4 / contorno 3,4.

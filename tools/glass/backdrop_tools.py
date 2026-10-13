@@ -21,9 +21,10 @@ from PIL import Image, ImageFilter
 # Tokens de ui/theme/Color.kt (provisionales). RGB sin alfa; los alfas son los de GlassColors.
 MODES = {
     "light": dict(
-        blur="auth_bg_light_blur.webp", scrim=(0xF5FBF5, 0.35), tint=(0xF5FBF5, 0.80),
-        text={"onSurface": 0x171D19, "onSurfaceVariant": 0x404943, "primary": 0x1B6B3F, "error": 0xBA1A1A},
-        outline=0x707972,
+        blur="auth_bg_light_blur.webp", scrim=(0xF5FBF5, 0.15), tint=(0xF5FBF5, 0.55),
+        # Texto de GlassColors.content (solo dentro del panel), no el de la paleta normal.
+        text={"onSurface": 0x0B100C, "onSurfaceVariant": 0x1A221D, "primary": 0x0B4A27, "error": 0x8A0000},
+        outline=0x2F3A33,
     ),
     "dark": dict(
         blur="auth_bg_dark_blur.webp", scrim=(0x0E1511, 0.15), tint=(0x0E1511, 0.50),
