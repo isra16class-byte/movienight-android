@@ -161,7 +161,9 @@ internal fun GlassContent(content: @Composable () -> Unit) {
             )
         }
     }
-    val typography = remember(MaterialTheme.typography) { MaterialTheme.typography.withShadow(GlassTextShadow) }
+    // MaterialTheme.typography es @Composable: se lee fuera del bloque de remember.
+    val baseTypography = MaterialTheme.typography
+    val typography = remember(baseTypography) { baseTypography.withShadow(GlassTextShadow) }
     MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
         CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
     }
