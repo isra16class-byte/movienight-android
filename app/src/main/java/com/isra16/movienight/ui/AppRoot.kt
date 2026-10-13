@@ -46,7 +46,7 @@ private object Routes {
  * reinicia sola (no se puede volver atrás a login estando adentro, ni al revés).
  */
 @Composable
-fun AppRoot() {
+fun AppRoot(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
     val sessionVm: SessionViewModel = viewModel()
     val state by sessionVm.state.collectAsState()
 
@@ -58,6 +58,8 @@ fun AppRoot() {
             session = s,
             isLoggingOut = sessionVm.isLoggingOut,
             onLogout = sessionVm::logout,
+            darkTheme = darkTheme,
+            onDarkThemeChange = onDarkThemeChange,
         )
     }
 }
@@ -84,7 +86,13 @@ private fun AuthNavHost() {
 }
 
 @Composable
-private fun MainNavHost(session: SessionState.LoggedIn, isLoggingOut: Boolean, onLogout: () -> Unit) {
+private fun MainNavHost(
+    session: SessionState.LoggedIn,
+    isLoggingOut: Boolean,
+    onLogout: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+) {
     val nav = rememberNavController()
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
@@ -92,6 +100,8 @@ private fun MainNavHost(session: SessionState.LoggedIn, isLoggingOut: Boolean, o
                 email = session.email,
                 isLoggingOut = isLoggingOut,
                 onLogout = onLogout,
+                darkTheme = darkTheme,
+                onDarkThemeChange = onDarkThemeChange,
                 onOpenRoom = { roomId -> nav.navigate(Routes.room(roomId)) },
             )
         }

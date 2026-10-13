@@ -1,23 +1,34 @@
 package com.isra16.movienight
 
 import android.app.PictureInPictureParams
+import android.graphics.Color
+import android.graphics.drawable.ColorDrawable
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.util.Rational
 import androidx.activity.ComponentActivity
+import androidx.activity.SystemBarStyle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.toArgb
 import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.shouldEnterPip
+import com.isra16.movienight.net.themeModeFromSwitch
 import com.isra16.movienight.ui.AppRoot
 import com.isra16.movienight.ui.room.PIP_TAG
 import com.isra16.movienight.ui.room.PipHost
 import com.isra16.movienight.ui.room.isPipAvailable
+import com.isra16.movienight.ui.theme.MovieNightDarkColors
+import com.isra16.movienight.ui.theme.MovieNightLightColors
 import com.isra16.movienight.ui.theme.MovieNightTheme
 
 class MainActivity : ComponentActivity(), PipHost {
@@ -27,14 +38,48 @@ class MainActivity : ComponentActivity(), PipHost {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        // Modo de color (Fase 8): lo elige la persona con el interruptor de la pantalla principal y se recuerda.
+        // No sigue el modo oscuro del teléfono. El primer arranque es oscuro (ver `DEFAULT_THEME_MODE`).
+        val themePrefs = (application as MovieNightApp).container.themePrefs
+        val initialMode = themePrefs.mode
+        applyAppearance(initialMode.isDark)
         setContent {
-            MovieNightTheme {
+            var mode by remember { mutableStateOf(initialMode) }
+            MovieNightTheme(darkTheme = mode.isDark) {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                    AppRoot()
+                    AppRoot(
+                        darkTheme = mode.isDark,
+                        onDarkThemeChange = { dark ->
+                            val next = themeModeFromSwitch(dark)
+                            mode = next
+                            themePrefs.mode = next
+                            applyAppearance(next.isDark)
+                        },
+                    )
                 }
             }
         }
+    }
+
+    /**
+     * Pone a juego con el modo de la app lo que no es Compose. (1) Los iconos de las barras del sistema: sin esto
+     * seguirían el modo del teléfono y podrían quedar oscuros sobre fondo oscuro (o claros sobre claro). (2) El
+     * fondo de la ventana, que se ve detrás de la app en el primer cuadro y mientras el teclado se mueve.
+     * `enableEdgeToEdge` se puede llamar más de una vez; aquí se llama al arrancar y al cambiar el modo.
+     */
+    private fun applyAppearance(dark: Boolean) {
+        enableEdgeToEdge(
+            statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
+            navigationBarStyle = SystemBarStyle.auto(NAV_BAR_SCRIM_LIGHT, NAV_BAR_SCRIM_DARK) { dark },
+        )
+        val colors = if (dark) MovieNightDarkColors else MovieNightLightColors
+        window.setBackgroundDrawable(ColorDrawable(colors.background.toArgb()))
+    }
+
+    private companion object {
+        // Los mismos valores que usa androidx.activity por defecto en la barra de navegación (solo cuentan en Android 9 o anterior).
+        val NAV_BAR_SCRIM_LIGHT = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
+        val NAV_BAR_SCRIM_DARK = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
     }
 
     // --- Ventana flotante (Picture-in-Picture, Fase 7A) --------------------------------------------

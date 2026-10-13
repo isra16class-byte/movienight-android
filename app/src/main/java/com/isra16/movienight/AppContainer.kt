@@ -13,6 +13,7 @@ import com.isra16.movienight.notify.PlaybackBridge
 import com.isra16.movienight.notify.UploadKeepAlive
 import com.isra16.movienight.notify.UploadNotifier
 import com.isra16.movienight.room.RoomPasswordCache
+import com.isra16.movienight.ui.theme.ThemePrefs
 import okhttp3.OkHttpClient
 import java.util.concurrent.TimeUnit
 
@@ -58,6 +59,9 @@ class AppContainer(context: Context) {
     /** Cuántas pantallas de la app se ven ahora (lo actualiza [MovieNightApp]); el aviso de subida lo consulta. */
     val visibility = VisibilityCounter()
     val notificationPrefs = NotificationPrefs(context)
+
+    /** Modo de color que eligió la persona (claro u oscuro), Fase 8. */
+    val themePrefs = ThemePrefs(context)
     val uploadNotifier = UploadNotifier(context, visibility)
 
     /** Mantiene vivo el proceso (servicio en primer plano) mientras hay una subida en marcha. */

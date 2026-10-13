@@ -1,5 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <style name="Theme.MovieNight" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+      Fase 8, paso 1. El modo claro u oscuro lo decide la persona dentro de la app (Compose), pero este tema XML es lo
+      único que se ve mientras la app arranca. Con el fondo de ventana por defecto de un tema claro (blanco), abrir la
+      app en modo oscuro mostraba un destello blanco antes del primer cuadro. Se fija el fondo al del modo oscuro,
+      que es el del primer arranque. Costo: quien eligió el modo claro verá un instante oscuro al abrir (este XML no
+      puede leer la preferencia). Una vez creada la actividad, MainActivity pone el fondo del modo elegido.
+      SIN CONFIRMAR: solo se comprueba en el teléfono. En Android 12+ la pantalla de arranque del sistema podría
+      pedir además `android:windowSplashScreenBackground` (variante values-v31); no se agregó sin verlo.
+    -->
+    <style name="Theme.MovieNight" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
 </resources>

@@ -7,4 +7,7 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Color de la ventana mientras la app arranca. Debe ser el mismo que `DarkBackground` en ui/theme/Color.kt (XML no puede leerlo). -->
+    <color name="window_background">#FF0E1511</color>
 </resources>

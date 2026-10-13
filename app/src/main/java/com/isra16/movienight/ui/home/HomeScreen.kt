@@ -10,12 +10,14 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
@@ -25,6 +27,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +40,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
@@ -68,6 +72,8 @@ fun HomeScreen(
     email: String,
     isLoggingOut: Boolean,
     onLogout: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
     onOpenRoom: (roomId: String) -> Unit,
     vm: HomeViewModel = viewModel(),
 ) {
@@ -113,7 +119,7 @@ fun HomeScreen(
             contentPadding = PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            item { Header(email, isLoggingOut, onLogout) }
+            item { Header(email, isLoggingOut, onLogout, darkTheme, onDarkThemeChange) }
             if (shouldShowAdminAccess(vm.adminAccess)) {
                 item {
                     AdminCard(
@@ -225,7 +231,13 @@ fun HomeScreen(
 }
 
 @Composable
-private fun Header(email: String, isLoggingOut: Boolean, onLogout: () -> Unit) {
+private fun Header(
+    email: String,
+    isLoggingOut: Boolean,
+    onLogout: () -> Unit,
+    darkTheme: Boolean,
+    onDarkThemeChange: (Boolean) -> Unit,
+) {
     Row(
         Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -242,9 +254,33 @@ private fun Header(email: String, isLoggingOut: Boolean, onLogout: () -> Unit) {
                 )
             }
         }
-        OutlinedButton(onClick = onLogout, enabled = !isLoggingOut) {
-            Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión")
+        // Las acciones van en una columna a la derecha: el interruptor queda justo debajo de "Cerrar sesión" y no le
+        // quita ancho al título (en una fila, en un teléfono angosto "MovieNight" podría partirse en dos líneas).
+        Column(horizontalAlignment = Alignment.End) {
+            OutlinedButton(onClick = onLogout, enabled = !isLoggingOut) {
+                Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión")
+            }
+            ThemeSwitch(darkTheme, onDarkThemeChange)
         }
+    }
+}
+
+/** Interruptor de modo claro / oscuro. Toda la fila es el interruptor (un solo objetivo táctil de 48 dp para lectores de pantalla). */
+@Composable
+private fun ThemeSwitch(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
+    Row(
+        Modifier
+            .heightIn(min = 48.dp)
+            .toggleable(value = darkTheme, role = Role.Switch, onValueChange = onDarkThemeChange),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "Modo oscuro",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Switch(checked = darkTheme, onCheckedChange = null)
     }
 }
 
