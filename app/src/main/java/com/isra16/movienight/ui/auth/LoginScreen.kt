@@ -46,7 +46,7 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
             onDone = ::submit,
         )
         ErrorText(vm.errorMessage)
-        PrimaryButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
+        GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
         TextButton(onClick = onGoForgot, enabled = !vm.isBusy) { Text("¿Olvidaste tu contraseña?") }
         TextButton(onClick = onGoRegister, enabled = !vm.isBusy) { Text("¿No tenés cuenta? Registrate") }
     }

@@ -40,7 +40,7 @@ fun ForgotPasswordScreen(vm: AuthViewModel, onBack: () -> Unit) {
         )
         ErrorText(vm.errorMessage)
         InfoText(vm.infoMessage)
-        PrimaryButton("Enviar link", busy = vm.isBusy, onClick = ::submit)
+        GlassButton("Enviar link", busy = vm.isBusy, onClick = ::submit)
         TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Volver a iniciar sesión") }
     }
 }

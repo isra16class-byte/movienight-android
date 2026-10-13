@@ -60,7 +60,7 @@ fun RegisterScreen(vm: AuthViewModel, onBack: () -> Unit) {
             onDone = ::submit,
         )
         ErrorText(vm.errorMessage)
-        PrimaryButton("Crear cuenta", busy = vm.isBusy, onClick = ::submit)
+        GlassButton("Crear cuenta", busy = vm.isBusy, onClick = ::submit)
         TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Ya tengo cuenta") }
     }
 }

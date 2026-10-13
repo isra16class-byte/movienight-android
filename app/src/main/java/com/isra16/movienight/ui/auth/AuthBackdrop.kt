@@ -152,7 +152,7 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
 internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
     val backdrop = LocalGlassBackdrop.current
     val glass = LocalGlassColors.current
-    val shape = RoundedCornerShape(24.dp)
+    val shape = RoundedCornerShape(28.dp)
     // Posición del panel en la ventana; se actualiza al desplazar y solo se lee al dibujar.
     var panelOrigin by remember { mutableStateOf(Offset.Zero) }
     // Modo claro: texto y contornos más oscuros SOLO dentro del panel, para poder dejarlo más transparente.
@@ -195,7 +195,7 @@ internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
                         drawRect(glass.panelTint)
                     }
                     .border(1.dp, glass.panelBorder, shape)
-                    .padding(20.dp),
+                    .padding(24.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 content = content,
             )
