@@ -198,7 +198,8 @@ class GlassContentColors(
  * Colores del efecto de vidrio de login, registro y recuperar contraseña. Fuera del `ColorScheme` de Material porque
  * no son roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la imagen de fondo (nítida fuera del panel; su copia borrosa dentro);
- *  2. [scrim]: velo del color de fondo del modo, sobre la imagen (también sobre la copia borrosa dentro del panel);
+ *  2. velo del color de fondo del modo: [backdropScrim] sobre la imagen nítida de fuera del panel (transparente = la
+ *     imagen se ve tal cual) y [scrim] sobre la copia borrosa dentro del panel;
  *  3. [panelTint]: tinte del panel, encima del velo;
  *  4. [panelBorder]: borde fino del panel (decorativo: los campos llevan su propio contorno).
  *
@@ -208,6 +209,7 @@ class GlassContentColors(
  */
 @Immutable
 class GlassColors(
+    val backdropScrim: Color,
     val scrim: Color,
     val panelTint: Color,
     val panelBorder: Color,
@@ -219,6 +221,7 @@ class GlassColors(
 // Es el modo que más tinte necesita: el texto es oscuro y la foto de día tiene zonas oscuras (troncos), por eso el
 // texto del panel es más oscuro que el de la paleta y no se baja más el tinte.
 internal val MovieNightLightGlass = GlassColors(
+    backdropScrim = Color.Transparent,
     scrim = LightBackground.copy(alpha = 0.15f),
     panelTint = LightSurface.copy(alpha = 0.55f),
     panelBorder = LightOutline.copy(alpha = 0.40f),
@@ -233,6 +236,7 @@ internal val MovieNightLightGlass = GlassColors(
 
 // Medido (peor caso, ventana 9:16): onSurface 8,4 / onSurfaceVariant 6,4 / primary 6,4 / error 6,4 / contorno 3,4.
 internal val MovieNightDarkGlass = GlassColors(
+    backdropScrim = DarkBackground.copy(alpha = 0.15f),
     scrim = DarkBackground.copy(alpha = 0.15f),
     panelTint = DarkSurface.copy(alpha = 0.50f),
     panelBorder = Color.White.copy(alpha = 0.25f),

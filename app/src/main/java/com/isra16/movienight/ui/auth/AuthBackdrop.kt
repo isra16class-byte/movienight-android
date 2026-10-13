@@ -105,7 +105,7 @@ private fun loadBackdropImages(resources: Resources, dark: Boolean): BackdropIma
     return BackdropImages(sharp.asImageBitmap(), blurred.asImageBitmap())
 }
 
-/** Fondo quieto con velo, a pantalla completa y detrás de las barras del sistema. Envuelve las pantallas de entrada. */
+/** Fondo quieto con el velo de [GlassColors.backdropScrim] (en modo claro, ninguno), a pantalla completa y detrás de las barras del sistema. Envuelve las pantallas de entrada. */
 @Composable
 fun AuthBackdrop(content: @Composable () -> Unit) {
     val dark = LocalAppDarkTheme.current
@@ -134,7 +134,7 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
                 val images = state.images
                 if (images != null) {
                     drawCover(images.sharp, coverCropRect(images.sharp.width, images.sharp.height, size.width, size.height))
-                    drawRect(glass.scrim)
+                    drawRect(glass.backdropScrim)
                 }
             },
     ) {
