@@ -1,6 +1,5 @@
 package com.isra16.movienight.ui.auth
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -31,7 +30,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 
-/** Estructura común de las pantallas de auth: centrada, con scroll y respetando teclado y barras. */
+/**
+ * Estructura común de las pantallas de auth: centrada, con scroll y respetando teclado y barras. El contenido va en un
+ * panel de vidrio ([GlassPanel], Fase 8 paso 3) que se mueve con el scroll; el fondo quieto lo pone [AuthBackdrop]
+ * por encima del NavHost, fuera de este padding.
+ */
 @Composable
 fun AuthScreenLayout(
     title: String,
@@ -48,17 +51,18 @@ fun AuthScreenLayout(
                 .fillMaxWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Text(title, style = MaterialTheme.typography.headlineMedium)
-            if (subtitle != null) {
-                Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+            GlassPanel {
+                Text(title, style = MaterialTheme.typography.headlineMedium)
+                if (subtitle != null) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                content()
             }
-            content()
         }
     }
 }

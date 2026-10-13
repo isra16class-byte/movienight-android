@@ -26,6 +26,7 @@ import com.isra16.movienight.auth.SessionViewModel
 import com.isra16.movienight.net.StartupScreen
 import com.isra16.movienight.net.startupScreenFor
 import com.isra16.movienight.room.RoomViewModel
+import com.isra16.movienight.ui.auth.AuthBackdrop
 import com.isra16.movienight.ui.auth.ForgotPasswordScreen
 import com.isra16.movienight.ui.auth.LoginScreen
 import com.isra16.movienight.ui.auth.RegisterScreen
@@ -78,19 +79,23 @@ fun AppRoot(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
 private fun AuthNavHost() {
     val nav = rememberNavController()
     val authVm: AuthViewModel = viewModel()
-    NavHost(navController = nav, startDestination = Routes.LOGIN) {
-        composable(Routes.LOGIN) {
-            LoginScreen(
-                vm = authVm,
-                onGoRegister = { nav.navigate(Routes.REGISTER) },
-                onGoForgot = { nav.navigate(Routes.FORGOT_PASSWORD) },
-            )
-        }
-        composable(Routes.REGISTER) {
-            RegisterScreen(vm = authVm, onBack = { nav.popBackStack() })
-        }
-        composable(Routes.FORGOT_PASSWORD) {
-            ForgotPasswordScreen(vm = authVm, onBack = { nav.popBackStack() })
+    // El fondo quieto y el estado del vidrio viven por encima del NavHost (Fase 8, paso 3): así no parpadea al pasar
+    // de una pantalla a otra y cada panel se alinea contra el mismo fondo.
+    AuthBackdrop {
+        NavHost(navController = nav, startDestination = Routes.LOGIN) {
+            composable(Routes.LOGIN) {
+                LoginScreen(
+                    vm = authVm,
+                    onGoRegister = { nav.navigate(Routes.REGISTER) },
+                    onGoForgot = { nav.navigate(Routes.FORGOT_PASSWORD) },
+                )
+            }
+            composable(Routes.REGISTER) {
+                RegisterScreen(vm = authVm, onBack = { nav.popBackStack() })
+            }
+            composable(Routes.FORGOT_PASSWORD) {
+                ForgotPasswordScreen(vm = authVm, onBack = { nav.popBackStack() })
+            }
         }
     }
 }

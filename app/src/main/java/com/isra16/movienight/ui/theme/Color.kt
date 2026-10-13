@@ -2,6 +2,7 @@ package com.isra16.movienight.ui.theme
 
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
+import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
 
 /*
@@ -175,4 +176,40 @@ internal val MovieNightDarkColors = darkColorScheme(
     surfaceContainerHighest = DarkSurfaceContainerHighest,
     surfaceContainerLow = DarkSurfaceContainerLow,
     surfaceContainerLowest = DarkSurfaceContainerLowest,
+)
+
+// --- Vidrio de las pantallas de entrada (Fase 8, paso 3; PROVISIONAL, igual que el resto de la paleta) ---------------
+
+/**
+ * Colores del efecto de vidrio de login, registro y recuperar contraseña. Fuera del `ColorScheme` de Material porque
+ * no son roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
+ *  1. la imagen de fondo (nítida fuera del panel; su copia borrosa dentro);
+ *  2. [scrim]: velo del color de fondo del modo, sobre la imagen (también sobre la copia borrosa dentro del panel);
+ *  3. [panelTint]: tinte del panel, encima del velo;
+ *  4. [panelBorder]: borde fino del panel (decorativo: los campos llevan su propio contorno).
+ *
+ * Los alfas salen de MEDIR la imagen real detrás del panel (ver `net/GlassLogic.kt`): el peor caso entre varios
+ * tamaños de ventana da texto >= 4,5:1 con onSurface, onSurfaceVariant, primary y error, y >= 3:1 para el contorno de
+ * los campos. Si se cambia la imagen o la paleta (paso 6), hay que volver a medir.
+ */
+@Immutable
+class GlassColors(
+    val scrim: Color,
+    val panelTint: Color,
+    val panelBorder: Color,
+)
+
+// Medido (peor caso, ventana 9:16): onSurface 12,9 / onSurfaceVariant 7,0 / primary 4,9 / error 4,9 / contorno 3,4.
+// Es el modo que más tinte necesita: el texto es oscuro y la foto de día tiene zonas oscuras (troncos).
+internal val MovieNightLightGlass = GlassColors(
+    scrim = LightBackground.copy(alpha = 0.35f),
+    panelTint = LightSurface.copy(alpha = 0.80f),
+    panelBorder = LightOutline.copy(alpha = 0.40f),
+)
+
+// Medido (peor caso, ventana 9:16): onSurface 8,4 / onSurfaceVariant 6,4 / primary 6,4 / error 6,4 / contorno 3,4.
+internal val MovieNightDarkGlass = GlassColors(
+    scrim = DarkBackground.copy(alpha = 0.15f),
+    panelTint = DarkSurface.copy(alpha = 0.50f),
+    panelBorder = Color.White.copy(alpha = 0.25f),
 )
