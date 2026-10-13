@@ -3,14 +3,22 @@
 
 No forma parte de la app: sirve para repetir el trabajo cuando cambien las imágenes o la paleta (paso 6).
 
-  prepare  Convierte una imagen a WebP (sin ampliarla; si es más ancha que 1080 px la reduce) y crea su copia borrosa
-           (1/3 del tamaño, desenfoque gaussiano de radio 6). Salida: auth_bg_<modo>.webp y auth_bg_<modo>_blur.webp.
-             python3 backdrop_tools.py prepare light original_dia.jpg app/src/main/res/drawable-nodpi
-             python3 backdrop_tools.py prepare dark  original_noche.jpg app/src/main/res/drawable-nodpi
+  prepare  Convierte una imagen a WebP (sin ampliarla; si es más ancha que 1080 px la reduce) y crea su copia borrosa.
+           Salida: auth_bg_<modo>.webp y auth_bg_<modo>_blur.webp.
+           La copia borrosa se hace con un RADIO gaussiano y una ESCALA (fracción del tamaño de la imagen) que se pasan
+           como parámetros; el desenfoque equivalente a tamaño completo es radio / escala. Valores por defecto y usados
+           hoy (Fase 8, paso 3, ajuste del desenfoque): radio 3, escala 1 (tamaño completo), o sea σ≈3 px sobre 736-768 de
+           ancho; deja ~28 % del gradiente de la imagen nítida en modo claro (33 % en oscuro). Los valores anteriores
+           eran radio 6 y escala 1/3 (σ≈18, ~5 %). Calidad WebP de la copia: 80.
+             python3 backdrop_tools.py prepare light original_dia.jpg app/src/main/res/drawable-nodpi [--radio 3] [--escala 1]
+             python3 backdrop_tools.py prepare dark  original_noche.jpg app/src/main/res/drawable-nodpi [--radio 3] [--escala 1]
+           Con --solo-copia NO escribe auth_bg_<modo>.webp (la nítida) y solo regenera la copia borrosa; sirve para
+           partir de la propia auth_bg_<modo>.webp del repo sin recomprimirla:
+             python3 backdrop_tools.py prepare light app/src/main/res/drawable-nodpi/auth_bg_light.webp app/src/main/res/drawable-nodpi --solo-copia
 
   veil     Calcula cuánto velo (oscuro o claro, según el modo) haría falta para dar texto >= 4,5:1 en cada franja del alto
            de la ventana con la copia borrosa REAL, peor caso entre varios tamaños de ventana. Es solo INFORMATIVO: el
-           diseño actual usa un velo de 3 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
+           diseño actual usa un velo de 10 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
            sombra del texto (ver `GlassColors` en Color.kt). Con el modo claro actual (texto crema) los números salen
            altos: es justo lo que se está dejando de pedir al velo.
              python3 backdrop_tools.py veil app/src/main/res/drawable-nodpi
@@ -41,8 +49,8 @@ MODES = {
 }
 # Alfas del velo en N paradas igualmente espaciadas de arriba (0) a abajo (1). Deben coincidir con Color.kt.
 VEIL_STOPS = {
-    "light": [0.03] * 21,
-    "dark": [0.03] * 21,
+    "light": [0.10] * 21,
+    "dark": [0.10] * 21,
 }
 # (nombre, ancho dp, alto dp). El texto ocupa la columna de min(480, ancho) - 48 de ancho y puede estar a cualquier altura.
 WINDOWS = [("9:16 vertical", 360, 640), ("9:19.5 vertical", 360, 780), ("9:21 vertical", 360, 840),
@@ -53,14 +61,44 @@ N_STOPS = 21        # paradas k/20
 MARGIN = 0.03       # margen sobre el mínimo medido
 
 
-def prepare(mode, src, outdir):
+DEFAULT_BLUR_RADIUS = 3.0   # radio gaussiano aplicado a la copia ya reducida (en px de la copia)
+DEFAULT_BLUR_SCALE = 1.0    # fracción del tamaño de la imagen nítida a la que se genera la copia
+
+
+def prepare(mode, src, outdir, radius=DEFAULT_BLUR_RADIUS, scale=DEFAULT_BLUR_SCALE, sharp=True):
     im = Image.open(src).convert("RGB")
     if im.width > 1080:
         im = im.resize((1080, round(im.height * 1080 / im.width)), Image.LANCZOS)
-    im.save(f"{outdir}/auth_bg_{mode}.webp", "WEBP", quality=82, method=6)
-    b = im.resize((max(1, round(im.width / 3)), max(1, round(im.height / 3))), Image.LANCZOS)
-    b.filter(ImageFilter.GaussianBlur(radius=6)).save(f"{outdir}/auth_bg_{mode}_blur.webp", "WEBP", quality=80, method=6)
-    print(mode, im.size, "-> copia borrosa", b.size)
+    if sharp:
+        im.save(f"{outdir}/auth_bg_{mode}.webp", "WEBP", quality=82, method=6)
+    if scale == 1.0:
+        b = im
+    else:
+        b = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
+    b.filter(ImageFilter.GaussianBlur(radius=radius)).save(f"{outdir}/auth_bg_{mode}_blur.webp", "WEBP", quality=80, method=6)
+    print(mode, im.size, "-> copia borrosa", b.size, f"radio {radius}, escala {scale} (sigma equivalente a tamaño completo ~{radius / scale:.1f} px)")
+
+
+def _prepare_cli(args):
+    """prepare <modo> <origen> <carpeta> [--radio N] [--escala N] [--solo-copia]"""
+    if len(args) < 3 or args[0] not in MODES:
+        return False
+    radius, scale, sharp = DEFAULT_BLUR_RADIUS, DEFAULT_BLUR_SCALE, True
+    rest = args[3:]
+    i = 0
+    while i < len(rest):
+        if rest[i] == "--radio" and i + 1 < len(rest):
+            radius = float(rest[i + 1]); i += 2
+        elif rest[i] == "--escala" and i + 1 < len(rest):
+            scale = float(rest[i + 1]); i += 2
+        elif rest[i] == "--solo-copia":
+            sharp = False; i += 1
+        else:
+            return False
+    if radius < 0 or not (0 < scale <= 1):
+        return False
+    prepare(args[0], args[1], args[2], radius, scale, sharp)
+    return True
 
 
 def _lin(c):
@@ -167,8 +205,10 @@ def measure(resdir):
 
 
 if __name__ == "__main__":
-    if len(sys.argv) == 5 and sys.argv[1] == "prepare":
-        prepare(sys.argv[2], sys.argv[3], sys.argv[4])
+    if len(sys.argv) >= 2 and sys.argv[1] == "prepare":
+        if not _prepare_cli(sys.argv[2:]):
+            print(__doc__)
+            sys.exit(2)
     elif len(sys.argv) == 3 and sys.argv[1] == "veil":
         veil(sys.argv[2])
     elif len(sys.argv) == 3 and sys.argv[1] == "measure":

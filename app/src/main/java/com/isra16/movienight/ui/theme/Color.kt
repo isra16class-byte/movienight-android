@@ -200,7 +200,7 @@ class GlassContentColors(
  * roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
  *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
- *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 3 % parejo, a pedido de la persona (maqueta de Gemini);
+ *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo, a pedido de la persona (antes 3 %);
  *  3. solo en la barra de campos: [barTint] (oscuro, con alfa) y [barBorder], su borde fino.
  *
  * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
@@ -218,7 +218,7 @@ class GlassColors(
     val content: GlassContentColors? = null,
 )
 
-private val GlassVeilAlphas = List(21) { 0.03f }
+private val GlassVeilAlphas = List(21) { 0.10f }
 private val GlassCream = Color(0xFFFFF8E7)
 
 internal val MovieNightLightGlass = GlassColors(
