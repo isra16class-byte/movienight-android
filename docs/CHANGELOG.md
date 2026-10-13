@@ -5,6 +5,18 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-12 — Estado de la 7B (compila, pruebas pendientes) y ajustes a la Fase 8 (solo documentación)
+
+- **7B:** el commit `5164d5b` la dejó escrita sin compilar ni probar. La persona confirmó que **compila**. Dijo que la ha usado y cree que hasta ahora no hay problemas, pero no hizo las pruebas completas y no
+  detalló qué usó: no se marca como probada. Las pruebas pendientes quedaron en la sección 7B del plan.
+- **Verificado por el asistente:** en el fuente de Media3 1.10.1, `media3-session` es Java y no declara dependencia de Kotlin; trae `lifecycle-service` 2.5.1, mientras la app usa lifecycle 2.10.0. Interpretación (sin
+  comprobar): no debería traer un problema nuevo con Kotlin 2.0.21; lo que lo confirmó fue compilar, hecho por la persona. No se leyó el código de la 7B ni se corrieron sus tests.
+- **Fase 8:** se anotó que el **fondo empieza quieto** y el movimiento va aparte (decisión de la persona), las opciones para el vidrio y el movimiento (sin verificar) y el orden de trabajo en 6 pasos. Los pasos 1 a 5 no
+  dependen de la temática; el paso 5 (sala) espera a que la 7B esté probada. Se corrigieron dos frases que decían que la 7B estaba sin empezar.
+- **Nada probado ni implementado en la Fase 8.**
+
+---
+
 ## 2026-10-12 — Fase 7B: audio de la sala con la pantalla apagada o en otra app (escrita, sin compilar ni probar)
 
 - **Qué:** servicio de reproducción (`MediaSessionService`) con notificación de reproducir/pausar; el audio sigue con la pantalla apagada o en otra app y se detiene solo al salir de la sala.

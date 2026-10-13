@@ -269,7 +269,7 @@ del servidor.
 
 > **Plan escrito el 2026-10-09; no toca el servidor. 7A hecha y probada en el emulador el 2026-10-10 (la X de la ventana
 > se arregló con `configChanges` y se confirmó; quedan sin probar girar el teléfono con `configChanges` y los casos de
-> abajo); 7B sin empezar; 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa), los niveles de ajuste del video en pantalla completa y la parte 2 de reacciones (2B en pantalla completa, sin confirmar uno por uno; 2D en vertical y en la ventana flotante, confirmada por la persona el 2026-10-11).** Dos mejoras distintas, con costo y
+> abajo); 7B escrita y compilada, con pruebas pendientes (ver su sección); 7C (sala en horizontal y controles sobre el video, agregada después) hecha y confirmada por la persona el 2026-10-11, con su parte 2A (comentarios flotantes del chat en pantalla completa), los niveles de ajuste del video en pantalla completa y la parte 2 de reacciones (2B en pantalla completa, sin confirmar uno por uno; 2D en vertical y en la ventana flotante, confirmada por la persona el 2026-10-11).** Dos mejoras distintas, con costo y
 > riesgo muy diferentes, que se hacen **en este orden y por separado** (7A se entrega y se prueba antes de empezar 7B).
 > No depende de la 6C, pero la 6C ya está hecha (aviso local de subida y servicio en primer plano de subidas): 7B puede
 > reusar el permiso `POST_NOTIFICATIONS` (hoy se pide antes de la primera subida, con `rememberNotificationGate`) y el
@@ -351,6 +351,21 @@ si se hace.
 
 Más grande y de más riesgo. Se evalúa **después** de usar 7A, y solo si hace falta.
 
+> **Estado (2026-10-12): escrita y compilada; pruebas sin hacer al 100%.** La escribió otra sesión (`5164d5b`): `RoomPlayer` y su `ExoPlayer` siguen en el `RoomViewModel`, `PlaybackBridge` presta el
+> reproductor a un `MediaSessionService` (`PlaybackService`) con notificación de reproducir y pausar, y se agregó `media3-session` en 1.10.1. La persona confirmó que **compila**; dijo que la ha usado y cree que
+> hasta ahora no hay problemas, pero **no hizo las pruebas completas** y no detalló qué usó. Por eso **nada de esto está marcado como probado**.
+>
+> Pruebas pendientes (en el teléfono real además del emulador: el ahorro de batería del fabricante puede matar el servicio):
+> - [ ] Pantalla apagada, varios minutos: el audio sigue.
+> - [ ] En otra app: el audio sigue.
+> - [ ] Pausar y reanudar desde la notificación.
+> - [ ] Salir de la sala: el servicio y la notificación desaparecen.
+> - [ ] Cerrar sesión: igual.
+> - [ ] Que el host salga de la sala (qué pasa con los demás).
+> - [ ] Girar el teléfono y entrar a la ventana flotante (PiP) sin que se pause ni se reinicie.
+> - [ ] Que la app no pida permisos al abrirla ni muestre notificaciones fuera de lugar.
+> - [ ] `gradlew testDebugUnitTest` (incluye `PlaybackServiceLogicTest`).
+
 - [ ] **Decisión previa — qué se espera:** (1) que siga solo el audio con la pantalla apagada, o (2) también el video (eso
       ya lo cubre 7A mientras haya ventana). Confirmar con la persona.
 - [ ] **Versión de Media3 y Kotlin:** agregar `androidx.media3:media3-session` en la **misma versión 1.10.1**, y **comprobar
@@ -430,7 +445,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 ## Fase 8 — Rediseño visual de la app (propuesta, solo documentación por ahora)
 
 > **Estado (2026-10-12): nada empezado, ni diseño ni código.** Esta fase solo recoge lo conversado: qué decidió la persona, qué es todavía una propuesta del asistente y qué
-> falta decidir. No se escribe código hasta que se elija la temática. La app hoy usa el tema Material 3 por defecto de Android Studio (`ui/theme/`), con color dinámico en Android 12+
+> falta decidir. Los pasos 1 a 5 del orden de trabajo no dependen de la temática y se hacen con colores provisionales; el paso 6 (logo, paleta final, tipografías e imagen de fondo) espera a que se elija. La app hoy usa el tema Material 3 por defecto de Android Studio (`ui/theme/`), con color dinámico en Android 12+
 > y tipografía del sistema; la web usa su propio sistema "Videoclub" (VHS/vaporwave de los 80/90, morado oscuro con rosa y cian neón; `public/style.css`). Se quiere una identidad
 > **distinta a la de la web**. La app la van a usar otras personas con otros teléfonos: nada debe depender de un aparato.
 
@@ -438,6 +453,7 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 - [x] Dos modos, **claro y oscuro**, con un **interruptor dentro de la app** (no seguir automáticamente al teléfono).
 - [x] Efecto de **vidrio esmerilado** (fondo nítido con paneles semitransparentes que difuminan lo que hay detrás), como el de una web que vio y de la que no recuerda el nombre.
 - [x] Dirección de referencia: naturaleza luminosa (dos imágenes de Pinterest de copas de árboles vistas desde abajo, con verdes lima, azul cielo y acentos rosa y naranja). Solo como inspiración.
+- [x] El **fondo empieza quieto**; el movimiento (árboles vivos, como en la web que vio) va en un paso aparte, que se prueba en el teléfono antes de decidir.
 - [x] Intro: animación de **tiempo fijo** (~1 s) al abrir la app desde cero; si el servidor aún no respondió la comprobación de sesión, pasar a la pantalla de "cargando" que ya existe.
 
 **Propuestas del asistente, sin decidir**
@@ -449,6 +465,20 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 - Orden de trabajo sugerido: brief de 3 palabras, moodboard de ~20 imágenes, elegir 2 o 3 direcciones, logo, paleta y tipografías, y recién entonces las pantallas.
 - Para el logo, conceptos con significado: luna con play; dos mitades que se juntan; dos pantallas superpuestas cuya intersección es un play; ramas que parten de un mismo tronco ("gente distinta, un mismo plan"); hoja o flor con un play al centro.
   Hay un prompt para un generador de imágenes en la conversación; no hay resultado elegido.
+
+- Con fondo **quieto**, el vidrio puede hacerse con una copia borrosa del fondo, preparada de antemano y mostrada dentro de cada panel (sin dependencias, funciona en cualquier Android, poca batería). Con fondo
+  **en movimiento** el vidrio de verdad cuesta bastante más. Formas de mover el fondo, a decidir después: video corto en bucle con Media3 (sin dependencia nueva, pero más batería y peso, y no debe interferir con
+  el reproductor de la sala), imagen animada (con minSdk 26 puede pedir una librería; no se sabe de memoria), capas que se mueven poco con la propia app, o una librería de animaciones (dependencia nueva; comprobar
+  Kotlin 2.0.21). Siempre solo en login, registro e inicio (no en la sala), pausando cuando la app no se ve y respetando el ajuste de reducir animaciones. *Sin verificar.*
+
+**Orden de trabajo (propuesto por la sesión guía, un patch y una sesión por paso; la memoria compartida es este repo)**
+- [ ] Paso 1: base del tema: modo claro y oscuro con interruptor en el encabezado de Home, preferencia con `SharedPreferences` (patrón de `NotificationPrefs`), color dinámico apagado y todos los colores en
+  `Color.kt` con una paleta **provisional**. Primer arranque en oscuro: propuesta, la persona no la confirmó. Revisar el posible destello blanco al abrir en oscuro (`themes.xml` hereda de un tema claro).
+- [ ] Paso 2: intro de tiempo fijo y decisión de pantalla como función pura con tests; la animación es un marcador simple; no debe repetirse al girar ni al volver de segundo plano.
+- [ ] Paso 3: login, registro y recuperar contraseña, con vidrio sobre un fondo provisional quieto.
+- [ ] Paso 4: Home.
+- [ ] Paso 5: sala (colores, tipografía y diálogos; los controles sobre el video no llevan vidrio). **Espera a que la 7B esté probada**, porque toca los mismos archivos.
+- [ ] Paso 6: temática final: logo, paleta, tipografías e imagen de fondo con derechos claros; el movimiento del fondo, aparte.
 
 **Por decidir**
 - [ ] Temática final, **paleta de cada modo** (claro y oscuro), tipografías y logo (con búsqueda inversa de imágenes para comprobar que no se parezca a otro; términos de uso del generador, sin revisar).

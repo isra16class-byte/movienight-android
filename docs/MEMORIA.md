@@ -208,6 +208,12 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**Estado de la 7B y ajustes a la Fase 8 (2026-10-12), solo documentación.** La 7B (audio de la sala con la pantalla apagada o en otra app, `5164d5b`) **compila**, según la persona, que dijo que la ha usado y cree que hasta ahora
+no hay problemas, pero **no hizo las pruebas completas**: sigue sin marcarse nada como probado. Las pruebas pendientes están en la sección 7B del plan (pantalla apagada varios minutos, otra app, notificación, salir de
+la sala, cerrar sesión, host que sale, girar y PiP sin pausar, sin permisos al abrir, y `gradlew testDebugUnitTest`). Sobre la Fase 8, la persona decidió que el **fondo empieza quieto** y el movimiento va en un paso aparte; se
+anotó el orden de trabajo en 6 pasos (los pasos 1 a 5 no dependen de la temática; el 5, la sala, espera a que la 7B esté probada) y las opciones para el fondo y el vidrio. Sin verificar: lo que se dice del vidrio y del
+movimiento en Android (de memoria). Se trabaja con una sesión guía y sesiones de trabajo, un paso por sesión; la memoria compartida es este repo.
+
 **Fase 7B escrita, SIN compilar ni probar (2026-10-12): audio de la sala con la pantalla apagada o en otra app.** Solo audio (el video fuera de la app lo cubre la ventana flotante 7A). `RoomPlayer` y su ExoPlayer siguen en el `RoomViewModel`; `PlaybackBridge` (en `AppContainer`, patrón de `UploadKeepAlive`) guarda una referencia al ExoPlayer envuelta en un `ForwardingPlayer` y `PlaybackService` (`MediaSessionService`, `foregroundServiceType="mediaPlayback"`) la pone en una `MediaSession`; el servicio no crea ni suelta el reproductor. El puente arranca el servicio conectando un `MediaController` (sin `startForegroundService` propio) solo con sala `InRoom`, cinta, sin error, reproduciendo Y app visible (`playbackServiceAction`, lógica pura con tests) y lo detiene al salir (`onCleared`), expulsión, `RoomError`/`Failed`, error de video, sin cinta, cerrar sesión y quitar la app de recientes. Con el servicio activo, Home / otra app / pantalla apagada ya no pausan (`PauseOnStopTracker.onStopped(backgroundAudioActive)`); cerrar la ventana flotante con la X sigue pausando. Reproducir/pausar de la notificación pasan por `PlaybackControls` (el `RoomViewModel`): el host emite el `sync` por `emitSync`; el invitado solo mueve su reproductor. Solo hay reproducir/pausar (los demás comandos se quitan en `getAvailableCommands`). Foco de audio y auriculares: `setAudioAttributes(USAGE_MEDIA, CONTENT_TYPE_MOVIE, true)`, `setHandleAudioBecomingNoisy(true)`, `setWakeMode(WAKE_MODE_NETWORK)`; solo la pérdida permanente de foco y los auriculares se propagan (`isSystemPause` -> `RoomPlayer.onSystemPause` -> el VM emite si es host); las llamadas no se tocan. Permiso de notificaciones: NO se pide; **sin confirmar** que la notificación aparezca sin él. **Pendiente de confirmar en Android Studio / teléfono:** (1) que `media3-session` 1.10.1 no exija un Kotlin más nuevo (Sync); (2) que compile (APIs de Media3 escritas de memoria: `DefaultMediaNotificationProvider.Builder.setChannelName`, `MediaSessionService.Listener.onForegroundServiceStartNotAllowedException`, `Commands.Builder.removeAll`); (3) que el servicio se enlace con el `MediaController` y Media3 lo promueva a primer plano; (4) que el texto "Reproduciendo"/"En pausa" de la notificación se actualice (se arma con `MediaMetadata.artist` del envoltorio); (5) icono por defecto de Media3 en la notificación; (6) límite conocido: un invitado que pausa desde la notificación vuelve a reproducir con el siguiente heartbeat del host; (7) si Android destruye la actividad en segundo plano, el audio se corta y el servicio se detiene (límite aceptado).
 
 **Rediseño visual de la app: solo decisiones y propuestas, nada empezado (2026-10-12).** No hay código ni pruebas; el detalle está en la **Fase 8** del plan. Lo decidido por la persona: modo
@@ -215,7 +221,7 @@ claro y oscuro con un interruptor dentro de la app; efecto de vidrio esmerilado;
 al repo y sin verificar sus derechos); intro de tiempo fijo (~1 s) que, si el servidor aún no comprobó la sesión, pasa a la pantalla de carga existente. **Sin elegir todavía:** la temática final, la
 paleta de cada modo, las tipografías, el logo y la imagen de fondo. Propuestas del asistente: vidrio en login, registro, inicio y diálogos, no sobre el video; apagar el color dinámico; el orden
 brief, moodboard, direcciones, logo, paleta y pantallas. La app hoy usa el tema Material 3 por defecto y la web su sistema "Videoclub" (VHS/vaporwave); la idea es que la app tenga uno distinto.
-Sin verificar: que `Modifier.blur` funcione solo desde Android 12 (de memoria) y cómo convive la intro con la pantalla de arranque de Android 12+. La 7B sigue sin empezar.
+Sin verificar: que `Modifier.blur` funcione solo desde Android 12 (de memoria) y cómo convive la intro con la pantalla de arranque de Android 12+. (La 7B ya está escrita: ver la entrada de arriba.)
 
 **Fase 7, parte 2 hecha: reacciones y emojis flotantes en pantalla completa (2B), en vertical y en la ventana flotante (2D). La 2D la confirmó la persona (2026-10-11); la 2B no se confirmó por separado.** La 7B sigue sin empezar. Salió de dos pedidos: la "parte 2"
 original (chat y espectadores flotantes sobre el video en pantalla completa, como la web) y, después, que los emojis de los demás salgan también en vertical y en la
@@ -769,7 +775,8 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
-- **Rediseño visual (Fase 8):** solo documentado; falta elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros. No empezar a escribir código hasta entonces.
+- **Rediseño visual (Fase 8):** solo documentado; los pasos 1 a 5 se pueden hacer con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros.
+- **7B sin probar al 100%:** compila (confirmado por la persona), pero faltan las pruebas de la sección 7B del plan, en teléfono real y emulador, y `gradlew testDebugUnitTest`.
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
 - **Sin prueba explícita:** la
