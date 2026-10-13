@@ -30,14 +30,16 @@ fun ForgotPasswordScreen(vm: AuthViewModel, onBack: () -> Unit) {
         title = "Recuperar contraseña",
         subtitle = "Escribí tu email y te mandamos un link para elegir una contraseña nueva.",
     ) {
-        EmailField(
-            value = email,
-            onValueChange = { email = it },
-            error = emailError,
-            enabled = !vm.isBusy,
-            imeAction = ImeAction.Done,
-            onDone = ::submit,
-        )
+        GlassFieldGroup {
+            GlassEmailField(
+                value = email,
+                onValueChange = { email = it },
+                error = emailError,
+                enabled = !vm.isBusy,
+                imeAction = ImeAction.Done,
+                onDone = ::submit,
+            )
+        }
         ErrorText(vm.errorMessage)
         InfoText(vm.infoMessage)
         GlassButton("Enviar link", busy = vm.isBusy, onClick = ::submit)

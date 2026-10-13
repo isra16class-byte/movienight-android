@@ -9,13 +9,14 @@ import kotlin.math.pow
  *
  * Qué resuelve:
  *  - `coverCropRect`: dónde se dibuja la imagen de fondo para cubrir la ventana, centrada y recortada (lo mismo que
- *    ContentScale.Crop con alineación al centro, pero calculado aquí para que el fondo nítido y la copia borrosa
- *    usen EXACTAMENTE el mismo rectángulo).
- *  - `blurRectInPanel`: dónde dibujar la copia borrosa DENTRO del panel para que quede alineada con el fondo nítido,
- *    aunque el panel se mueva al desplazar. Es el mismo rectángulo del fondo, trasladado por la posición del panel.
+ *    ContentScale.Crop con alineación al centro, pero calculado aquí para poder probarlo).
+ *  - `veilAlphaAt`: el alfa del velo en un punto del alto de la ventana. El velo es un degradado vertical de un solo
+ *    color cuyo alfa se interpola linealmente entre paradas igualmente espaciadas; la app lo dibuja con
+ *    `Brush.verticalGradient` y esta función es el mismo cálculo, para probarlo y para que `tools/glass/backdrop_tools.py`
+ *    mida con la misma cuenta.
  *  - `visibleSourceFraction`: qué parte de la imagen queda a la vista (útil en horizontal, donde se recorta a una franja).
  *  - Contraste WCAG (`relativeLuminance`, `contrastRatio`, `contrastOnGlass`): la misma cuenta que se usó para medir
- *    la imagen real detrás del panel y fijar los tokens de `Color.kt`.
+ *    la imagen real detrás del texto y fijar los tokens de `Color.kt`.
  */
 
 /** Rectángulo en píxeles de la ventana (o del panel): esquina superior izquierda y tamaño. */
@@ -35,12 +36,17 @@ fun coverCropRect(srcWidth: Int, srcHeight: Int, dstWidth: Float, dstHeight: Flo
 }
 
 /**
- * Rectángulo donde dibujar la copia borrosa dentro de un panel cuya esquina superior izquierda está en
- * ([panelLeft], [panelTop]), medida en el mismo sistema que [imageRect] (el del fondo). Mismo tamaño que el fondo,
- * trasladado en sentido contrario al panel: así, lo que se ve a través del vidrio es lo que hay detrás.
+ * Alfa del velo a la altura [fraction] (0 = arriba, 1 = abajo; se limita a ese rango) de la ventana, con [stops] paradas
+ * igualmente espaciadas de arriba a abajo e interpolación lineal. Una lista vacía da 0; una sola parada, ese valor.
  */
-fun blurRectInPanel(imageRect: GlassRect, panelLeft: Float, panelTop: Float): GlassRect =
-    GlassRect(imageRect.left - panelLeft, imageRect.top - panelTop, imageRect.width, imageRect.height)
+fun veilAlphaAt(stops: List<Float>, fraction: Float): Float {
+    if (stops.isEmpty()) return 0f
+    if (stops.size == 1) return stops[0]
+    val position = fraction.coerceIn(0f, 1f) * (stops.size - 1)
+    val index = min(position.toInt(), stops.size - 2)
+    val t = position - index
+    return stops[index] + (stops[index + 1] - stops[index]) * t
+}
 
 /** Parte de la imagen que queda a la vista, en fracciones de 0 a 1 de su ancho y su alto. */
 data class VisibleFraction(val left: Float, val top: Float, val width: Float, val height: Float)
@@ -75,9 +81,10 @@ private fun ratio(l1: Double, l2: Double): Double = (max(l1, l2) + 0.05) / (min(
 fun contrastRatio(argbA: Int, argbB: Int): Double = ratio(relativeLuminance(argbA), relativeLuminance(argbB))
 
 /**
- * Contraste de un texto sobre lo que se ve en un panel de vidrio, con la misma pila de capas que dibuja la app:
- * la imagen ([imageRgb], el píxel de la copia borrosa), encima el velo ([scrim] con [scrimAlpha]) y encima el
- * tinte del panel ([tint] con [tintAlpha]). Las cuentas van en Double y sin redondear los canales.
+ * Contraste de un texto sobre lo que se ve en la hoja de vidrio, con la misma pila de capas que dibuja la app:
+ * la imagen ([imageRgb], el píxel de la copia borrosa), encima el velo ([scrim] con [scrimAlpha], el de `veilAlphaAt`
+ * en esa fila) y, si el texto va dentro de la barra de campos, encima el tinte de la barra ([tint] con [tintAlpha];
+ * 0 si no hay). Las cuentas van en Double y sin redondear los canales.
  */
 fun contrastOnGlass(
     textArgb: Int,

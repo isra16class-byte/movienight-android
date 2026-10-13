@@ -79,8 +79,8 @@ fun AppRoot(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
 private fun AuthNavHost() {
     val nav = rememberNavController()
     val authVm: AuthViewModel = viewModel()
-    // El fondo quieto y el estado del vidrio viven por encima del NavHost (Fase 8, paso 3): así no parpadea al pasar
-    // de una pantalla a otra y cada panel se alinea contra el mismo fondo.
+    // La hoja de vidrio (fondo borroso quieto con su velo) vive por encima del NavHost (Fase 8, paso 3): así no
+    // parpadea al pasar de una pantalla a otra.
     AuthBackdrop {
         NavHost(navController = nav, startDestination = Routes.LOGIN) {
             composable(Routes.LOGIN) {

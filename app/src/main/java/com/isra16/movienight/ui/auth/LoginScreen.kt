@@ -33,18 +33,21 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
     }
 
     AuthScreenLayout(title = "MovieNight", subtitle = "Iniciá sesión para entrar a tus salas.") {
-        EmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
-        PasswordField(
-            label = "Contraseña",
-            value = password,
-            onValueChange = { password = it },
-            error = passwordError,
-            enabled = !vm.isBusy,
-            showPassword = showPassword,
-            onToggleShow = { showPassword = !showPassword },
-            imeAction = ImeAction.Done,
-            onDone = ::submit,
-        )
+        GlassFieldGroup {
+            GlassEmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
+            GlassFieldDivider()
+            GlassPasswordField(
+                label = "Contraseña",
+                value = password,
+                onValueChange = { password = it },
+                error = passwordError,
+                enabled = !vm.isBusy,
+                showPassword = showPassword,
+                onToggleShow = { showPassword = !showPassword },
+                imeAction = ImeAction.Done,
+                onDone = ::submit,
+            )
+        }
         ErrorText(vm.errorMessage)
         GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
         TextButton(onClick = onGoForgot, enabled = !vm.isBusy) { Text("¿Olvidaste tu contraseña?") }

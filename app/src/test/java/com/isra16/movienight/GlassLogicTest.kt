@@ -1,11 +1,11 @@
 package com.isra16.movienight
 
 import com.isra16.movienight.net.GlassRect
-import com.isra16.movienight.net.blurRectInPanel
 import com.isra16.movienight.net.contrastOnGlass
 import com.isra16.movienight.net.contrastRatio
 import com.isra16.movienight.net.coverCropRect
 import com.isra16.movienight.net.relativeLuminance
+import com.isra16.movienight.net.veilAlphaAt
 import com.isra16.movienight.net.visibleSourceFraction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -62,34 +62,52 @@ class GlassLogicTest {
         assertRect("negativo", empty, coverCropRect(100, 100, -5f, 100f))
     }
 
-    // --- blurRectInPanel ---------------------------------------------------------------------------------------
+    // --- veilAlphaAt ---------------------------------------------------------------------------------------------
 
     @Test
-    fun `panel en el origen deja la copia borrosa donde esta el fondo`() {
-        val bg = coverCropRect(736, 1308, 360f, 780f)
-        assertRect("origen", bg, blurRectInPanel(bg, 0f, 0f))
+    fun `el velo vale lo de cada parada en su posicion`() {
+        val stops = listOf(0.2f, 0.6f, 0.4f, 0.0f, 1.0f)
+        for ((i, v) in stops.withIndex()) {
+            assertEquals("parada $i", v, veilAlphaAt(stops, i / 4f), 1e-6f)
+        }
     }
 
     @Test
-    fun `la copia borrosa se traslada en sentido contrario al panel`() {
-        val bg = GlassRect(-20f, -10f, 400f, 800f)
-        assertRect("panel en (30, 100)", GlassRect(-50f, -110f, 400f, 800f), blurRectInPanel(bg, 30f, 100f))
+    fun `entre dos paradas el velo se interpola en linea recta`() {
+        val stops = listOf(0.2f, 0.6f, 0.4f)
+        assertEquals(0.4f, veilAlphaAt(stops, 0.25f), 1e-6f) // mitad entre 0,2 y 0,6
+        assertEquals(0.5f, veilAlphaAt(stops, 0.75f), 1e-6f) // mitad entre 0,6 y 0,4
+        assertEquals(0.3f, veilAlphaAt(stops, 0.125f), 1e-6f)
     }
 
     @Test
-    fun `alineacion al desplazar - un punto de la ventana cae en el mismo lugar visto por el panel o por el fondo`() {
-        val bg = coverCropRect(736, 1308, 360f, 780f)
-        // Punto de la ventana (x, y); el panel empieza en (24, y0). Dentro del panel ese punto está en (x - 24, y - y0).
-        for (y0 in listOf(-300f, 0f, 150f, 420f)) {
-            val inPanel = blurRectInPanel(bg, 24f, y0)
-            for ((x, y) in listOf(100f to 200f, 300f to 500f, 24f to 0f)) {
-                val u = (x - bg.left) / bg.width
-                val v = (y - bg.top) / bg.height
-                // Mismo punto de la imagen, visto dentro del panel (coordenadas del panel -> ventana).
-                val xInPanel = inPanel.left + u * inPanel.width
-                val yInPanel = inPanel.top + v * inPanel.height
-                assertEquals("x con y0=$y0", x - 24f, xInPanel, eps)
-                assertEquals("y con y0=$y0", y - y0, yInPanel, eps)
+    fun `fuera de 0 a 1 el velo se queda en los extremos`() {
+        val stops = listOf(0.3f, 0.5f, 0.7f)
+        assertEquals(0.3f, veilAlphaAt(stops, -2f), 1e-6f)
+        assertEquals(0.7f, veilAlphaAt(stops, 9f), 1e-6f)
+    }
+
+    @Test
+    fun `lista vacia o de una sola parada`() {
+        assertEquals(0f, veilAlphaAt(emptyList(), 0.5f), 0f)
+        assertEquals(0.4f, veilAlphaAt(listOf(0.4f), 0.9f), 0f)
+    }
+
+    @Test
+    fun `con las paradas medidas el velo nunca baja del minimo que pide cada franja`() {
+        // Propiedad que usa backdrop_tools.py: cada parada es el maximo de las franjas vecinas, asi que entre paradas la
+        // interpolacion no queda por debajo de lo que pide ninguna franja. Aqui, con unas necesidades inventadas.
+        val need = listOf(0f, 0.5f, 0f, 0f, 0.4f, 0f, 0f, 0.1f) // 8 franjas (de 1/8 de alto)
+        val steps = 4 // 5 paradas, cada una cubre las franjas que toca [(k-1)/4, (k+1)/4]
+        val stops = (0..steps).map { k ->
+            val lo = maxOf(0, 2 * (k - 1))
+            val hi = minOf(need.size, 2 * (k + 1))
+            need.subList(lo, hi).max()
+        }
+        for ((band, n) in need.withIndex()) {
+            for (t in listOf(0.0f, 0.25f, 0.5f, 0.75f, 1.0f)) {
+                val y = (band + t) / need.size
+                assertTrue("franja $band, t=$t: ${veilAlphaAt(stops, y)} >= $n", veilAlphaAt(stops, y) >= n - 1e-6f)
             }
         }
     }
@@ -172,16 +190,24 @@ class GlassLogicTest {
     }
 
     @Test
-    fun `valores cruzados con la medicion en Python de la imagen real`() {
-        // Mismos tokens que Color.kt: oscuro = velo 0,15 y tinte 0,50 de DarkBackground; claro = velo 0,35 y tinte 0,80 de LightBackground.
+    fun `valores cruzados con una cuenta aparte en Python`() {
+        // Capas como en la app: imagen -> velo (alfa de la fila) -> tinte de la barra (0 si el texto va fuera de la barra).
+        // Claro: texto onSurface sobre un pixel oscuro (tronco), velo 0,55 de LightBackground, sin barra.
         assertEquals(
-            9.6942,
-            contrastOnGlass(0xFFDEE4DE.toInt(), 0xFF3A6B2C.toInt(), 0xFF0E1511.toInt(), 0.15f, 0xFF0E1511.toInt(), 0.50f),
+            7.4968,
+            contrastOnGlass(0xFF0B100C.toInt(), 0xFF4A3320.toInt(), 0xFFF5FBF5.toInt(), 0.55f, 0xFFF5FBF5.toInt(), 0f),
             2e-3,
         )
+        // Claro: primary sobre un verde, velo 0,50, sin barra.
         assertEquals(
-            4.9374,
-            contrastOnGlass(0xFF1B6B3F.toInt(), 0xFF4A3320.toInt(), 0xFFF5FBF5.toInt(), 0.35f, 0xFFF5FBF5.toInt(), 0.80f),
+            5.1584,
+            contrastOnGlass(0xFF053A1C.toInt(), 0xFF2E5A2A.toInt(), 0xFFF5FBF5.toInt(), 0.50f, 0xFFF5FBF5.toInt(), 0f),
+            2e-3,
+        )
+        // Oscuro: onSurfaceVariant sobre un pixel claro, velo 0,35 y tinte de la barra 0,25 de DarkBackground.
+        assertEquals(
+            3.2506,
+            contrastOnGlass(0xFFBFC9C1.toInt(), 0xFFB0C4DE.toInt(), 0xFF0E1511.toInt(), 0.35f, 0xFF0E1511.toInt(), 0.25f),
             2e-3,
         )
     }

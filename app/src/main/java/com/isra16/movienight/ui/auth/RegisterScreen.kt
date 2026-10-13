@@ -37,28 +37,32 @@ fun RegisterScreen(vm: AuthViewModel, onBack: () -> Unit) {
     }
 
     AuthScreenLayout(title = "Crear cuenta", subtitle = "Con tu cuenta podés crear salas y entrar a las de tus amigos.") {
-        EmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
-        PasswordField(
-            label = "Contraseña",
-            value = password,
-            onValueChange = { password = it },
-            error = passwordError,
-            enabled = !vm.isBusy,
-            showPassword = showPassword,
-            onToggleShow = { showPassword = !showPassword },
-            hint = "Mínimo ${AuthValidation.MIN_PASSWORD_LENGTH} caracteres.",
-        )
-        PasswordField(
-            label = "Repetir contraseña",
-            value = confirmation,
-            onValueChange = { confirmation = it },
-            error = confirmationError,
-            enabled = !vm.isBusy,
-            showPassword = showPassword,
-            onToggleShow = { showPassword = !showPassword },
-            imeAction = ImeAction.Done,
-            onDone = ::submit,
-        )
+        GlassFieldGroup {
+            GlassEmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
+            GlassFieldDivider()
+            GlassPasswordField(
+                label = "Contraseña",
+                value = password,
+                onValueChange = { password = it },
+                error = passwordError,
+                enabled = !vm.isBusy,
+                showPassword = showPassword,
+                onToggleShow = { showPassword = !showPassword },
+                hint = "Mínimo ${AuthValidation.MIN_PASSWORD_LENGTH} caracteres.",
+            )
+            GlassFieldDivider()
+            GlassPasswordField(
+                label = "Repetir contraseña",
+                value = confirmation,
+                onValueChange = { confirmation = it },
+                error = confirmationError,
+                enabled = !vm.isBusy,
+                showPassword = showPassword,
+                onToggleShow = { showPassword = !showPassword },
+                imeAction = ImeAction.Done,
+                onDone = ::submit,
+            )
+        }
         ErrorText(vm.errorMessage)
         GlassButton("Crear cuenta", busy = vm.isBusy, onClick = ::submit)
         TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Ya tengo cuenta") }
