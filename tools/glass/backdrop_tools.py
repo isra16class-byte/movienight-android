@@ -23,7 +23,7 @@ No forma parte de la app: sirve para repetir el trabajo cuando cambien las imág
            altos: es justo lo que se está dejando de pedir al velo.
              python3 backdrop_tools.py veil app/src/main/res/drawable-nodpi
 
-  measure  Con las paradas que están en el código (VEIL_STOPS de abajo, que deben coincidir con Color.kt) mide, fila por
+  measure  Con las paradas y los tintes de barra y botón que están en el código (VEIL_STOPS y MODES de abajo, que deben coincidir con Color.kt) mide, fila por
            fila, el contraste de cada color de texto y del borde de la barra de campos, y el PORCENTAJE de píxeles que
            llegan a 4,5:1 y a 3:1 (sin contar la sombra del texto, que esta cuenta no ve).
              python3 backdrop_tools.py measure app/src/main/res/drawable-nodpi
@@ -36,13 +36,13 @@ from PIL import Image, ImageFilter
 # Tokens de ui/theme/Color.kt (provisionales). RGB sin alfa.
 MODES = {
     "light": dict(
-        blur="auth_bg_light_blur.webp", veil=0x0E1511, bar_tint=0.20,
+        blur="auth_bg_light_blur.webp", veil=0x0E1511, bar_tint=0.25, bar_rgb=0xFFF8E7, button_tint=0.12,
         # Texto de GlassColors.content (crema, solo en el modo claro), no el de la paleta normal.
         text={"onSurface": 0xFFF8E7, "onSurfaceVariant": 0xFFF8E7, "primary": 0xFFF8E7, "error": 0xFFB4AB},
         outline=0xFFF8E7,
     ),
     "dark": dict(
-        blur="auth_bg_dark_blur.webp", veil=0x0E1511, bar_tint=0.25,
+        blur="auth_bg_dark_blur.webp", veil=0x0E1511, bar_tint=0.25, bar_rgb=0x0E1511, button_tint=0.0,
         text={"onSurface": 0xDEE4DE, "onSurfaceVariant": 0xBFC9C1, "primary": 0x79DA9C, "error": 0xFFB4AB},
         outline=0xD8E0DA,
     ),
@@ -193,15 +193,19 @@ def measure(resdir):
                     worst[k] = min(worst.get(k, 99), float(cr.min()))
                     ok45[k] += int((cr >= CONTRAST_TEXT).sum())
                     ok3[k] += int((cr >= 3.0).sum())
-                ct = veil_rgb * m["bar_tint"] + c * (1 - m["bar_tint"])
+                ct = _rgb(m["bar_rgb"]) * m["bar_tint"] + c * (1 - m["bar_tint"])
+                cb = _rgb(m["bar_rgb"]) * m["button_tint"] + c * (1 - m["button_tint"])
+                worst["boton primary"] = min(worst.get("boton primary", 99), float(_contrast(_lum(cb), _lum(_rgb(m["text"]["primary"]))).min()))
+                worst["boton borde"] = min(worst.get("boton borde", 99), float(_contrast(_lum(cb), _lum(_rgb(m["outline"]))).min()))
                 for tag, cc in (("borde", c), ("borde+barra", ct)):
                     worst[tag] = min(worst.get(tag, 99), float(_contrast(_lum(cc), _lum(_rgb(m["outline"]))).min()))
                 for k, v in m["text"].items():
                     key = k + " en barra"
                     worst[key] = min(worst.get(key, 99), float(_contrast(_lum(ct), _lum(_rgb(v))).min()))
-            print(f"  {name:16s} peor: " + " ".join(f"{k}={v:.2f}" for k, v in worst.items() if "en barra" not in k))
+            print(f"  {name:16s} peor: " + " ".join(f"{k}={v:.2f}" for k, v in worst.items() if "en barra" not in k and not k.startswith("boton")))
             print(f"  {'':16s} onSurface sobre vidrio: >=4,5 en {100 * ok45['onSurface'] / total:.0f}% de los pixeles, >=3 en {100 * ok3['onSurface'] / total:.0f}%"
-                  f" | en la barra, peor onSurface={worst['onSurface en barra']:.2f}")
+                  f" | en la barra, peor onSurface={worst['onSurface en barra']:.2f}"
+                  f" | en el botón, peor texto={worst['boton primary']:.2f}, borde={worst['boton borde']:.2f}")
 
 
 if __name__ == "__main__":

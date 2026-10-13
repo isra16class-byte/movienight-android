@@ -275,24 +275,31 @@ fun PrimaryButton(text: String, busy: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Botón de las pantallas de entrada (Fase 8, paso 3): solo contorno sobre el vidrio, sin relleno. El color es `primary`
+ * Botón de las pantallas de entrada (Fase 8, paso 3): contorno fino sobre el vidrio, esquinas de 16 dp como la barra de campos y, en el modo claro, un relleno crema translúcido (`GlassColors.buttonTint`); texto en negrita de 18 sp. El color es `primary`
  * del panel (el mismo con el que se midió el contraste del texto verde: >= 4,5:1). `PrimaryButton` sigue igual porque
  * lo usa también la sala (contraseña de la sala).
  */
 @Composable
 fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit) {
     val color = MaterialTheme.colorScheme.primary
+    val tint = LocalGlassColors.current.buttonTint
     OutlinedButton(
         onClick = onClick,
         enabled = !busy,
         modifier = Modifier.fillMaxWidth().height(52.dp),
-        border = BorderStroke(1.5.dp, if (busy) color.copy(alpha = 0.38f) else color),
-        colors = ButtonDefaults.outlinedButtonColors(contentColor = color, disabledContentColor = color),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(1.dp, if (busy) color.copy(alpha = 0.38f) else color),
+        colors = ButtonDefaults.outlinedButtonColors(
+            containerColor = tint, contentColor = color, disabledContainerColor = tint, disabledContentColor = color,
+        ),
     ) {
         if (busy) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = color)
         } else {
-            Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium, letterSpacing = 0.5.sp))
+            Text(
+                text,
+                style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+            )
         }
     }
 }

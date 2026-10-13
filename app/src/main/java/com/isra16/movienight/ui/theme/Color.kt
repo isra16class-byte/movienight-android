@@ -201,7 +201,8 @@ class GlassContentColors(
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
  *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
  *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo, a pedido de la persona (antes 3 %);
- *  3. solo en la barra de campos: [barTint] (oscuro, con alfa) y [barBorder], su borde fino.
+ *  3. solo en la barra de campos y el botón: [barTint] y [buttonTint] (con alfa; en el modo claro son color crema, que
+ *     aclara el vidrio, y en el oscuro la barra sigue con tinte oscuro y el botón sin relleno) y [barBorder], el borde fino.
  *
  * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
  * `tools/glass/backdrop_tools.py measure`, que da el porcentaje de píxeles que sí). La legibilidad la completa la
@@ -215,6 +216,7 @@ class GlassColors(
     val veilAlphas: List<Float>,
     val barTint: Color,
     val barBorder: Color,
+    val buttonTint: Color = Color.Transparent,
     val content: GlassContentColors? = null,
 )
 
@@ -224,8 +226,9 @@ private val GlassCream = Color(0xFFFFF8E7)
 internal val MovieNightLightGlass = GlassColors(
     veil = DarkBackground,
     veilAlphas = GlassVeilAlphas,
-    barTint = DarkBackground.copy(alpha = 0.20f),
+    barTint = GlassCream.copy(alpha = 0.25f),
     barBorder = GlassCream,
+    buttonTint = GlassCream.copy(alpha = 0.12f),
     content = GlassContentColors(
         onSurface = GlassCream,
         onSurfaceVariant = GlassCream,
