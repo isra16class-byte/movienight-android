@@ -23,6 +23,8 @@ import androidx.navigation.compose.rememberNavController
 import com.isra16.movienight.auth.AuthViewModel
 import com.isra16.movienight.auth.SessionState
 import com.isra16.movienight.auth.SessionViewModel
+import com.isra16.movienight.net.StartupScreen
+import com.isra16.movienight.net.startupScreenFor
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ForgotPasswordScreen
 import com.isra16.movienight.ui.auth.LoginScreen
@@ -48,19 +50,27 @@ private object Routes {
 @Composable
 fun AppRoot(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
     val sessionVm: SessionViewModel = viewModel()
+    val introVm: IntroViewModel = viewModel()
     val state by sessionVm.state.collectAsState()
 
-    when (val s = state) {
-        SessionState.Loading -> LoadingScreen()
-        is SessionState.Unreachable -> ConnectionErrorScreen(s.message, sessionVm.serverUrl, sessionVm::retry)
-        SessionState.LoggedOut -> AuthNavHost()
-        is SessionState.LoggedIn -> MainNavHost(
-            session = s,
-            isLoggingOut = sessionVm.isLoggingOut,
-            onLogout = sessionVm::logout,
-            darkTheme = darkTheme,
-            onDarkThemeChange = onDarkThemeChange,
-        )
+    // La intro y la comprobación de sesión corren a la vez; `startupScreenFor` decide cuál se ve (ver `net/StartupLogic.kt`).
+    val s = state
+    when (startupScreenFor(introVm.finished, s)) {
+        StartupScreen.INTRO -> IntroScreen()
+        StartupScreen.LOADING -> LoadingScreen()
+        StartupScreen.CONNECTION_ERROR ->
+            if (s is SessionState.Unreachable) ConnectionErrorScreen(s.message, sessionVm.serverUrl, sessionVm::retry)
+        StartupScreen.AUTH -> AuthNavHost()
+        StartupScreen.MAIN ->
+            if (s is SessionState.LoggedIn) {
+                MainNavHost(
+                    session = s,
+                    isLoggingOut = sessionVm.isLoggingOut,
+                    onLogout = sessionVm::logout,
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = onDarkThemeChange,
+                )
+            }
     }
 }
 
