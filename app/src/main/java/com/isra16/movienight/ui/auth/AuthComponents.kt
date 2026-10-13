@@ -73,7 +73,7 @@ fun AuthScreenLayout(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Text(title, style = AuthTitleStyle, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
+                Text(title, style = AuthTitleStyle.copy(shadow = GlassTextShadow), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
                 if (subtitle != null) {
                     Text(
                         subtitle,

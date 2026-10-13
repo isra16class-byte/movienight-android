@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -16,9 +17,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.Shadow
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
@@ -48,6 +52,31 @@ import kotlin.math.roundToInt
  *  - [GlassContent] cambia los colores del texto de TODO lo que lleva dentro (pantallas de entrada) cuando el modo lo
  *    pide (hoy el claro, con texto más oscuro; ver `GlassColors.content`).
  */
+
+/**
+ * Sombra de TODO el texto de las pantallas de entrada. Con el velo leve (3 %) es lo que da legibilidad sobre las zonas
+ * claras de la imagen (cielo, flores blancas); el contraste de píxeles no la mide. Valores provisionales (px, no dp).
+ */
+internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.65f), offset = Offset(0f, 2f), blurRadius = 6f)
+
+/** La misma tipografía con la sombra en cada estilo; así llega a todo `Text` que use `MaterialTheme.typography`. */
+private fun Typography.withShadow(shadow: Shadow) = Typography(
+    displayLarge = displayLarge.copy(shadow = shadow),
+    displayMedium = displayMedium.copy(shadow = shadow),
+    displaySmall = displaySmall.copy(shadow = shadow),
+    headlineLarge = headlineLarge.copy(shadow = shadow),
+    headlineMedium = headlineMedium.copy(shadow = shadow),
+    headlineSmall = headlineSmall.copy(shadow = shadow),
+    titleLarge = titleLarge.copy(shadow = shadow),
+    titleMedium = titleMedium.copy(shadow = shadow),
+    titleSmall = titleSmall.copy(shadow = shadow),
+    bodyLarge = bodyLarge.copy(shadow = shadow),
+    bodyMedium = bodyMedium.copy(shadow = shadow),
+    bodySmall = bodySmall.copy(shadow = shadow),
+    labelLarge = labelLarge.copy(shadow = shadow),
+    labelMedium = labelMedium.copy(shadow = shadow),
+    labelSmall = labelSmall.copy(shadow = shadow),
+)
 
 /** Dibuja [image] ocupando [rect]. */
 private fun DrawScope.drawCover(image: ImageBitmap, rect: GlassRect) {
@@ -110,8 +139,8 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
 }
 
 /**
- * Colores del texto de las pantallas de entrada: los de la paleta del modo, salvo en modo claro, que usa los de
- * `GlassColors.content` (más oscuros; con ellos se midió el contraste del velo). Debe ir dentro de [AuthBackdrop].
+ * Texto de las pantallas de entrada: colores de la paleta del modo, salvo en modo claro, que usa los de
+ * `GlassColors.content` (crema), y con [GlassTextShadow] en todos los estilos. Debe ir dentro de [AuthBackdrop].
  */
 @Composable
 internal fun GlassContent(content: @Composable () -> Unit) {
@@ -132,7 +161,8 @@ internal fun GlassContent(content: @Composable () -> Unit) {
             )
         }
     }
-    MaterialTheme(colorScheme = scheme, typography = MaterialTheme.typography, shapes = MaterialTheme.shapes) {
+    val typography = remember(MaterialTheme.typography) { MaterialTheme.typography.withShadow(GlassTextShadow) }
+    MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
         CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
     }
 }

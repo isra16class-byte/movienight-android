@@ -191,8 +191,8 @@ class GlassLogicTest {
 
     @Test
     fun `valores cruzados con una cuenta aparte en Python`() {
-        // Capas como en la app: imagen -> velo (alfa de la fila) -> tinte de la barra (0 si el texto va fuera de la barra).
-        // Claro: texto onSurface sobre un pixel oscuro (tronco), velo 0,55 de LightBackground, sin barra.
+        // Valores de referencia de la cuenta de capas (imagen -> velo -> tinte de la barra, 0 si no hay barra); NO son los
+        // tokens actuales de Color.kt. Claro: texto onSurface sobre un pixel oscuro (tronco), velo 0,55 de LightBackground, sin barra.
         assertEquals(
             7.4968,
             contrastOnGlass(0xFF0B100C.toInt(), 0xFF4A3320.toInt(), 0xFFF5FBF5.toInt(), 0.55f, 0xFFF5FBF5.toInt(), 0f),

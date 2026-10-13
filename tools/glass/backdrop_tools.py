@@ -8,14 +8,16 @@ No forma parte de la app: sirve para repetir el trabajo cuando cambien las imág
              python3 backdrop_tools.py prepare light original_dia.jpg app/src/main/res/drawable-nodpi
              python3 backdrop_tools.py prepare dark  original_noche.jpg app/src/main/res/drawable-nodpi
 
-  veil     Calcula el velo en degradado vertical de la hoja de vidrio de pantalla completa: para cada franja del alto
-           de la ventana, el alfa mínimo que da texto >= 4,5:1 con la copia borrosa REAL, peor caso entre varios
-           tamaños de ventana (más un margen). Imprime las paradas listas para pegar en ui/theme/Color.kt.
+  veil     Calcula cuánto velo (oscuro o claro, según el modo) haría falta para dar texto >= 4,5:1 en cada franja del alto
+           de la ventana con la copia borrosa REAL, peor caso entre varios tamaños de ventana. Es solo INFORMATIVO: el
+           diseño actual usa un velo de 3 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
+           sombra del texto (ver `GlassColors` en Color.kt). Con el modo claro actual (texto crema) los números salen
+           altos: es justo lo que se está dejando de pedir al velo.
              python3 backdrop_tools.py veil app/src/main/res/drawable-nodpi
 
-  measure  Verifica las paradas que están en el código (VEIL_STOPS de abajo, que deben coincidir con Color.kt): contraste
-           de cada color de texto y del borde de la barra de campos, fila por fila, con la misma interpolación lineal
-           que dibuja la app (net/GlassLogic.kt, `veilAlphaAt`) y la misma cuenta WCAG.
+  measure  Con las paradas que están en el código (VEIL_STOPS de abajo, que deben coincidir con Color.kt) mide, fila por
+           fila, el contraste de cada color de texto y del borde de la barra de campos, y el PORCENTAJE de píxeles que
+           llegan a 4,5:1 y a 3:1 (sin contar la sombra del texto, que esta cuenta no ve).
              python3 backdrop_tools.py measure app/src/main/res/drawable-nodpi
 """
 import sys
@@ -26,21 +28,21 @@ from PIL import Image, ImageFilter
 # Tokens de ui/theme/Color.kt (provisionales). RGB sin alfa.
 MODES = {
     "light": dict(
-        blur="auth_bg_light_blur.webp", veil=0xF5FBF5, bar_tint=0.25,
-        # Texto de GlassColors.content (el de la hoja de vidrio en modo claro), no el de la paleta normal.
-        text={"onSurface": 0x0B100C, "onSurfaceVariant": 0x121915, "primary": 0x053A1C, "error": 0x6B0000},
-        outline=0x2F3A33,
+        blur="auth_bg_light_blur.webp", veil=0x0E1511, bar_tint=0.20,
+        # Texto de GlassColors.content (crema, solo en el modo claro), no el de la paleta normal.
+        text={"onSurface": 0xFFF8E7, "onSurfaceVariant": 0xFFF8E7, "primary": 0xFFF8E7, "error": 0xFFB4AB},
+        outline=0xFFF8E7,
     ),
     "dark": dict(
         blur="auth_bg_dark_blur.webp", veil=0x0E1511, bar_tint=0.25,
         text={"onSurface": 0xDEE4DE, "onSurfaceVariant": 0xBFC9C1, "primary": 0x79DA9C, "error": 0xFFB4AB},
-        outline=0xA6B0A8,
+        outline=0xD8E0DA,
     ),
 }
-# Alfas del velo en N paradas igualmente espaciadas de arriba (0) a abajo (1). Copiar aquí lo que imprime `veil`.
+# Alfas del velo en N paradas igualmente espaciadas de arriba (0) a abajo (1). Deben coincidir con Color.kt.
 VEIL_STOPS = {
-    "light": [0.31, 0.44, 0.46, 0.46, 0.46, 0.32, 0.37, 0.53, 0.53, 0.52, 0.08, 0.31, 0.43, 0.43, 0.51, 0.55, 0.55, 0.55, 0.52, 0.46, 0.43],
-    "dark": [0.29, 0.32, 0.35, 0.39, 0.39, 0.38, 0.31, 0.30, 0.30, 0.32, 0.32, 0.32, 0.32, 0.32, 0.20, 0.21, 0.29, 0.32, 0.32, 0.32, 0.32],
+    "light": [0.03] * 21,
+    "dark": [0.03] * 21,
 }
 # (nombre, ancho dp, alto dp). El texto ocupa la columna de min(480, ancho) - 48 de ancho y puede estar a cualquier altura.
 WINDOWS = [("9:16 vertical", 360, 640), ("9:19.5 vertical", 360, 780), ("9:21 vertical", 360, 840),
@@ -135,33 +137,33 @@ def _alpha_at(stops, y):
 def measure(resdir):
     for mode, m in MODES.items():
         stops = VEIL_STOPS[mode]
-        if stops is None:
-            print(f"{mode}: VEIL_STOPS sin llenar (corre `veil` y pega las paradas)")
-            continue
         img = np.asarray(Image.open(f"{resdir}/{m['blur']}").convert("RGB"), dtype=float)
         veil_rgb = _rgb(m["veil"])
-        print(f"\n== {mode}: texto >= {CONTRAST_TEXT}, borde de la barra >= {CONTRAST_OUTLINE} (fila por fila, interpolado)")
-        worst = {}
+        print(f"\n== {mode}: contraste fila por fila (sin sombra del texto); objetivo texto {CONTRAST_TEXT}, borde {CONTRAST_OUTLINE}")
         for name, w, h in WINDOWS:
             rows = _rows(img, w, h)
-            row = {}
+            worst = {}
+            total = 0
+            ok45 = {k: 0 for k in m["text"]}
+            ok3 = {k: 0 for k in m["text"]}
             for y in range(h):
                 a = _alpha_at(stops, (y + 0.5) / h)
                 c = veil_rgb * a + rows[y] * (1 - a)
+                total += len(c)
                 for k, v in m["text"].items():
-                    row[k] = min(row.get(k, 99), float(_contrast(_lum(c), _lum(_rgb(v))).min()))
-                # El borde de la barra se mide sobre el vidrio sin y con el tinte de la barra.
+                    cr = _contrast(_lum(c), _lum(_rgb(v)))
+                    worst[k] = min(worst.get(k, 99), float(cr.min()))
+                    ok45[k] += int((cr >= CONTRAST_TEXT).sum())
+                    ok3[k] += int((cr >= 3.0).sum())
                 ct = veil_rgb * m["bar_tint"] + c * (1 - m["bar_tint"])
-                for tag, cc in (("borde", c), ("borde+tinte", ct)):
-                    row[tag] = min(row.get(tag, 99), float(_contrast(_lum(cc), _lum(_rgb(m["outline"]))).min()))
-                # Texto sobre la barra tintada.
+                for tag, cc in (("borde", c), ("borde+barra", ct)):
+                    worst[tag] = min(worst.get(tag, 99), float(_contrast(_lum(cc), _lum(_rgb(m["outline"]))).min()))
                 for k, v in m["text"].items():
-                    key = k + "+tinte"
-                    row[key] = min(row.get(key, 99), float(_contrast(_lum(ct), _lum(_rgb(v))).min()))
-            print(f"  {name:16s}", " ".join(f"{k}={v:.2f}" for k, v in row.items() if "+tinte" not in k or k == "borde+tinte"))
-            for k, v in row.items():
-                worst[k] = min(worst.get(k, 99), v)
-        print("  peor caso:   ", " ".join(f"{k}={v:.2f}" for k, v in worst.items()))
+                    key = k + " en barra"
+                    worst[key] = min(worst.get(key, 99), float(_contrast(_lum(ct), _lum(_rgb(v))).min()))
+            print(f"  {name:16s} peor: " + " ".join(f"{k}={v:.2f}" for k, v in worst.items() if "en barra" not in k))
+            print(f"  {'':16s} onSurface sobre vidrio: >=4,5 en {100 * ok45['onSurface'] / total:.0f}% de los pixeles, >=3 en {100 * ok3['onSurface'] / total:.0f}%"
+                  f" | en la barra, peor onSurface={worst['onSurface en barra']:.2f}")
 
 
 if __name__ == "__main__":

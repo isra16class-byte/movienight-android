@@ -181,9 +181,9 @@ internal val MovieNightDarkColors = darkColorScheme(
 // --- Vidrio de las pantallas de entrada (Fase 8, paso 3; PROVISIONAL, igual que el resto de la paleta) ---------------
 
 /**
- * Colores del texto sobre la hoja de vidrio cuando el modo necesita más contraste que la paleta normal (hoy solo el
- * claro: el texto es más oscuro para poder dejar el velo más transparente). `GlassContent` los aplica solo a las
- * pantallas de entrada; el resto de la app sigue con el `ColorScheme` del modo.
+ * Colores del texto sobre la hoja de vidrio cuando el modo necesita los suyos en vez de los de la paleta normal (hoy
+ * solo el claro: texto crema, como en la maqueta). `GlassContent` los aplica solo a las pantallas de entrada; el
+ * resto de la app sigue con el `ColorScheme` del modo.
  */
 @Immutable
 class GlassContentColors(
@@ -196,17 +196,18 @@ class GlassContentColors(
 
 /**
  * Colores del vidrio de login, registro y recuperar contraseña: UNA hoja que cubre toda la pantalla (sin panel ni
- * esquinas). Fuera del `ColorScheme` de Material porque no son roles de Material; se leen con `LocalGlassColors`
- * (ver `Theme.kt`). Capas, de abajo arriba:
+ * esquinas), transparente: la imagen borrosa se ve casi tal cual. Fuera del `ColorScheme` de Material porque no son
+ * roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
- *  2. el velo: [veil] (color liso) con un alfa que cambia de arriba a abajo ([veilAlphas], paradas igualmente
- *     espaciadas; ver `veilAlphaAt`). Es más fuerte donde la imagen es más difícil para el texto y casi nulo donde no;
- *  3. solo en la barra de campos: [barTint] (el mismo color del velo, con alfa) y [barBorder], su borde fino.
+ *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
+ *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 3 % parejo, a pedido de la persona (maqueta de Gemini);
+ *  3. solo en la barra de campos: [barTint] (oscuro, con alfa) y [barBorder], su borde fino.
  *
- * Los alfas salen de MEDIR la copia borrosa real fila por fila (`tools/glass/backdrop_tools.py veil`): texto >= 4,5:1
- * con onSurface, onSurfaceVariant, primary y error, en 6 tamaños de ventana (cuatro verticales y dos horizontales),
- * más un margen de 0,03. Como el velo es de la ventana y no del texto, el contraste vale en cualquier fila, también
- * cuando el contenido se desplaza. Si se cambia la imagen o la paleta (paso 6), hay que volver a medir.
+ * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
+ * `tools/glass/backdrop_tools.py measure`, que da el porcentaje de píxeles que sí). La legibilidad la completa la
+ * sombra del texto (`GlassTextShadow` en `AuthBackdrop.kt`), que esa cuenta no mide. La versión anterior (velo
+ * claro de 30 a 55 %) cumplía 4,5:1 pero se veía lechosa. Si se cambia la imagen o la paleta (paso 6), hay que volver
+ * a mirar.
  */
 @Immutable
 class GlassColors(
@@ -217,34 +218,26 @@ class GlassColors(
     val content: GlassContentColors? = null,
 )
 
-// Medido (peor caso, 6 ventanas, fila por fila): onSurface 7,2 / onSurfaceVariant 6,7 / primary 4,8 / error 4,8 /
-// borde de la barra 4,4. Es el modo que más velo necesita: el texto es oscuro y la foto de día tiene zonas oscuras
-// (troncos), por eso el texto es más oscuro que el de la paleta normal.
+private val GlassVeilAlphas = List(21) { 0.03f }
+private val GlassCream = Color(0xFFFFF8E7)
+
 internal val MovieNightLightGlass = GlassColors(
-    veil = LightBackground,
-    veilAlphas = listOf(
-        0.31f, 0.44f, 0.46f, 0.46f, 0.46f, 0.32f, 0.37f, 0.53f, 0.53f, 0.52f, 0.08f,
-        0.31f, 0.43f, 0.43f, 0.51f, 0.55f, 0.55f, 0.55f, 0.52f, 0.46f, 0.43f,
-    ),
-    barTint = LightBackground.copy(alpha = 0.25f),
-    barBorder = Color(0xFF2F3A33),
+    veil = DarkBackground,
+    veilAlphas = GlassVeilAlphas,
+    barTint = DarkBackground.copy(alpha = 0.20f),
+    barBorder = GlassCream,
     content = GlassContentColors(
-        onSurface = Color(0xFF0B100C),
-        onSurfaceVariant = Color(0xFF121915),
-        primary = Color(0xFF053A1C),
-        error = Color(0xFF6B0000),
-        outline = Color(0xFF2F3A33),
+        onSurface = GlassCream,
+        onSurfaceVariant = GlassCream,
+        primary = GlassCream,
+        error = Color(0xFFFFB4AB),
+        outline = GlassCream,
     ),
 )
 
-// Medido (peor caso, 6 ventanas, fila por fila): onSurface 6,2 / onSurfaceVariant 4,7 / primary 4,7 / error 4,7 /
-// borde de la barra 3,6 (el borde lleva un color propio, más claro que `outline`, para llegar a 3:1).
 internal val MovieNightDarkGlass = GlassColors(
     veil = DarkBackground,
-    veilAlphas = listOf(
-        0.29f, 0.32f, 0.35f, 0.39f, 0.39f, 0.38f, 0.31f, 0.30f, 0.30f, 0.32f, 0.32f,
-        0.32f, 0.32f, 0.32f, 0.20f, 0.21f, 0.29f, 0.32f, 0.32f, 0.32f, 0.32f,
-    ),
+    veilAlphas = GlassVeilAlphas,
     barTint = DarkBackground.copy(alpha = 0.25f),
-    barBorder = Color(0xFFA6B0A8),
+    barBorder = Color(0xFFD8E0DA),
 )
