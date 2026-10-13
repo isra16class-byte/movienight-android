@@ -442,11 +442,11 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 
 ---
 
-## Fase 8 — Rediseño visual de la app (propuesta, solo documentación por ahora)
+## Fase 8 — Rediseño visual de la app (en curso: pasos 1 y 2 hechos y confirmados; el resto sin empezar)
 
-> **Estado (2026-10-12): nada empezado, ni diseño ni código.** Esta fase solo recoge lo conversado: qué decidió la persona, qué es todavía una propuesta del asistente y qué
-> falta decidir. Los pasos 1 a 5 del orden de trabajo no dependen de la temática y se hacen con colores provisionales; el paso 6 (logo, paleta final, tipografías e imagen de fondo) espera a que se elija. La app hoy usa el tema Material 3 por defecto de Android Studio (`ui/theme/`), con color dinámico en Android 12+
-> y tipografía del sistema; la web usa su propio sistema "Videoclub" (VHS/vaporwave de los 80/90, morado oscuro con rosa y cian neón; `public/style.css`). Se quiere una identidad
+> **Estado (2026-10-13): pasos 1 y 2 hechos (`1ef8f16` y `a082342`) y confirmados por la persona en el teléfono; los pasos 3 a 6 sin empezar.** Esta fase recoge lo conversado: qué decidió la persona, qué es todavía una propuesta del asistente y qué
+> falta decidir. Los pasos 1 a 5 del orden de trabajo no dependen de la temática y se hacen con colores provisionales; el paso 6 (logo, paleta final, tipografías e imagen de fondo) espera a que se elija. Hasta el paso 1 la app usaba el tema Material 3 por defecto de Android Studio (`ui/theme/`), con color dinámico en Android 12+
+> y tipografía del sistema; desde el paso 1 el color dinámico está apagado y la paleta es **provisional** (la tipografía sigue siendo la del sistema); la web usa su propio sistema "Videoclub" (VHS/vaporwave de los 80/90, morado oscuro con rosa y cian neón; `public/style.css`). Se quiere una identidad
 > **distinta a la de la web**. La app la van a usar otras personas con otros teléfonos: nada debe depender de un aparato.
 
 **Decidido por la persona**
@@ -472,9 +472,11 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
   Kotlin 2.0.21). Siempre solo en login, registro e inicio (no en la sala), pausando cuando la app no se ve y respetando el ajuste de reducir animaciones. *Sin verificar.*
 
 **Orden de trabajo (propuesto por la sesión guía, un patch y una sesión por paso; la memoria compartida es este repo)**
-- [ ] Paso 1: base del tema: modo claro y oscuro con interruptor en el encabezado de Home, preferencia con `SharedPreferences` (patrón de `NotificationPrefs`), color dinámico apagado y todos los colores en
+- [x] Paso 1: base del tema: modo claro y oscuro con interruptor en el encabezado de Home, preferencia con `SharedPreferences` (patrón de `NotificationPrefs`), color dinámico apagado y todos los colores en
   `Color.kt` con una paleta **provisional**. Primer arranque en oscuro: propuesta, la persona no la confirmó. Revisar el posible destello blanco al abrir en oscuro (`themes.xml` hereda de un tema claro).
-- [ ] Paso 2: intro de tiempo fijo y decisión de pantalla como función pura con tests; la animación es un marcador simple; no debe repetirse al girar ni al volver de segundo plano.
+  **Hecho (`1ef8f16`) y confirmado por la persona (2026-10-13):** probó en el teléfono los 8 puntos de la lista (primer arranque, interruptor, iconos de las barras, que se recuerde, destello al arrancar, login y sala en ambos modos, giro, tarjetas sin violeta) y dijo que todos funcionaron como debían; no dio detalle por punto ni dijo qué teléfono ni qué versión de Android usó. Primer arranque en oscuro (`DEFAULT_THEME_MODE`); preferencia en `ui/theme/ThemePrefs.kt`; lógica pura en `net/ThemeModeLogic.kt` (10 tests, pasados con kotlinc y un arnés propio, no con Gradle). No se agregó `windowSplashScreenBackground` (`values-v31`).
+- [x] Paso 2: intro de tiempo fijo y decisión de pantalla como función pura con tests; la animación es un marcador simple; no debe repetirse al girar ni al volver de segundo plano.
+  **Hecho (`a082342`) y confirmado por la persona (2026-10-13):** probó en el teléfono los 8 puntos de la lista (arranque con sesión, sin sesión, servidor inalcanzable, servidor lento, girar durante la intro, segundo plano, Atrás y abrir otra vez, cambiar el modo) y dijo que todos funcionaron bien; sin detalle por punto. Decisión de pantalla en `net/StartupLogic.kt` (`startupScreenFor`, 11 tests con kotlinc y arnés propio, no con Gradle); el reloj de 1000 ms vive en `ui/IntroViewModel.kt` (por eso no se repite al girar ni al volver de segundo plano; salir con Atrás y abrir de nuevo sí la repite); `ui/IntroScreen.kt` es un **marcador** (el nombre con fundido y escala) que se reemplaza en el paso 6. No se tocaron `SessionViewModel` ni `SessionManager`.
 - [ ] Paso 3: login, registro y recuperar contraseña, con vidrio sobre un fondo provisional quieto.
 - [ ] Paso 4: Home.
 - [ ] Paso 5: sala (colores, tipografía y diálogos; los controles sobre el video no llevan vidrio). **Espera a que la 7B esté probada**, porque toca los mismos archivos.
@@ -483,8 +485,10 @@ agregan dependencias que exijan un Kotlin más nuevo (Kotlin 2.0.21, Media3 1.10
 **Por decidir**
 - [ ] Temática final, **paleta de cada modo** (claro y oscuro), tipografías y logo (con búsqueda inversa de imágenes para comprobar que no se parezca a otro; términos de uso del generador, sin revisar).
 - [ ] Imagen de fondo: las de Pinterest **no se usan en la app** (no se sabe su origen ni si hay derecho de uso, y no se suben al repo). Hace falta una propia, generada (revisando sus términos) o de un banco libre de derechos; con un peso razonable para móvil.
-- [ ] Qué modo arranca la primera vez y **dónde se guarda** la preferencia (la app ya guarda ajustes en `notify/NotificationPrefs.kt` y `auth/UserIdStore.kt`; no se revisó cómo).
+- [x] Qué modo arranca la primera vez y **dónde se guarda** la preferencia (la app ya guarda ajustes en `notify/NotificationPrefs.kt` y `auth/UserIdStore.kt`; no se revisó cómo).
+  **Resuelto en el paso 1:** arranca en oscuro y se guarda en `SharedPreferences` (`ThemePrefs`). El primer arranque en oscuro estaba entre los puntos que la persona dijo que funcionaron.
 - [ ] Qué hace la intro con la pantalla de arranque propia de Android 12+ (no investigado) y que no se repita al girar el teléfono ni al volver de segundo plano.
+  **Parcial (2026-10-13):** se leyó la documentación oficial (guía de splash screens de Android): desde Android 12 el sistema muestra su pantalla de arranque en arranques en frío y templados, con el `windowBackground` del tema (si es un color liso) y el icono del launcher por defecto, y no la muestra en arranque caliente; se puede cambiar con `windowSplashScreenBackground` y `windowSplashScreenAnimatedIcon` sin librería. Sigue **sin comprobar**: si un icono transparente empalma mejor con la intro, y si el icono del sistema se ve antes de la animación en el teléfono de la persona (el punto se pidió observar, pero ella no dio detalle). En modo claro la pantalla de arranque usa el color oscuro del tema XML (el XML no puede leer la preferencia). Lo de no repetir al girar ni al volver de segundo plano quedó resuelto y confirmado en el paso 2.
 
 **Pantallas a cubrir (verificadas en `AppRoot.kt` y `ui/`):** carga, error de conexión (con "Reintentar"), iniciar sesión, registro, recuperar contraseña (no funciona de punta a punta: falta el envío de emails en el servidor, y esta fase no lo arregla), inicio
 (biblioteca, unirse con código o link, subir video, acceso a administración, cerrar sesión) y sala (vertical, pantalla completa horizontal y ventana flotante, con los diálogos de cambiar video, conectados y progreso de subida). Prioridad de pulido: login, inicio y sala.
@@ -505,7 +509,7 @@ intro, como función pura con tests; lo que dependa de Android (animación, arra
 4. **Fase 4 y 5** — completan el paralelo funcional con la web.
 5. **Fase 6** — solo si hace falta, no es parte del alcance mínimo.
 6. **Fase 7** — mejoras de reproducción fuera de la sala: primero 7A (PiP), y 7B solo si hace falta. 7C (sala en horizontal y controles sobre el video) ya está hecha, con su parte 2A (comentarios flotantes), los niveles de ajuste del video y la parte 2 de reacciones (2B en pantalla completa y 2D en vertical y PiP).
-7. **Fase 8** — rediseño visual de la app, distinto al de la web: solo documentación por ahora, nada empezado; falta elegir la temática.
+7. **Fase 8** — rediseño visual de la app, distinto al de la web: pasos 1 (tema claro/oscuro) y 2 (intro) hechos y confirmados; siguen el 3 (login, registro y recuperar contraseña), el 4 (Home), el 5 (sala, espera a que la 7B esté probada) y el 6 (temática final); falta elegir la temática.
 
 ---
 

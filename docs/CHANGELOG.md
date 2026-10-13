@@ -5,6 +5,17 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-13 — Fase 8, pasos 1 y 2 (tema claro/oscuro e intro de tiempo fijo), confirmados por la persona
+
+- **Qué:** la persona probó en el teléfono la lista de cada paso y dijo que todos los puntos funcionaron como debían. No dio detalle por punto ni dijo qué teléfono ni qué versión de Android usó.
+- **Paso 1 (`1ef8f16`):** modo claro y oscuro con interruptor en el encabezado de Home (no sigue al teléfono), primer arranque en oscuro, preferencia en `SharedPreferences` (`ui/theme/ThemePrefs.kt`), color dinámico apagado, todos los colores en `ui/theme/Color.kt` con paleta **provisional**, iconos de las barras y fondo de la ventana según el modo (`MainActivity.applyAppearance`), `windowBackground` de arranque fijado al color oscuro. Lógica pura: `net/ThemeModeLogic.kt` con `ThemeModeLogicTest` (10 tests).
+- **Paso 2 (`a082342`):** intro de 1000 ms al abrir la app, a la vez que la comprobación de sesión y sin cortarse si el servidor responde antes; después, carga, error de conexión, login o Home según `SessionState`. Lógica pura: `net/StartupLogic.kt` con `StartupLogicTest` (11 tests). `ui/IntroViewModel.kt` (reloj; no se repite al girar ni al volver de segundo plano; salir con Atrás y abrir de nuevo sí la repite), `ui/IntroScreen.kt` (marcador, a reemplazar en el paso 6), `ui/AppRoot.kt`.
+- **Verificado por el asistente:** los tests pasan con kotlinc 2.0.21 y un arnés propio (no con `gradlew`); mutaciones sobre copias fallaron como debían; se leyó la documentación oficial de la pantalla de arranque de Android 12+ (el sistema la muestra en arranques en frío y templados, con el `windowBackground` del tema y el icono del launcher). No se compiló la UI (sin Android SDK).
+- **Sin confirmar:** si el icono del sistema se ve antes de la intro y si en modo claro se nota un instante oscuro al abrir; `gradlew testDebugUnitTest`. Decisiones sin cambiar: paleta e intro provisionales hasta el paso 6.
+- **Solo documentación en este commit:** plan (Fase 8, pasos 1 y 2 tildados, "Por decidir" actualizado), MEMORIA y esta entrada. Sin cambios de código.
+
+---
+
 ## 2026-10-12 — Estado de la 7B (compila, pruebas pendientes) y ajustes a la Fase 8 (solo documentación)
 
 - **7B:** el commit `5164d5b` la dejó escrita sin compilar ni probar. La persona confirmó que **compila**. Dijo que la ha usado y cree que hasta ahora no hay problemas, pero no hizo las pruebas completas y no

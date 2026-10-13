@@ -62,8 +62,8 @@ movienight-android/
     build.gradle.kts       # applicationId, minSdk, targetSdk, dependencias de red
     src/main/java/com/isra16/movienight/
       MovieNightApp.kt      # Application: crea el AppContainer y los canales de notificación (6C); cuenta las pantallas visibles
-      AppContainer.kt       # singletons: CookieJar, OkHttpClient (+ socketClient), MovieNightApi, SessionManager, UserIdStore, RoomPasswordCache
-      MainActivity.kt       # monta AppRoot
+      AppContainer.kt       # singletons: CookieJar, OkHttpClient (+ socketClient), MovieNightApi, SessionManager, UserIdStore, RoomPasswordCache, ThemePrefs
+      MainActivity.kt       # monta AppRoot; applyAppearance (iconos de las barras y fondo de la ventana según el modo de la app, Fase 8)
       auth/                 # sesión y cuenta, sin UI salvo los ViewModels
         SessionState.kt         # Loading / LoggedOut / LoggedIn / Unreachable, y AuthResult
         SessionManager.kt       # /auth/me, login, registro (+login), forgot-password, logout
@@ -78,7 +78,10 @@ movienight-android/
         RoomPasswordCache.kt    # pasa la contraseña de una sala recién creada (solo en memoria)
         RoomPlayer.kt           # ExoPlayer de la sala: carga el video, sigue al host (applySync) o lo maneja si es host; subtítulos y buffering; Fase 3
       ui/
-        AppRoot.kt              # elige pantalla según SessionState; un NavHost por estado
+        AppRoot.kt              # elige pantalla con startupScreenFor (intro + SessionState); un NavHost por estado
+        IntroScreen.kt          # Fase 8 (2): intro, MARCADOR (nombre con fundido y escala); se reemplaza en el paso 6
+        IntroViewModel.kt       # Fase 8 (2): reloj de la intro (1000 ms); sobrevive a giros y a segundo plano
+        theme/                  # Fase 8 (1): Color.kt (paleta PROVISIONAL, claro y oscuro), Theme.kt (sin color dinámico), Type.kt, ThemePrefs.kt (modo guardado en SharedPreferences)
         auth/                   # LoginScreen, RegisterScreen, ForgotPasswordScreen, componentes
         home/HomeScreen.kt      # unirse por código/link + subir (solo subir / subir y crear sala) + biblioteca + diálogo de crear sala
         home/AdminPanelLauncher.kt # 6B: openInBrowser(): abre un link en el navegador con ACTION_VIEW
@@ -109,6 +112,8 @@ movienight-android/
         PortraitVideoLogic.kt   # alto del video en vertical: 16:9, o más bajo con el teclado abierto (38 % del alto visible, piso de 90 dp) (JVM puro, 9 tests)
         DanmakuLogic.kt         # 7 (2A, 2D): carriles, tope de 12, duración, altura y color del nombre de los comentarios flotantes, y DanmakuProfile (pantalla completa / PiP) (JVM puro, 21 tests)
         ReactionLogic.kt        # 7 (2B, 2D): emojis (barra de 14, panel de 8), validación, tope, posición, duración y recorrido según la superficie (pantalla completa, vertical, PiP) (JVM puro, 20 tests)
+        ThemeModeLogic.kt       # Fase 8 (1): ThemeMode, DEFAULT_THEME_MODE (oscuro), themeModeFor, themeModeFromSwitch (JVM puro, 10 tests)
+        StartupLogic.kt         # Fase 8 (2): startupScreenFor(introFinished, SessionState), INTRO_DURATION_MS (JVM puro, 11 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
@@ -207,6 +212,15 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 8, pasos 1 y 2 hechos y confirmados por la persona (2026-10-13).** La persona probó en el teléfono las listas de los dos pasos y dijo que todos los puntos funcionaron como debían; no dio detalle por punto ni qué teléfono ni versión de Android usó. Solo UI y lógica pura: sin servidor, sin tocar `RoomPlayer`, `RoomViewModel`, `SessionViewModel` ni `SessionManager`, sin dependencias nuevas. Ambos commits están en `origin/main`.
+
+- **Paso 1 (`1ef8f16`): tema claro y oscuro.** Interruptor "Modo oscuro" en el encabezado de Home (debajo de "Cerrar sesión"); la app **no** sigue al teléfono. El primer arranque, y un valor guardado que no se entienda, son oscuro (`DEFAULT_THEME_MODE` en `net/ThemeModeLogic.kt`; si se cambia, cambiar a la par `window_background` en `res/values/colors.xml`). Se recuerda con `SharedPreferences` (`ui/theme/ThemePrefs.kt`, `AppContainer.themePrefs`). Color dinámico apagado; todos los colores en `ui/theme/Color.kt` con una paleta **provisional** (contraste WCAG medido por el asistente; 36 roles por modo). `MainActivity.applyAppearance` pone los iconos de las barras del sistema y el fondo de la ventana según el modo de la app. `themes.xml` fija `windowBackground` al color oscuro para evitar el destello blanco al abrir.
+- **Paso 2 (`a082342`): intro de tiempo fijo.** `startupScreenFor(introFinished, SessionState)` (`net/StartupLogic.kt`) cruza la intro y la sesión: mientras la intro no termina se ve la intro, aunque el servidor ya haya respondido; después manda la sesión (carga, error de conexión, login o Home). La intro dura 1000 ms (`INTRO_DURATION_MS`); el reloj está en `ui/IntroViewModel.kt`, así que no se repite al girar, al recrearse la actividad ni al volver de segundo plano; salir con Atrás y abrir de nuevo **sí** la repite. `ui/IntroScreen.kt` es un **marcador** (el nombre con fundido y escala de 700 ms), fácil de reemplazar por el logo en el paso 6. La comprobación de sesión sigue arrancando al crearse `SessionViewModel`, a la vez que la intro.
+- **Verificado por el asistente:** `ThemeModeLogicTest` (10) y `StartupLogicTest` (11) pasan con kotlinc 2.0.21 y un arnés propio (no con `gradlew`); mutaciones sobre copias fallaron como debían. La documentación oficial de Android sobre la pantalla de arranque de Android 12+ se leyó (ver el plan, "Por decidir"). **Nada de la UI se compiló en la sesión del asistente** (sin Android SDK): lo que se sabe de la UI viene de lo que confirmó la persona.
+- **Sin confirmar:** si el icono del sistema se ve antes de la intro (Android 12+) y si en modo claro se nota un instante oscuro al abrir (la persona no dio detalle); `gradlew testDebugUnitTest`; la paleta y la intro son provisionales. Quedan los pasos 3 (login, registro y recuperar contraseña con vidrio sobre fondo quieto), 4 (Home), 5 (sala, espera a que la 7B esté probada) y 6 (temática final).
+
+---
 
 **Estado de la 7B y ajustes a la Fase 8 (2026-10-12), solo documentación.** La 7B (audio de la sala con la pantalla apagada o en otra app, `5164d5b`) **compila**, según la persona, que dijo que la ha usado y cree que hasta ahora
 no hay problemas, pero **no hizo las pruebas completas**: sigue sin marcarse nada como probado. Las pruebas pendientes están en la sección 7B del plan (pantalla apagada varios minutos, otra app, notificación, salir de
@@ -772,10 +786,11 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **PiP y rotación (7A):** `MainActivity` declara `configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: girar el teléfono o entrar
   y salir de PiP no recrean la actividad; tema, idioma y tamaño de letra sí. Sin ese `configChanges`, cerrar la ventana con la X no avisa a la
   actividad y el video no se pausa.
+- **Tema y arranque (Fase 8, pasos 1 y 2):** la app tiene su propio modo claro/oscuro (no sigue al teléfono), con el color dinámico apagado; el modo vive en `ThemePrefs`. `themes.xml` fija el fondo de arranque al color oscuro (`window_background`), que debe coincidir con `DarkBackground` de `Color.kt`: quien use el modo claro puede ver un instante oscuro al abrir (el XML no lee la preferencia). En Android 12+ el sistema muestra su pantalla de arranque antes de la intro. La intro dura un tiempo fijo y no espera ni se corta por la respuesta del servidor.
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
-- **Rediseño visual (Fase 8):** solo documentado; los pasos 1 a 5 se pueden hacer con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros.
+- **Rediseño visual (Fase 8):** pasos 1 (tema) y 2 (intro) hechos y confirmados; faltan el 3 (login, registro y recuperar contraseña), el 4 (Home) y el 5 (sala, espera a la 7B), que se hacen con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros.
 - **7B sin probar al 100%:** compila (confirmado por la persona), pero faltan las pruebas de la sección 7B del plan, en teléfono real y emulador, y `gradlew testDebugUnitTest`.
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
