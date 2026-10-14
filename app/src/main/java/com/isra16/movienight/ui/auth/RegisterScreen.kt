@@ -1,7 +1,6 @@
 package com.isra16.movienight.ui.auth
 
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -65,6 +64,6 @@ fun RegisterScreen(vm: AuthViewModel, onBack: () -> Unit) {
         }
         ErrorText(vm.errorMessage)
         GlassButton("Crear cuenta", busy = vm.isBusy, onClick = ::submit)
-        TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Ya tengo cuenta") }
+        GlassLinkButton("Ya tengo cuenta", enabled = !vm.isBusy, onClick = onBack)
     }
 }

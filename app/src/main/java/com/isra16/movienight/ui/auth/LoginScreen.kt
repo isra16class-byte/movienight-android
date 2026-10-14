@@ -1,7 +1,6 @@
 package com.isra16.movienight.ui.auth
 
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -50,7 +49,7 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
         }
         ErrorText(vm.errorMessage)
         GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
-        TextButton(onClick = onGoForgot, enabled = !vm.isBusy) { Text("¿Olvidaste tu contraseña?") }
-        TextButton(onClick = onGoRegister, enabled = !vm.isBusy) { Text("¿No tenés cuenta? Registrate") }
+        GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
+        GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister)
     }
 }

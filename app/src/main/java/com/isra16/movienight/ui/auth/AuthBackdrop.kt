@@ -56,10 +56,10 @@ import kotlin.math.roundToInt
  */
 
 /**
- * Sombra de TODO el texto de las pantallas de entrada. Con el velo leve (10 %) es lo que da legibilidad sobre las zonas
+ * Sombra de TODO el texto de las pantallas de entrada. Con el velo leve (10 % arriba) es lo que da legibilidad sobre las zonas
  * claras de la imagen (cielo, flores blancas); el contraste de píxeles no la mide. Valores provisionales (px, no dp).
  */
-internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.65f), offset = Offset(0f, 2f), blurRadius = 6f)
+internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.85f), offset = Offset(0f, 2f), blurRadius = 8f)
 
 /** Sombra y letra más gruesa: lo que pesa menos de SemiBold (600) sube a SemiBold; lo que ya es más grueso se queda. */
 private fun TextStyle.glass(shadow: Shadow): TextStyle =

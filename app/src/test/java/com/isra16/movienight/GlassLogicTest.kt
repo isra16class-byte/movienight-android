@@ -6,6 +6,7 @@ import com.isra16.movienight.net.contrastRatio
 import com.isra16.movienight.net.coverCropRect
 import com.isra16.movienight.net.relativeLuminance
 import com.isra16.movienight.net.veilAlphaAt
+import com.isra16.movienight.net.veilStopsWithBottomBoost
 import com.isra16.movienight.net.visibleSourceFraction
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -222,5 +223,51 @@ class GlassLogicTest {
             assertTrue("alfa $a: $c >= $last", c >= last - 1e-9)
             last = c
         }
+    }
+
+    // --- veilStopsWithBottomBoost ------------------------------------------------------------------------------
+
+    @Test
+    fun `franja inferior arriba base, rampa lineal y abajo reforzado`() {
+        val stops = veilStopsWithBottomBoost(21, 0.10f, 0.35f, 0.40f, 0.55f)
+        assertEquals(21, stops.size)
+        for (k in 0..8) assertEquals("parada $k (hasta el 40 %)", 0.10f, stops[k], 1e-6f)
+        assertEquals("a mitad de la rampa (50 %)", 0.10f + 0.25f * (0.10f / 0.15f), stops[10], 1e-5f)
+        for (k in 11..20) assertEquals("parada $k (desde el 55 %)", 0.35f, stops[k], 1e-6f)
+    }
+
+    @Test
+    fun `con refuerzo mayor que la base el velo nunca baja de arriba a abajo`() {
+        val stops = veilStopsWithBottomBoost(21, 0.10f, 0.35f, 0.40f, 0.55f)
+        for (k in 1 until stops.size) assertTrue("parada $k: ${stops[k]} >= ${stops[k - 1]}", stops[k] >= stops[k - 1] - 1e-9f)
+    }
+
+    @Test
+    fun `veilAlphaAt lee estas paradas, arriba 0,10 y 0,35 en la altura de los enlaces`() {
+        val stops = veilStopsWithBottomBoost(21, 0.10f, 0.35f, 0.40f, 0.55f)
+        assertEquals(0.10f, veilAlphaAt(stops, 0.20f), 1e-6f)
+        assertEquals(0.35f, veilAlphaAt(stops, 0.62f), 1e-6f) // "Olvidaste tu contrasena" en el login
+        assertEquals(0.35f, veilAlphaAt(stops, 0.69f), 1e-6f) // "No tenes cuenta"
+        assertEquals(0.35f, veilAlphaAt(stops, 1f), 1e-6f)
+    }
+
+    @Test
+    fun `sin refuerzo, o con refuerzo igual a la base, queda parejo`() {
+        assertEquals(List(21) { 0.10f }, veilStopsWithBottomBoost(21, 0.10f, 0.10f, 0.40f, 0.55f))
+    }
+
+    @Test
+    fun `rampa sin ancho salta de golpe y menos de dos paradas da una sola`() {
+        val stops = veilStopsWithBottomBoost(5, 0.1f, 0.5f, 0.5f, 0.5f) // paradas en 0, .25, .5, .75, 1
+        assertEquals(listOf(0.1f, 0.1f, 0.1f, 0.5f, 0.5f), stops)
+        assertEquals(listOf(0.1f), veilStopsWithBottomBoost(1, 0.1f, 0.5f, 0.4f, 0.55f))
+        assertEquals(listOf(0.1f), veilStopsWithBottomBoost(0, 0.1f, 0.5f, 0.4f, 0.55f))
+    }
+
+    @Test
+    fun `los alfas se limitan a 0 y 1`() {
+        val stops = veilStopsWithBottomBoost(3, -0.5f, 2f, 0.4f, 0.6f)
+        assertEquals(0f, stops.first(), 0f)
+        assertEquals(1f, stops.last(), 0f)
     }
 }

@@ -48,6 +48,27 @@ fun veilAlphaAt(stops: List<Float>, fraction: Float): Float {
     return stops[index] + (stops[index + 1] - stops[index]) * t
 }
 
+/**
+ * Paradas del velo ([count] igualmente espaciadas de arriba a abajo) con alfa [base] en la parte de arriba, una subida
+ * lineal hasta [boosted] entre las alturas [rampStart] y [rampEnd] (fracciones de 0 a 1 del alto de la ventana) y
+ * [boosted] hasta abajo. Sirve para oscurecer un poco solo la franja inferior de las pantallas de entrada, donde
+ * quedan los enlaces. Con [rampEnd] <= [rampStart] el salto es brusco en esa altura; con [count] < 2 devuelve una sola
+ * parada con [base]. Los alfas quedan limitados a 0..1.
+ */
+fun veilStopsWithBottomBoost(count: Int, base: Float, boosted: Float, rampStart: Float, rampEnd: Float): List<Float> {
+    val lo = base.coerceIn(0f, 1f)
+    val hi = boosted.coerceIn(0f, 1f)
+    if (count < 2) return listOf(lo)
+    return List(count) { k ->
+        val y = k.toFloat() / (count - 1)
+        when {
+            y <= rampStart -> lo
+            y >= rampEnd -> hi
+            else -> lo + (hi - lo) * ((y - rampStart) / (rampEnd - rampStart))
+        }
+    }
+}
+
 /** Parte de la imagen que queda a la vista, en fracciones de 0 a 1 de su ancho y su alto. */
 data class VisibleFraction(val left: Float, val top: Float, val width: Float, val height: Float)
 

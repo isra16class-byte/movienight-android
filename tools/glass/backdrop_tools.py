@@ -18,7 +18,7 @@ No forma parte de la app: sirve para repetir el trabajo cuando cambien las imág
 
   veil     Calcula cuánto velo (oscuro o claro, según el modo) haría falta para dar texto >= 4,5:1 en cada franja del alto
            de la ventana con la copia borrosa REAL, peor caso entre varios tamaños de ventana. Es solo INFORMATIVO: el
-           diseño actual usa un velo de 10 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
+           diseño actual usa un velo de 10 % (35 % abajo en el modo claro, VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
            sombra del texto (ver `GlassColors` en Color.kt). Con el modo claro actual (texto crema) los números salen
            altos: es justo lo que se está dejando de pedir al velo.
              python3 backdrop_tools.py veil app/src/main/res/drawable-nodpi
@@ -48,8 +48,24 @@ MODES = {
     ),
 }
 # Alfas del velo en N paradas igualmente espaciadas de arriba (0) a abajo (1). Deben coincidir con Color.kt.
+def veil_stops_with_bottom_boost(count, base, boosted, ramp_start, ramp_end):
+    """Espejo de veilStopsWithBottomBoost (net/GlassLogic.kt)."""
+    if count < 2:
+        return [base]
+    out = []
+    for k in range(count):
+        y = k / (count - 1)
+        if y <= ramp_start:
+            out.append(base)
+        elif y >= ramp_end:
+            out.append(boosted)
+        else:
+            out.append(base + (boosted - base) * ((y - ramp_start) / (ramp_end - ramp_start)))
+    return out
+
+
 VEIL_STOPS = {
-    "light": [0.10] * 21,
+    "light": veil_stops_with_bottom_boost(21, 0.10, 0.35, 0.40, 0.55),  # GlassVeilAlphasLight
     "dark": [0.10] * 21,
 }
 # (nombre, ancho dp, alto dp). El texto ocupa la columna de min(480, ancho) - 48 de ancho y puede estar a cualquier altura.

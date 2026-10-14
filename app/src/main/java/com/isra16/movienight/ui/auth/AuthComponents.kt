@@ -275,6 +275,21 @@ fun PrimaryButton(text: String, busy: Boolean, onClick: () -> Unit) {
 }
 
 /**
+ * Enlace de texto de las pantallas de entrada ("¿Olvidaste tu contraseña?", "Registrate", etc.): negrita de 16 sp
+ * (antes el tamaño y peso de un `TextButton` normal, 14 sp), que sobre la foto se perdía. Color y sombra los pone
+ * [GlassContent].
+ */
+@Composable
+fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit) {
+    TextButton(onClick = onClick, enabled = enabled) {
+        Text(
+            text,
+            style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+        )
+    }
+}
+
+/**
  * Botón de las pantallas de entrada (Fase 8, paso 3): contorno fino sobre el vidrio, esquinas de 16 dp como la barra de campos y, en el modo claro, un relleno crema translúcido (`GlassColors.buttonTint`); texto en negrita de 18 sp. El color es `primary`
  * del panel (el mismo con el que se midió el contraste del texto verde: >= 4,5:1). `PrimaryButton` sigue igual porque
  * lo usa también la sala (contraseña de la sala).

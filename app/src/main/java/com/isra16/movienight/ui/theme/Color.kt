@@ -4,6 +4,7 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
+import com.isra16.movienight.net.veilStopsWithBottomBoost
 
 /*
  * TODOS los colores de la app viven en este archivo (Fase 8 del plan). Cambiar la paleta es editar solo esto.
@@ -200,7 +201,7 @@ class GlassContentColors(
  * roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
  *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
- *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo, a pedido de la persona (antes 3 %);
+ *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo en el modo oscuro y, en el claro, 10 % arriba subiendo a 35 % en la franja de abajo (antes 3 %);
  *  3. solo en la barra de campos y el botón: [barTint] y [buttonTint] (con alfa; en el modo claro son color crema, que
  *     aclara el vidrio, y en el oscuro la barra sigue con tinte oscuro y el botón sin relleno) y [barBorder], el borde fino.
  *
@@ -221,11 +222,19 @@ class GlassColors(
 )
 
 private val GlassVeilAlphas = List(21) { 0.10f }
+
+/**
+ * Velo del modo claro: 10 % arriba (como antes) y, entre el 40 % y el 55 % del alto, sube hasta 35 % y se queda ahí hasta
+ * abajo, que es donde caen los enlaces de las pantallas de entrada (login: ~62 % y ~69 % del alto). Con la copia
+ * borrosa real, el contraste del texto crema en esa franja pasa de una mediana ~2,9:1 a ~4,8:1 (sin contar la sombra).
+ * El oscuro no se toca: ya cumplía 4,5:1 en ~94 % de los píxeles.
+ */
+private val GlassVeilAlphasLight = veilStopsWithBottomBoost(count = 21, base = 0.10f, boosted = 0.35f, rampStart = 0.40f, rampEnd = 0.55f)
 private val GlassCream = Color(0xFFFFF8E7)
 
 internal val MovieNightLightGlass = GlassColors(
     veil = DarkBackground,
-    veilAlphas = GlassVeilAlphas,
+    veilAlphas = GlassVeilAlphasLight,
     barTint = GlassCream.copy(alpha = 0.25f),
     barBorder = GlassCream,
     buttonTint = GlassCream.copy(alpha = 0.12f),

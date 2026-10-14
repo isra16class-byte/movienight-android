@@ -1,7 +1,6 @@
 package com.isra16.movienight.ui.auth
 
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -43,6 +42,6 @@ fun ForgotPasswordScreen(vm: AuthViewModel, onBack: () -> Unit) {
         ErrorText(vm.errorMessage)
         InfoText(vm.infoMessage)
         GlassButton("Enviar link", busy = vm.isBusy, onClick = ::submit)
-        TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Volver a iniciar sesión") }
+        GlassLinkButton("Volver a iniciar sesión", enabled = !vm.isBusy, onClick = onBack)
     }
 }
