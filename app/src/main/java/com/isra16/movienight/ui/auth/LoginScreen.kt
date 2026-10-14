@@ -1,6 +1,7 @@
 package com.isra16.movienight.ui.auth
 
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -32,24 +33,21 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
     }
 
     AuthScreenLayout(title = "MovieNight", subtitle = "Iniciá sesión para entrar a tus salas.") {
-        GlassFieldGroup {
-            GlassEmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
-            GlassFieldDivider()
-            GlassPasswordField(
-                label = "Contraseña",
-                value = password,
-                onValueChange = { password = it },
-                error = passwordError,
-                enabled = !vm.isBusy,
-                showPassword = showPassword,
-                onToggleShow = { showPassword = !showPassword },
-                imeAction = ImeAction.Done,
-                onDone = ::submit,
-            )
-        }
+        EmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
+        PasswordField(
+            label = "Contraseña",
+            value = password,
+            onValueChange = { password = it },
+            error = passwordError,
+            enabled = !vm.isBusy,
+            showPassword = showPassword,
+            onToggleShow = { showPassword = !showPassword },
+            imeAction = ImeAction.Done,
+            onDone = ::submit,
+        )
         ErrorText(vm.errorMessage)
         GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
-        GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
-        GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister)
+        TextButton(onClick = onGoForgot, enabled = !vm.isBusy) { Text("¿Olvidaste tu contraseña?") }
+        TextButton(onClick = onGoRegister, enabled = !vm.isBusy) { Text("¿No tenés cuenta? Registrate") }
     }
 }

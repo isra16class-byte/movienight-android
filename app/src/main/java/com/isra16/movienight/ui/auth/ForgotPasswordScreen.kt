@@ -1,6 +1,7 @@
 package com.isra16.movienight.ui.auth
 
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,19 +30,17 @@ fun ForgotPasswordScreen(vm: AuthViewModel, onBack: () -> Unit) {
         title = "Recuperar contraseña",
         subtitle = "Escribí tu email y te mandamos un link para elegir una contraseña nueva.",
     ) {
-        GlassFieldGroup {
-            GlassEmailField(
-                value = email,
-                onValueChange = { email = it },
-                error = emailError,
-                enabled = !vm.isBusy,
-                imeAction = ImeAction.Done,
-                onDone = ::submit,
-            )
-        }
+        EmailField(
+            value = email,
+            onValueChange = { email = it },
+            error = emailError,
+            enabled = !vm.isBusy,
+            imeAction = ImeAction.Done,
+            onDone = ::submit,
+        )
         ErrorText(vm.errorMessage)
         InfoText(vm.infoMessage)
         GlassButton("Enviar link", busy = vm.isBusy, onClick = ::submit)
-        GlassLinkButton("Volver a iniciar sesión", enabled = !vm.isBusy, onClick = onBack)
+        TextButton(onClick = onBack, enabled = !vm.isBusy) { Text("Volver a iniciar sesión") }
     }
 }
