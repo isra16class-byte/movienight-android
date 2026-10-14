@@ -39,19 +39,19 @@ val Typography = Typography(
 
 /**
  * Fuente del título de las pantallas de entrada (Fase 8, paso 3; PROVISIONAL hasta el paso 6): Playfair Display, licencia OFL
- * (ver `third_party/fonts/playfair-display/`). Es un archivo variable (eje de peso 400 a 900): el título se pide en peso 800 con `variationSettings`, porque sin
- * ellas Compose usa el peso por defecto del archivo (400) aunque se indique otro `FontWeight`.
+ * (ver `third_party/fonts/playfair-display/`). Es un archivo variable (eje de peso 400 a 900): el título se pide en peso 400 (regular, el diseño "cristal" pide
+ * un título fino) con `variationSettings`, porque sin ellas Compose usa el peso por defecto del archivo aunque se indique otro `FontWeight`.
  */
 @OptIn(ExperimentalTextApi::class)
 internal val TitleFontFamily = FontFamily(
-    Font(R.font.playfair_display, FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+    Font(R.font.playfair_display, FontWeight.Normal, variationSettings = FontVariation.Settings(FontVariation.weight(400))),
 )
 
 /** Estilo del título de login, registro y recuperar contraseña. */
 internal val AuthTitleStyle = TextStyle(
     fontFamily = TitleFontFamily,
-    fontWeight = FontWeight.ExtraBold,
-    fontSize = 34.sp,
+    fontWeight = FontWeight.Normal,
+    fontSize = 32.sp,
     lineHeight = 40.sp,
-    letterSpacing = 0.sp,
+    letterSpacing = 0.4.sp,
 )

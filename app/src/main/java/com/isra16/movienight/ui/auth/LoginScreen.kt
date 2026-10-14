@@ -50,6 +50,6 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
         ErrorText(vm.errorMessage)
         GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
         GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
-        GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister)
+        GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister, emphasis = "Registrate")
     }
 }

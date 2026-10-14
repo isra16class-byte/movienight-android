@@ -49,6 +49,7 @@ import com.isra16.movienight.net.blurRectInPanel
 import com.isra16.movienight.net.coverCropRect
 import com.isra16.movienight.ui.theme.LocalAppDarkTheme
 import com.isra16.movienight.ui.theme.LocalGlassColors
+import com.isra16.movienight.ui.theme.Typography as AppTypography
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
@@ -97,6 +98,25 @@ internal fun Typography.withShadow(shadow: Shadow?) = Typography(
     labelLarge = labelLarge.glass(shadow),
     labelMedium = labelMedium.glass(shadow),
     labelSmall = labelSmall.glass(shadow),
+)
+
+/** La misma tipografía sin sombra y con los pesos tal como son (a diferencia de [withShadow], no sube nada a SemiBold). */
+private fun Typography.withoutShadow() = Typography(
+    displayLarge = displayLarge.copy(shadow = null),
+    displayMedium = displayMedium.copy(shadow = null),
+    displaySmall = displaySmall.copy(shadow = null),
+    headlineLarge = headlineLarge.copy(shadow = null),
+    headlineMedium = headlineMedium.copy(shadow = null),
+    headlineSmall = headlineSmall.copy(shadow = null),
+    titleLarge = titleLarge.copy(shadow = null),
+    titleMedium = titleMedium.copy(shadow = null),
+    titleSmall = titleSmall.copy(shadow = null),
+    bodyLarge = bodyLarge.copy(shadow = null),
+    bodyMedium = bodyMedium.copy(shadow = null),
+    bodySmall = bodySmall.copy(shadow = null),
+    labelLarge = labelLarge.copy(shadow = null),
+    labelMedium = labelMedium.copy(shadow = null),
+    labelSmall = labelSmall.copy(shadow = null),
 )
 
 /** Dibuja [image] ocupando [rect]. */
@@ -263,9 +283,10 @@ internal fun GlassContent(content: @Composable () -> Unit) {
 }
 
 /**
- * Texto de lo que va DENTRO del panel ([GlassPanel]): sin sombra (el fondo del panel es liso) y, en el modo claro,
- * con los colores oscuros de `GlassColors.barContent`, que se leen sobre el panel blanco. Sin `barContent` (modo
- * oscuro) conserva la paleta del modo. Debe ir dentro de [GlassContent].
+ * Texto de lo que va DENTRO del panel ([GlassPanel]): sin sombra (el fondo del panel es liso), con los PESOS ORIGINALES
+ * de la tipografía de la app (diseño "cristal": letra fina; fuera del panel `GlassContent` sigue subiéndolos a SemiBold)
+ * y, en el modo claro, con los colores oscuros de `GlassColors.barContent`, que se leen sobre el panel blanco. Sin
+ * `barContent` (modo oscuro) conserva la paleta del modo. Debe ir dentro de [GlassContent].
  */
 @Composable
 internal fun GlassBarContent(content: @Composable () -> Unit) {
@@ -285,8 +306,7 @@ internal fun GlassBarContent(content: @Composable () -> Unit) {
             )
         }
     }
-    val baseTypography = MaterialTheme.typography
-    val typography = remember(baseTypography) { baseTypography.withShadow(null) }
+    val typography = remember { AppTypography.withoutShadow() }
     MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
         CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
     }

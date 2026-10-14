@@ -201,10 +201,12 @@ class GlassContentColors(
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
  *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
  *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo, a pedido de la persona (antes 3 %);
- *  3. solo en la barra de campos: [barTint] (con alfa; en el modo claro es blanco, que aclara el vidrio, y en el
- *     oscuro sigue con tinte oscuro) y [barBorder], el borde fino. En el modo claro el texto de la barra es oscuro
- *     ([barContent]) para leerse sobre ese tinte. El botón es SÓLIDO: [buttonFill] con texto [buttonContent]. [accent]
- *     es el color del borde de la barra con el foco y del "Mostrar"; [fieldLabel], el de la etiqueta de los campos.
+ *  3. solo en la barra de campos y el botón, como CRISTAL (Fase 8, paso 3, diseño "B"): la barra lleva [barTint] (blanco
+ *     muy transparente en el modo claro, tinte oscuro en el oscuro) y un borde de un pelo que va de [barBorderTop]
+ *     (arriba, más brillante) a [barBorder] (abajo), con [barDivider] entre campos. El botón es otra pieza de vidrio:
+ *     [buttonFill] con borde [buttonBorder] y texto [buttonContent]. En el modo claro el texto de la barra y del botón
+ *     es oscuro ([barContent]). [accent] es el color del borde de la barra con el foco y del "Mostrar"; [fieldLabel],
+ *     el de la etiqueta de los campos.
  *
  * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
  * `tools/glass/backdrop_tools.py measure`, que da el porcentaje de píxeles que sí). La legibilidad la completa la
@@ -218,14 +220,19 @@ class GlassColors(
     val veilAlphas: List<Float>,
     val barTint: Color,
     val barBorder: Color,
+    // Arranque (arriba) del borde de la barra: más brillante que [barBorder] en el modo claro; igual en el oscuro.
+    val barBorderTop: Color,
+    // Línea entre dos campos de la barra.
+    val barDivider: Color,
     val content: GlassContentColors? = null,
     // Colores del texto DENTRO del panel (modo claro: oscuros, sobre el panel blanco); null = los mismos que fuera.
     val barContent: GlassContentColors? = null,
     // Panel de vidrio que lleva el formulario: tinte (sobre la copia borrosa) y borde fino.
     val panelTint: Color,
     val panelBorder: Color,
-    // Botón sólido (relleno y texto), color de acento (borde con foco, "Mostrar") y color de la etiqueta de los campos.
+    // Botón de cristal (relleno, borde y texto), color de acento (borde con foco, "Mostrar") y color de la etiqueta de los campos.
     val buttonFill: Color,
+    val buttonBorder: Color,
     val buttonContent: Color,
     val accent: Color,
     val fieldLabel: Color,
@@ -236,13 +243,14 @@ private val GlassCream = Color(0xFFFFF8E7)
 
 /**
  * Texto oscuro para dentro del panel y de la barra de campos del modo claro (el texto crema se perdía ahí). Contraste
- * medido con la copia borrosa real, panel blanco 45 % y barra blanca 35 %, sin sombra: `onSurface` >= 4,5:1 en el 100 %
- * de los píxeles (peor 8,1:1). Las cifras de `onSurfaceVariant` y `error` de antes eran con la barra crema de 25 % y
- * ya no valen; el mensaje de error no se volvió a medir. Provisionales, igual que el resto de la paleta.
+ * medido con la copia borrosa real, panel blanco 45 % y barra blanca 22 %, sin sombra: `onSurface` sobre la barra >= 4,5:1
+ * en el 100 % de los píxeles; sobre el panel solo (título, subtítulo, enlaces) peor 4,63:1. `onSurfaceVariant` pasó a ser
+ * igual que `onSurface` (antes 1F2923, que sobre el panel llegaba al 98,8 %). El mensaje de error (`error`) no se
+ * volvió a medir. Provisionales, igual que el resto de la paleta.
  */
 private val GlassBarInk = GlassContentColors(
     onSurface = Color(0xFF0E1511),
-    onSurfaceVariant = Color(0xFF1F2923),
+    onSurfaceVariant = Color(0xFF0E1511),
     primary = Color(0xFF0E1511),
     error = Color(0xFF5C0005),
     outline = Color(0xFF1F2923),
@@ -251,14 +259,18 @@ private val GlassBarInk = GlassContentColors(
 internal val MovieNightLightGlass = GlassColors(
     veil = DarkBackground,
     veilAlphas = GlassVeilAlphas,
-    barTint = Color.White.copy(alpha = 0.35f),
-    barBorder = Color.White.copy(alpha = 0.90f),
-    // Contraste medido (copia borrosa real, panel 45 % + barra 35 % blancos, sin sombra): etiqueta 85 % peor 4,96:1,
-    // acento peor 4,53:1 (100 % de los píxeles >= 4,5:1); crema sobre el botón 17,5:1.
-    buttonFill = Color(0xFF0E1511),
-    buttonContent = GlassCream,
-    accent = Color(0xFF0F4A2E),
-    fieldLabel = Color(0xFF1F2923).copy(alpha = 0.85f),
+    barTint = Color.White.copy(alpha = 0.22f),
+    barBorder = Color.White.copy(alpha = 0.55f),
+    barBorderTop = Color.White.copy(alpha = 0.95f),
+    barDivider = Color.White.copy(alpha = 0.55f),
+    // Contraste medido (copia borrosa real, panel 45 % + barra 22 % blancos, sin sombra): etiqueta (0E1511 al 80 %) peor
+    // 4,86:1; acento peor 4,44:1 (100 % de los píxeles >= 4,5:1 al redondear; unos pocos rozan 4,4); texto oscuro sobre el botón
+    // (panel 45 % + botón blanco 38 %) peor 8,5:1.
+    buttonFill = Color.White.copy(alpha = 0.38f),
+    buttonBorder = Color.White.copy(alpha = 0.85f),
+    buttonContent = Color(0xFF0E1511),
+    accent = Color(0xFF0A3D24),
+    fieldLabel = Color(0xFF0E1511).copy(alpha = 0.80f),
     content = GlassContentColors(
         onSurface = GlassCream,
         onSurfaceVariant = GlassCream,
@@ -278,10 +290,13 @@ internal val MovieNightDarkGlass = GlassColors(
     veilAlphas = GlassVeilAlphas,
     barTint = DarkBackground.copy(alpha = 0.25f),
     barBorder = Color(0xFFD8E0DA),
+    barBorderTop = Color(0xFFD8E0DA),
+    barDivider = Color(0xFFD8E0DA).copy(alpha = 0.5f),
     panelTint = DarkBackground.copy(alpha = 0.55f),
     panelBorder = Color(0xFFD8E0DA).copy(alpha = 0.25f),
-    buttonFill = DarkPrimary,
-    buttonContent = DarkOnPrimary, // 7,7:1 sobre DarkPrimary
+    buttonFill = Color.White.copy(alpha = 0.08f),
+    buttonBorder = DarkPrimary.copy(alpha = 0.6f),
+    buttonContent = DarkPrimary, // el mismo color del texto del botón de contorno de antes
     accent = DarkPrimary,
     fieldLabel = DarkOnSurfaceVariant,
 )
