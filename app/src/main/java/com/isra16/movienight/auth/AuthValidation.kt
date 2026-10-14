@@ -36,6 +36,14 @@ object AuthValidation {
         else -> null
     }
 
+    /**
+     * Aviso de "Mínimo N caracteres." del registro: solo mientras se escribió algo y todavía no se llega al mínimo. Con el
+     * campo vacío no se muestra (se veía mal tenerlo siempre) y desaparece al llegar a [MIN_PASSWORD_LENGTH]. Si hay error
+     * de [newPasswordError] (tras tocar "Crear cuenta"), la pantalla muestra el error en su lugar.
+     */
+    fun newPasswordHint(password: String): String? =
+        if (password.isNotEmpty() && password.length < MIN_PASSWORD_LENGTH) "Mínimo $MIN_PASSWORD_LENGTH caracteres." else null
+
     fun confirmPasswordError(password: String, confirmation: String): String? = when {
         confirmation.isEmpty() -> "Repetí la contraseña."
         confirmation != password -> "Las contraseñas no coinciden."

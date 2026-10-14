@@ -294,9 +294,18 @@ internal val MovieNightDarkGlass = GlassColors(
     barDivider = Color(0xFFD8E0DA).copy(alpha = 0.5f),
     panelTint = DarkBackground.copy(alpha = 0.55f),
     panelBorder = Color(0xFFD8E0DA).copy(alpha = 0.25f),
+    // Modo oscuro: el texto es BLANCO (como el modo claro usa solo tinta oscura); el verde `DarkPrimary` ya no se usa aquí.
     buttonFill = Color.White.copy(alpha = 0.08f),
-    buttonBorder = DarkPrimary.copy(alpha = 0.6f),
-    buttonContent = DarkPrimary, // el mismo color del texto del botón de contorno de antes
-    accent = DarkPrimary,
-    fieldLabel = DarkOnSurfaceVariant,
+    buttonBorder = Color.White.copy(alpha = 0.6f),
+    buttonContent = Color.White,
+    accent = Color.White,
+    fieldLabel = Color.White.copy(alpha = 0.80f),
+    // Texto DENTRO del panel (campos, etiquetas, enlaces, aviso): blanco; el error conserva el rosa del modo.
+    barContent = GlassContentColors(
+        onSurface = Color.White,
+        onSurfaceVariant = Color.White,
+        primary = Color.White,
+        error = DarkError,
+        outline = Color.White.copy(alpha = 0.7f),
+    ),
 )

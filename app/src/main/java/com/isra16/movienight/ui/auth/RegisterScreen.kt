@@ -47,7 +47,7 @@ fun RegisterScreen(vm: AuthViewModel, onBack: () -> Unit) {
                 enabled = !vm.isBusy,
                 showPassword = showPassword,
                 onToggleShow = { showPassword = !showPassword },
-                hint = "Mínimo ${AuthValidation.MIN_PASSWORD_LENGTH} caracteres.",
+                hint = AuthValidation.newPasswordHint(password),
             )
             GlassFieldDivider()
             GlassPasswordField(

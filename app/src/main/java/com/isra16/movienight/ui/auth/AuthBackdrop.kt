@@ -286,8 +286,8 @@ internal fun GlassContent(content: @Composable () -> Unit) {
 /**
  * Texto de lo que va DENTRO del panel ([GlassPanel]): sin sombra (el fondo del panel es liso), con los PESOS ORIGINALES
  * de la tipografía de la app (diseño "cristal": letra fina; fuera del panel `GlassContent` sigue subiéndolos a SemiBold)
- * y, en el modo claro, con los colores oscuros de `GlassColors.barContent`, que se leen sobre el panel blanco. Sin
- * `barContent` (modo oscuro) conserva la paleta del modo. Debe ir dentro de [GlassContent].
+ * y, con los colores de `GlassColors.barContent`: oscuros en el modo claro (se leen sobre el panel blanco) y blancos en el
+ * oscuro. Sin `barContent` conservaría la paleta del modo. Debe ir dentro de [GlassContent].
  */
 @Composable
 internal fun GlassBarContent(content: @Composable () -> Unit) {

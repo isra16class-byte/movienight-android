@@ -48,6 +48,17 @@ class AuthValidationTest {
     }
 
     @Test
+    fun avisoDeMinimoSoloMientrasFaltanCaracteres() {
+        assertNull(AuthValidation.newPasswordHint(""))
+        assertEquals("Mínimo 8 caracteres.", AuthValidation.newPasswordHint("a"))
+        assertEquals("Mínimo 8 caracteres.", AuthValidation.newPasswordHint("1234567"))
+        assertNull(AuthValidation.newPasswordHint("12345678"))
+        assertNull(AuthValidation.newPasswordHint("123456789012"))
+        // Los espacios cuentan, igual que en newPasswordError.
+        assertNull(AuthValidation.newPasswordHint("abcdefg "))
+    }
+
+    @Test
     fun contrasenaNuevaNoSeRecortaComoEnElServer() {
         // 7 letras + 1 espacio = 8 caracteres: el server la acepta (no hace trim de la contraseña).
         assertNull(AuthValidation.newPasswordError("abcdefg "))
