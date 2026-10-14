@@ -1,6 +1,5 @@
 package com.isra16.movienight.ui.auth
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -23,16 +22,20 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -91,29 +94,36 @@ fun AuthScreenLayout(
 /**
  * Barra que junta los campos de las pantallas de entrada: un solo contenedor redondeado con tinte y borde fino
  * (`GlassColors.barTint` y `barBorder`), y los campos adentro sin contorno propio, separados con [GlassFieldDivider].
- * Va dentro de un [GlassPanel], que ya pone el texto oscuro y sin sombra del modo claro.
+ * Va dentro de un [GlassPanel], que ya pone el texto oscuro y sin sombra del modo claro. Con el foco en cualquiera de los
+ * campos de adentro, el borde se engrosa (2 dp) y toma el color de acento ([GlassColors.accent]).
  */
 @Composable
 fun GlassFieldGroup(content: @Composable ColumnScope.() -> Unit) {
     val glass = LocalGlassColors.current
     val shape = RoundedCornerShape(16.dp)
+    var focused by remember { mutableStateOf(false) }
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(glass.barTint)
-            .border(1.dp, glass.barBorder, shape),
+            .border(if (focused) 2.dp else 1.dp, if (focused) glass.accent else glass.barBorder, shape)
+            .onFocusChanged { focused = it.hasFocus },
         content = content,
     )
 }
 
-/** Línea fina entre dos campos de un [GlassFieldGroup]. */
+/**
+ * Línea fina entre dos campos de un [GlassFieldGroup]. En el modo claro el borde de la barra es blanco y no se vería sobre
+ * ella: la línea es del color oscuro del texto (`barContent.outline`) al 18 %. En el oscuro sigue siendo el borde al 50 %.
+ */
 @Composable
 fun GlassFieldDivider() {
-    HorizontalDivider(color = LocalGlassColors.current.barBorder.copy(alpha = 0.5f))
+    val glass = LocalGlassColors.current
+    HorizontalDivider(color = glass.barContent?.outline?.copy(alpha = 0.18f) ?: glass.barBorder.copy(alpha = 0.5f))
 }
 
-/** Campo sin fondo ni línea inferior: lo dibuja la barra que lo contiene. */
+/** Campo sin fondo ni línea inferior: lo dibuja la barra que lo contiene. Etiqueta, etiqueta con foco y cursor: ver `GlassColors`. */
 @Composable
 private fun glassFieldColors() = TextFieldDefaults.colors(
     focusedContainerColor = Color.Transparent,
@@ -124,6 +134,9 @@ private fun glassFieldColors() = TextFieldDefaults.colors(
     unfocusedIndicatorColor = Color.Transparent,
     disabledIndicatorColor = Color.Transparent,
     errorIndicatorColor = Color.Transparent,
+    focusedLabelColor = LocalGlassColors.current.accent,
+    unfocusedLabelColor = LocalGlassColors.current.fieldLabel,
+    cursorColor = LocalGlassColors.current.accent,
 )
 
 /** Campo de email para dentro de un [GlassFieldGroup]. */
@@ -191,7 +204,11 @@ fun GlassPasswordField(
         visualTransformation = if (showPassword) VisualTransformation.None else PasswordVisualTransformation(),
         trailingIcon = {
             TextButton(onClick = onToggleShow, enabled = enabled) {
-                Text(if (showPassword) "Ocultar" else "Mostrar", fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (showPassword) "Ocultar" else "Mostrar",
+                    fontWeight = FontWeight.Normal,
+                    color = LocalGlassColors.current.accent.copy(alpha = if (enabled) 1f else 0.38f),
+                )
             }
         },
         keyboardOptions = KeyboardOptions(
@@ -289,27 +306,29 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit) {
 }
 
 /**
- * Botón de las pantallas de entrada (Fase 8, paso 3): contorno fino sobre el vidrio, esquinas de 16 dp como la barra de campos y, en el modo claro, un relleno crema translúcido (`GlassColors.buttonTint`); texto en negrita de 18 sp. El color es `primary`
- * del panel (el mismo con el que se midió el contraste del texto verde: >= 4,5:1); dentro del [GlassPanel] el color es oscuro en el modo claro (`GlassColors.barContent`). `PrimaryButton` sigue igual porque
- * lo usa también la sala (contraseña de la sala).
+ * Botón de las pantallas de entrada (Fase 8, paso 3): SÓLIDO, para que se lea como la acción principal (antes era de
+ * contorno, igual que la barra de campos). Relleno `GlassColors.buttonFill` y texto `buttonContent` (modo claro: verde
+ * casi negro con texto crema, 17,5:1; modo oscuro: verde claro con texto verde oscuro, 7,7:1), esquinas de 16 dp como
+ * la barra, 52 dp de alto y 4 dp más de aire arriba; texto en negrita de 18 sp. Mientras trabaja se ve el relleno un
+ * poco más claro y el indicador de progreso. `PrimaryButton` sigue igual porque lo usa también la sala (contraseña de la sala).
  */
 @Composable
 fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit) {
-    val color = MaterialTheme.colorScheme.primary // el del panel: oscuro en el modo claro
-    val textColor = color
-    val tint = LocalGlassColors.current.buttonTint
-    OutlinedButton(
+    val glass = LocalGlassColors.current
+    Button(
         onClick = onClick,
         enabled = !busy,
-        modifier = Modifier.fillMaxWidth().height(52.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(52.dp),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, if (busy) color.copy(alpha = 0.38f) else color),
-        colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = tint, contentColor = textColor, disabledContainerColor = tint, disabledContentColor = textColor,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = glass.buttonFill,
+            contentColor = glass.buttonContent,
+            disabledContainerColor = glass.buttonFill.copy(alpha = 0.75f),
+            disabledContentColor = glass.buttonContent,
         ),
     ) {
         if (busy) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = textColor)
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = glass.buttonContent)
         } else {
             Text(
                 text,
