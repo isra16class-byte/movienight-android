@@ -18,7 +18,7 @@ No forma parte de la app: sirve para repetir el trabajo cuando cambien las imág
 
   veil     Calcula cuánto velo (oscuro o claro, según el modo) haría falta para dar texto >= 4,5:1 en cada franja del alto
            de la ventana con la copia borrosa REAL, peor caso entre varios tamaños de ventana. Es solo INFORMATIVO: el
-           diseño actual usa un velo de 10 % (35 % abajo en el modo claro, VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
+           diseño actual usa un velo de 10 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
            sombra del texto (ver `GlassColors` en Color.kt). Con el modo claro actual (texto crema) los números salen
            altos: es justo lo que se está dejando de pedir al velo.
              python3 backdrop_tools.py veil app/src/main/res/drawable-nodpi
@@ -40,6 +40,8 @@ MODES = {
         # Texto de GlassColors.content (crema, solo en el modo claro), no el de la paleta normal.
         text={"onSurface": 0xFFF8E7, "onSurfaceVariant": 0xFFF8E7, "primary": 0xFFF8E7, "error": 0xFFB4AB},
         outline=0xFFF8E7,
+        # GlassBarInk de Color.kt: texto DENTRO de la barra y del botón (oscuro, sobre el tinte crema).
+        bar_text={"onSurface": 0x0E1511, "onSurfaceVariant": 0x1F2923, "primary": 0x0E1511, "error": 0x5C0005},
     ),
     "dark": dict(
         blur="auth_bg_dark_blur.webp", veil=0x0E1511, bar_tint=0.25, bar_rgb=0x0E1511, button_tint=0.0,
@@ -48,24 +50,8 @@ MODES = {
     ),
 }
 # Alfas del velo en N paradas igualmente espaciadas de arriba (0) a abajo (1). Deben coincidir con Color.kt.
-def veil_stops_with_bottom_boost(count, base, boosted, ramp_start, ramp_end):
-    """Espejo de veilStopsWithBottomBoost (net/GlassLogic.kt)."""
-    if count < 2:
-        return [base]
-    out = []
-    for k in range(count):
-        y = k / (count - 1)
-        if y <= ramp_start:
-            out.append(base)
-        elif y >= ramp_end:
-            out.append(boosted)
-        else:
-            out.append(base + (boosted - base) * ((y - ramp_start) / (ramp_end - ramp_start)))
-    return out
-
-
 VEIL_STOPS = {
-    "light": veil_stops_with_bottom_boost(21, 0.10, 0.35, 0.40, 0.55),  # GlassVeilAlphasLight
+    "light": [0.10] * 21,
     "dark": [0.10] * 21,
 }
 # (nombre, ancho dp, alto dp). El texto ocupa la columna de min(480, ancho) - 48 de ancho y puede estar a cualquier altura.
@@ -211,11 +197,11 @@ def measure(resdir):
                     ok3[k] += int((cr >= 3.0).sum())
                 ct = _rgb(m["bar_rgb"]) * m["bar_tint"] + c * (1 - m["bar_tint"])
                 cb = _rgb(m["bar_rgb"]) * m["button_tint"] + c * (1 - m["button_tint"])
-                worst["boton primary"] = min(worst.get("boton primary", 99), float(_contrast(_lum(cb), _lum(_rgb(m["text"]["primary"]))).min()))
+                worst["boton primary"] = min(worst.get("boton primary", 99), float(_contrast(_lum(cb), _lum(_rgb((m.get("bar_text") or m["text"])["primary"]))).min()))
                 worst["boton borde"] = min(worst.get("boton borde", 99), float(_contrast(_lum(cb), _lum(_rgb(m["outline"]))).min()))
                 for tag, cc in (("borde", c), ("borde+barra", ct)):
                     worst[tag] = min(worst.get(tag, 99), float(_contrast(_lum(cc), _lum(_rgb(m["outline"]))).min()))
-                for k, v in m["text"].items():
+                for k, v in (m.get("bar_text") or m["text"]).items():
                     key = k + " en barra"
                     worst[key] = min(worst.get(key, 99), float(_contrast(_lum(ct), _lum(_rgb(v))).min()))
             print(f"  {name:16s} peor: " + " ".join(f"{k}={v:.2f}" for k, v in worst.items() if "en barra" not in k and not k.startswith("boton")))

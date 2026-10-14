@@ -4,7 +4,6 @@ import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Immutable
 import androidx.compose.ui.graphics.Color
-import com.isra16.movienight.net.veilStopsWithBottomBoost
 
 /*
  * TODOS los colores de la app viven en este archivo (Fase 8 del plan). Cambiar la paleta es editar solo esto.
@@ -201,9 +200,10 @@ class GlassContentColors(
  * roles de Material; se leen con `LocalGlassColors` (ver `Theme.kt`). Capas, de abajo arriba:
  *  1. la copia borrosa de la imagen de fondo, a pantalla completa;
  *  2. el velo: [veil] (color OSCURO liso) con un alfa que puede cambiar de arriba a abajo ([veilAlphas], paradas
- *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo en el modo oscuro y, en el claro, 10 % arriba subiendo a 35 % en la franja de abajo (antes 3 %);
+ *     igualmente espaciadas; ver `veilAlphaAt`). Hoy es 10 % parejo, a pedido de la persona (antes 3 %);
  *  3. solo en la barra de campos y el botón: [barTint] y [buttonTint] (con alfa; en el modo claro son color crema, que
  *     aclara el vidrio, y en el oscuro la barra sigue con tinte oscuro y el botón sin relleno) y [barBorder], el borde fino.
+ *     En el modo claro el texto de la barra y del botón es oscuro ([barContent]) para leerse sobre ese tinte crema.
  *
  * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
  * `tools/glass/backdrop_tools.py measure`, que da el porcentaje de píxeles que sí). La legibilidad la completa la
@@ -219,22 +219,30 @@ class GlassColors(
     val barBorder: Color,
     val buttonTint: Color = Color.Transparent,
     val content: GlassContentColors? = null,
+    // Colores del texto DENTRO de la barra de campos y del botón (sobre el tinte crema); null = los mismos que fuera.
+    val barContent: GlassContentColors? = null,
 )
 
 private val GlassVeilAlphas = List(21) { 0.10f }
+private val GlassCream = Color(0xFFFFF8E7)
 
 /**
- * Velo del modo claro: 10 % arriba (como antes) y, entre el 40 % y el 55 % del alto, sube hasta 35 % y se queda ahí hasta
- * abajo, que es donde caen los enlaces de las pantallas de entrada (login: ~62 % y ~69 % del alto). Con la copia
- * borrosa real, el contraste del texto crema en esa franja pasa de una mediana ~2,9:1 a ~4,8:1 (sin contar la sombra).
- * El oscuro no se toca: ya cumplía 4,5:1 en ~94 % de los píxeles.
+ * Texto oscuro para dentro de la barra de campos y del botón del modo claro, sobre el tinte crema (el texto crema se
+ * perdía ahí). Contraste medido con la copia borrosa real y los tintes de hoy (barra 25 %, botón 12 %), sin sombra:
+ * `onSurface` >= 4,5:1 en ~94 % de los píxeles de la barra y ~88 % de los del botón; `onSurfaceVariant` (etiquetas)
+ * ~89 %; `error` (mensaje de error dentro de la barra) ~87 %. Provisionales, igual que el resto de la paleta.
  */
-private val GlassVeilAlphasLight = veilStopsWithBottomBoost(count = 21, base = 0.10f, boosted = 0.35f, rampStart = 0.40f, rampEnd = 0.55f)
-private val GlassCream = Color(0xFFFFF8E7)
+private val GlassBarInk = GlassContentColors(
+    onSurface = Color(0xFF0E1511),
+    onSurfaceVariant = Color(0xFF1F2923),
+    primary = Color(0xFF0E1511),
+    error = Color(0xFF5C0005),
+    outline = Color(0xFF1F2923),
+)
 
 internal val MovieNightLightGlass = GlassColors(
     veil = DarkBackground,
-    veilAlphas = GlassVeilAlphasLight,
+    veilAlphas = GlassVeilAlphas,
     barTint = GlassCream.copy(alpha = 0.25f),
     barBorder = GlassCream,
     buttonTint = GlassCream.copy(alpha = 0.12f),
@@ -245,6 +253,7 @@ internal val MovieNightLightGlass = GlassColors(
         error = Color(0xFFFFB4AB),
         outline = GlassCream,
     ),
+    barContent = GlassBarInk,
 )
 
 internal val MovieNightDarkGlass = GlassColors(

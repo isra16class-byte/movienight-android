@@ -77,7 +77,7 @@ fun AuthScreenLayout(
                 if (subtitle != null) {
                     Text(
                         subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge.copy(shadow = GlassLinkShadow),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth(),
@@ -92,6 +92,7 @@ fun AuthScreenLayout(
 /**
  * Barra que junta los campos de las pantallas de entrada: un solo contenedor redondeado con tinte y borde fino
  * (`GlassColors.barTint` y `barBorder`), y los campos adentro sin contorno propio, separados con [GlassFieldDivider].
+ * En el modo claro el texto de adentro es oscuro y sin sombra ([GlassBarContent]).
  */
 @Composable
 fun GlassFieldGroup(content: @Composable ColumnScope.() -> Unit) {
@@ -103,8 +104,10 @@ fun GlassFieldGroup(content: @Composable ColumnScope.() -> Unit) {
             .clip(shape)
             .background(glass.barTint)
             .border(1.dp, glass.barBorder, shape),
-        content = content,
-    )
+    ) {
+        val scope = this
+        GlassBarContent { scope.content() }
+    }
 }
 
 /** Línea fina entre dos campos de un [GlassFieldGroup]. */
@@ -276,28 +279,33 @@ fun PrimaryButton(text: String, busy: Boolean, onClick: () -> Unit) {
 
 /**
  * Enlace de texto de las pantallas de entrada ("¿Olvidaste tu contraseña?", "Registrate", etc.): negrita de 16 sp
- * (antes el tamaño y peso de un `TextButton` normal, 14 sp), que sobre la foto se perdía. Color y sombra los pone
- * [GlassContent].
+ * (antes el tamaño y peso de un `TextButton` normal, 14 sp), con [GlassLinkShadow], que sobre la foto se perdían. El color lo
+ * pone [GlassContent].
  */
 @Composable
 fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit) {
     TextButton(onClick = onClick, enabled = enabled) {
         Text(
             text,
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
+            style = MaterialTheme.typography.labelLarge.copy(
+                fontSize = 16.sp, lineHeight = 22.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp, shadow = GlassLinkShadow,
+            ),
         )
     }
 }
 
 /**
  * Botón de las pantallas de entrada (Fase 8, paso 3): contorno fino sobre el vidrio, esquinas de 16 dp como la barra de campos y, en el modo claro, un relleno crema translúcido (`GlassColors.buttonTint`); texto en negrita de 18 sp. El color es `primary`
- * del panel (el mismo con el que se midió el contraste del texto verde: >= 4,5:1). `PrimaryButton` sigue igual porque
+ * del panel (el mismo con el que se midió el contraste del texto verde: >= 4,5:1); en el modo claro el texto es oscuro (`GlassColors.barContent`) y el contorno sigue crema. `PrimaryButton` sigue igual porque
  * lo usa también la sala (contraseña de la sala).
  */
 @Composable
 fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit) {
-    val color = MaterialTheme.colorScheme.primary
-    val tint = LocalGlassColors.current.buttonTint
+    val glass = LocalGlassColors.current
+    val color = MaterialTheme.colorScheme.primary // borde y, en el modo oscuro, también el texto
+    val ink = glass.barContent
+    val textColor = ink?.onSurface ?: color // en el modo claro, texto oscuro sobre el tinte crema
+    val tint = glass.buttonTint
     OutlinedButton(
         onClick = onClick,
         enabled = !busy,
@@ -305,16 +313,15 @@ fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit) {
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, if (busy) color.copy(alpha = 0.38f) else color),
         colors = ButtonDefaults.outlinedButtonColors(
-            containerColor = tint, contentColor = color, disabledContainerColor = tint, disabledContentColor = color,
+            containerColor = tint, contentColor = textColor, disabledContainerColor = tint, disabledContentColor = textColor,
         ),
     ) {
         if (busy) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = color)
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = textColor)
         } else {
-            Text(
-                text,
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp),
-            )
+            val style = MaterialTheme.typography.labelLarge.copy(fontSize = 18.sp, lineHeight = 24.sp, fontWeight = FontWeight.Bold, letterSpacing = 0.sp)
+            // Con texto oscuro sobre el tinte crema la sombra negra solo ensucia: sin sombra.
+            Text(text, style = if (ink != null) style.copy(shadow = null) else style)
         }
     }
 }

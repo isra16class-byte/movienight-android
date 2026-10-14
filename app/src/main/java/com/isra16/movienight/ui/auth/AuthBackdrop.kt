@@ -56,17 +56,23 @@ import kotlin.math.roundToInt
  */
 
 /**
- * Sombra de TODO el texto de las pantallas de entrada. Con el velo leve (10 % arriba) es lo que da legibilidad sobre las zonas
+ * Sombra de TODO el texto de las pantallas de entrada. Con el velo leve (10 %) es lo que da legibilidad sobre las zonas
  * claras de la imagen (cielo, flores blancas); el contraste de píxeles no la mide. Valores provisionales (px, no dp).
  */
-internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.85f), offset = Offset(0f, 2f), blurRadius = 8f)
+internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.65f), offset = Offset(0f, 2f), blurRadius = 6f)
+
+/**
+ * Sombra más fuerte, solo para el subtítulo y los enlaces, que quedan sobre la foto sin nada detrás (el resto del texto
+ * va dentro de la barra o del botón, o es el título). Valores provisionales (px, no dp).
+ */
+internal val GlassLinkShadow = Shadow(color = Color.Black.copy(alpha = 0.90f), offset = Offset(0f, 2f), blurRadius = 10f)
 
 /** Sombra y letra más gruesa: lo que pesa menos de SemiBold (600) sube a SemiBold; lo que ya es más grueso se queda. */
-private fun TextStyle.glass(shadow: Shadow): TextStyle =
+private fun TextStyle.glass(shadow: Shadow?): TextStyle =
     copy(shadow = shadow, fontWeight = if ((fontWeight?.weight ?: 400) < 600) FontWeight.SemiBold else fontWeight)
 
 /** La misma tipografía con la sombra y el peso de [glass] en cada estilo; así llega a todo `Text` que use `MaterialTheme.typography`. */
-private fun Typography.withShadow(shadow: Shadow) = Typography(
+internal fun Typography.withShadow(shadow: Shadow?) = Typography(
     displayLarge = displayLarge.glass(shadow),
     displayMedium = displayMedium.glass(shadow),
     displaySmall = displaySmall.glass(shadow),
@@ -170,6 +176,36 @@ internal fun GlassContent(content: @Composable () -> Unit) {
     // MaterialTheme.typography es @Composable: se lee fuera del bloque de remember.
     val baseTypography = MaterialTheme.typography
     val typography = remember(baseTypography) { baseTypography.withShadow(GlassTextShadow) }
+    MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
+        CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
+    }
+}
+
+/**
+ * Texto de lo que va DENTRO de la barra de campos y del botón: en el modo claro, colores oscuros (`GlassColors.barContent`)
+ * y sin sombra, porque ahí el fondo es el tinte crema. Sin `barContent` (modo oscuro) no cambia nada. Debe ir dentro de
+ * [GlassContent].
+ */
+@Composable
+internal fun GlassBarContent(content: @Composable () -> Unit) {
+    val ink = LocalGlassColors.current.barContent
+    if (ink == null) {
+        content()
+        return
+    }
+    val baseScheme = MaterialTheme.colorScheme
+    val scheme = remember(baseScheme, ink) {
+        baseScheme.copy(
+            onSurface = ink.onSurface,
+            onBackground = ink.onSurface,
+            onSurfaceVariant = ink.onSurfaceVariant,
+            primary = ink.primary,
+            error = ink.error,
+            outline = ink.outline,
+        )
+    }
+    val baseTypography = MaterialTheme.typography
+    val typography = remember(baseTypography) { baseTypography.withShadow(null) }
     MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
         CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
     }
