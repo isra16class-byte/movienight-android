@@ -1,5 +1,6 @@
 package com.isra16.movienight.ui.auth
 
+import androidx.compose.foundation.layout.Column
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -7,6 +8,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.text.input.ImeAction
 import com.isra16.movienight.auth.AuthValidation
 import com.isra16.movienight.auth.AuthViewModel
@@ -49,7 +51,10 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
         }
         ErrorText(vm.errorMessage)
         GlassButton("Iniciar sesión", busy = vm.isBusy, onClick = ::submit)
-        GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
-        GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister, emphasis = "Registrate")
+        // Los dos enlaces van juntos en su propia columna: el panel separa 12 dp cada hijo, y entre enlaces sobraba.
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
+            GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister, emphasis = "Registrate")
+        }
     }
 }

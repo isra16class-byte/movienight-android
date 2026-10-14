@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.LocalTextStyle
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
 import androidx.compose.ui.text.TextStyle
@@ -308,6 +309,12 @@ internal fun GlassBarContent(content: @Composable () -> Unit) {
     }
     val typography = remember { AppTypography.withoutShadow() }
     MaterialTheme(colorScheme = scheme, typography = typography, shapes = MaterialTheme.shapes) {
-        CompositionLocalProvider(LocalContentColor provides scheme.onSurface, content = content)
+        // MaterialTheme hace LocalTextStyle.current.merge(bodyLarge) y merge conserva la sombra de afuera si la de adentro
+        // es null: la sombra de GlassContent se colaba en el texto de los campos, las etiquetas y "Mostrar". Se quita aquí.
+        CompositionLocalProvider(
+            LocalContentColor provides scheme.onSurface,
+            LocalTextStyle provides LocalTextStyle.current.copy(shadow = null),
+            content = content,
+        )
     }
 }

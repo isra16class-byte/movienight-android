@@ -3,6 +3,7 @@ package com.isra16.movienight.ui.auth
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -40,6 +41,7 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -101,14 +103,14 @@ fun AuthScreenLayout(
  * transparente (`GlassColors.barTint`) y un borde de un pelo que va de más brillante arriba (`barBorderTop`) a más tenue
  * abajo (`barBorder`), y los campos adentro sin contorno propio, separados con [GlassFieldDivider].
  * Va dentro de un [GlassPanel], que ya pone el texto oscuro y sin sombra del modo claro. Con el foco en cualquiera de los
- * campos de adentro, el borde se engrosa (2 dp) y toma el color de acento ([GlassColors.accent]).
+ * campos de adentro, el borde se engrosa (2 dp) y se pone blanco (antes tomaba [GlassColors.accent], un verde casi negro).
  */
 @Composable
 fun GlassFieldGroup(content: @Composable ColumnScope.() -> Unit) {
     val glass = LocalGlassColors.current
     val shape = RoundedCornerShape(16.dp)
     var focused by remember { mutableStateOf(false) }
-    val borderBrush = if (focused) SolidColor(glass.accent) else Brush.verticalGradient(listOf(glass.barBorderTop, glass.barBorder))
+    val borderBrush = if (focused) SolidColor(Color.White) else Brush.verticalGradient(listOf(glass.barBorderTop, glass.barBorder))
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -309,9 +311,19 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasi
             if (start >= 0) addStyle(SpanStyle(fontWeight = FontWeight.Medium), start, start + emphasis!!.length)
         }
     }
-    TextButton(onClick = onClick, enabled = enabled) {
+    // Sin TextButton: este impone 48 dp de alto mínimo y separaba demasiado los dos enlaces del login. Aquí el alto es
+    // 32 dp (línea de 20 dp + 6 dp arriba y abajo). Mismos colores que TextButton: acento si está activo, 38 % si no.
+    val color = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             label,
+            color = color,
             style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
         )
     }

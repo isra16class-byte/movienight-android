@@ -205,7 +205,7 @@ class GlassContentColors(
  *     muy transparente en el modo claro, tinte oscuro en el oscuro) y un borde de un pelo que va de [barBorderTop]
  *     (arriba, más brillante) a [barBorder] (abajo), con [barDivider] entre campos. El botón es otra pieza de vidrio:
  *     [buttonFill] con borde [buttonBorder] y texto [buttonContent]. En el modo claro el texto de la barra y del botón
- *     es oscuro ([barContent]). [accent] es el color del borde de la barra con el foco y del "Mostrar"; [fieldLabel],
+ *     es oscuro ([barContent]). [accent] es el color del "Mostrar", la etiqueta con foco y el cursor (el borde de la barra con foco ya no lo usa: es blanco); [fieldLabel],
  *     el de la etiqueta de los campos.
  *
  * ATENCIÓN, decisión de diseño: con velo tan leve el contraste del texto NO llega a 4,5:1 en toda la imagen (ver
