@@ -68,6 +68,7 @@ import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.auth.GlassTextField
 import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.theme.AuthTitleStyle
+import com.isra16.movienight.ui.theme.LocalGlassColors
 import com.isra16.movienight.ui.upload.KeepScreenOn
 import com.isra16.movienight.ui.upload.rememberNotificationGate
 import com.isra16.movienight.ui.upload.UploadStatusBody
@@ -303,11 +304,16 @@ private fun HomeGlassCard(
         cornerRadius = HOME_CARD_CORNER,
         spacing = spacing,
         blurredCopy = blurredCopy,
+        // Mismo color que el de la paleta (blanco en claro, oscuro en oscuro) pero más asentado: se ve menos de la foto detrás del texto.
+        tint = LocalGlassColors.current.panelTint.copy(alpha = HOME_TINT_ALPHA),
         content = content,
     )
 }
 
 private val HOME_CARD_CORNER = 24.dp
+
+/** Opacidad del tinte de las tarjetas de Home (antes 0,45 en claro y 0,55 en oscuro, los de la paleta). Provisional: se ajusta en el teléfono. */
+private const val HOME_TINT_ALPHA = 0.70f
 
 @Composable
 private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {

@@ -256,6 +256,8 @@ internal fun GlassPanel(
     spacing: Dp = 12.dp,
     // false: solo tinte y borde, sin la copia borrosa trasladada (más barato; para muchas tarjetas en una lista).
     blurredCopy: Boolean = true,
+    // null: el tinte de la paleta (`GlassColors.panelTint`). Home pasa uno más asentado; el login no pasa nada.
+    tint: Color? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val backdrop = LocalGlassBackdrop.current
@@ -277,7 +279,7 @@ internal fun GlassPanel(
                     )
                     drawCover(panel, blurRectInPanel(image, panelOrigin.x - backdrop.origin.x, panelOrigin.y - backdrop.origin.y))
                 }
-                drawRect(glass.panelTint)
+                drawRect(tint ?: glass.panelTint)
             }
             .border(1.dp, glass.panelBorder, shape)
             .padding(contentPadding),
