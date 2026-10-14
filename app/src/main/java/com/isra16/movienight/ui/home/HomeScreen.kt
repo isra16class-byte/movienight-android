@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -62,11 +60,12 @@ import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.GlassBarContent
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassContent
+import com.isra16.movienight.ui.auth.GlassDialog
 import com.isra16.movienight.ui.auth.GlassFieldGroup
 import com.isra16.movienight.ui.auth.GlassLinkButton
+import com.isra16.movienight.ui.auth.GlassPasswordField
 import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.auth.GlassTextField
-import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.theme.AuthTitleStyle
 import com.isra16.movienight.ui.theme.LocalGlassColors
 import com.isra16.movienight.ui.upload.KeepScreenOn
@@ -476,40 +475,30 @@ private fun CreateRoomDialog(
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
-    // GlassBarContent: texto oscuro en el modo claro y blanco en el oscuro, sin el verde de antes; el fondo, algo translúcido.
-    GlassBarContent {
-        AlertDialog(
-            onDismissRequest = onDismiss,
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
-            title = { Text(title) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4)
-                    PasswordField(
-                        label = "Contraseña de la sala (opcional)",
-                        value = password,
-                        onValueChange = { password = it },
-                        error = null,
-                        enabled = !busy,
-                        showPassword = showPassword,
-                        onToggleShow = { showPassword = !showPassword },
-                        hint = "Dejala vacía para una sala abierta a quien tenga el link.",
-                        imeAction = ImeAction.Done,
-                        onDone = { onCreate(password) },
-                    )
-                    ErrorText(error)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { onCreate(password) }, enabled = !busy) {
-                    if (busy) {
-                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                    } else {
-                        Text(confirmLabel)
-                    }
-                }
-            },
-            dismissButton = { TextButton(onClick = onDismiss, enabled = !busy) { Text("Cancelar") } },
-        )
+    GlassDialog(
+        onDismissRequest = onDismiss,
+        title = title,
+        confirmButton = {
+            // Mismo botón de cristal de la pantalla; mientras trabaja muestra el progreso y no se puede tocar.
+            GlassButton(confirmLabel, busy = busy, onClick = { onCreate(password) }, modifier = Modifier.width(150.dp))
+        },
+        dismissButton = { GlassLinkButton("Cancelar", enabled = !busy, onClick = onDismiss) },
+    ) {
+        Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4)
+        GlassFieldGroup {
+            GlassPasswordField(
+                label = "Contraseña de la sala (opcional)",
+                value = password,
+                onValueChange = { password = it },
+                error = null,
+                enabled = !busy,
+                showPassword = showPassword,
+                onToggleShow = { showPassword = !showPassword },
+                hint = "Dejala vacía para una sala abierta a quien tenga el link.",
+                imeAction = ImeAction.Done,
+                onDone = { onCreate(password) },
+            )
+        }
+        ErrorText(error)
     }
 }

@@ -4,19 +4,21 @@ import android.Manifest
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationManagerCompat
 import com.isra16.movienight.MovieNightApp
 import com.isra16.movienight.net.shouldAskNotificationPermission
+import com.isra16.movienight.ui.auth.GlassButton
+import com.isra16.movienight.ui.auth.GlassDialog
+import com.isra16.movienight.ui.auth.GlassLinkButton
 
 /**
  * Pide el permiso de notificaciones (Android 13+) en el momento en que tiene sentido: justo antes de abrir
@@ -51,28 +53,27 @@ fun rememberNotificationGate(): (proceed: () -> Unit) -> Unit {
     }
 
     if (showExplanation) {
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { continueUpload() },
-            title = { Text("¿Avisarte cuando termine la subida?") },
-            text = {
-                Text(
-                    "Subir un video grande puede tardar. Si salís de la app mientras sube, mostramos el avance " +
-                        "en una notificación y te avisamos cuando termine o si falla. Solo la usamos para eso.",
-                )
-            },
+            title = "¿Avisarte cuando termine la subida?",
             confirmButton = {
-                Button(onClick = {
+                GlassButton("Activar avisos", busy = false, modifier = Modifier.width(150.dp), onClick = {
                     showExplanation = false
                     requestPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }) { Text("Activar avisos") }
+                })
             },
             dismissButton = {
-                TextButton(onClick = {
+                GlassLinkButton("Ahora no", enabled = true, onClick = {
                     prefs.markAsked()
                     continueUpload()
-                }) { Text("Ahora no") }
+                })
             },
-        )
+        ) {
+            Text(
+                "Subir un video grande puede tardar. Si salís de la app mientras sube, mostramos el avance " +
+                    "en una notificación y te avisamos cuando termine o si falla. Solo la usamos para eso.",
+            )
+        }
     }
 
     return { proceed ->
