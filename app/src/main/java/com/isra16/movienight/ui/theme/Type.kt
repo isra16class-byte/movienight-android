@@ -1,9 +1,11 @@
 package com.isra16.movienight.ui.theme
 
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontVariation
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.isra16.movienight.R
@@ -37,14 +39,18 @@ val Typography = Typography(
 
 /**
  * Fuente del título de las pantallas de entrada (Fase 8, paso 3; PROVISIONAL hasta el paso 6): Playfair Display, licencia OFL
- * (ver `third_party/fonts/playfair-display/`). Es un archivo variable y solo se usa su peso por defecto (400).
+ * (ver `third_party/fonts/playfair-display/`). Es un archivo variable (eje de peso 400 a 900): el título se pide en peso 800 con `variationSettings`, porque sin
+ * ellas Compose usa el peso por defecto del archivo (400) aunque se indique otro `FontWeight`.
  */
-internal val TitleFontFamily = FontFamily(Font(R.font.playfair_display, FontWeight.Normal))
+@OptIn(ExperimentalTextApi::class)
+internal val TitleFontFamily = FontFamily(
+    Font(R.font.playfair_display, FontWeight.ExtraBold, variationSettings = FontVariation.Settings(FontVariation.weight(800))),
+)
 
 /** Estilo del título de login, registro y recuperar contraseña. */
 internal val AuthTitleStyle = TextStyle(
     fontFamily = TitleFontFamily,
-    fontWeight = FontWeight.Normal,
+    fontWeight = FontWeight.ExtraBold,
     fontSize = 34.sp,
     lineHeight = 40.sp,
     letterSpacing = 0.sp,
