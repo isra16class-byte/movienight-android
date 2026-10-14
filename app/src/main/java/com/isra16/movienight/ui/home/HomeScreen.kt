@@ -11,33 +11,32 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -60,6 +59,7 @@ import com.isra16.movienight.ui.auth.GlassBarContent
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassContent
 import com.isra16.movienight.ui.auth.GlassFieldGroup
+import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.auth.GlassTextField
 import com.isra16.movienight.ui.auth.PasswordField
@@ -128,75 +128,37 @@ fun HomeScreen(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                item { Header(email, isLoggingOut, onLogout, darkTheme, onDarkThemeChange) }
-                if (shouldShowAdminAccess(vm.adminAccess)) {
-                    item {
-                        AdminCard(
-                            error = adminError,
-                            onOpen = {
-                                adminError = if (openInBrowser(context, vm.adminPanelLink)) null else ADMIN_NO_BROWSER_MESSAGE
-                            },
-                        )
-                    }
+                item {
+                    Header(
+                        email = email,
+                        isLoggingOut = isLoggingOut,
+                        onLogout = onLogout,
+                        darkTheme = darkTheme,
+                        onDarkThemeChange = onDarkThemeChange,
+                        showAdmin = shouldShowAdminAccess(vm.adminAccess),
+                        onOpenAdmin = {
+                            adminError = if (openInBrowser(context, vm.adminPanelLink)) null else ADMIN_NO_BROWSER_MESSAGE
+                        },
+                    )
                 }
+                if (adminError != null) item { ErrorText(adminError) }
                 item { JoinCard(vm, onOpenRoom) }
                 item {
-                    UploadCard(
-                        state = uploadState,
+                    LibraryCard(
+                        library = vm.library,
+                        upload = uploadState,
+                        onRefresh = vm::refresh,
                         onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
                         onPickAndCreateRoom = { showUploadAndCreate = true },
                         onCancel = vm::cancelUpload,
                         onRetry = vm::retryUpload,
                         onDismiss = vm::dismissUpload,
                         onOpenRoom = onOpenRoom,
+                        onSelect = { item ->
+                            vm.clearCreateRoomError()
+                            selected = item
+                        },
                     )
-                }
-                item {
-                    HomeGlassCard(blurredCopy = false, padding = 12.dp) {
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("Biblioteca", style = MaterialTheme.typography.titleLarge)
-                            TextButton(onClick = vm::refresh, enabled = vm.library !is LibraryState.Loading) {
-                                Text("Actualizar")
-                            }
-                        }
-                    }
-                }
-                when (val state = vm.library) {
-                    LibraryState.Loading -> item {
-                        HomeGlassCard(blurredCopy = false) {
-                            Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator()
-                            }
-                        }
-                    }
-                    is LibraryState.Error -> item {
-                        HomeGlassCard(blurredCopy = false) {
-                            ErrorText(state.message)
-                            GlassButton("Reintentar", busy = false, onClick = vm::refresh)
-                        }
-                    }
-                    is LibraryState.Loaded -> if (state.items.isEmpty()) {
-                        item {
-                            HomeGlassCard(blurredCopy = false) {
-                                Text(
-                                    "La biblioteca está vacía. Subí un video desde acá o desde la web para poder crear una sala.",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
-                            }
-                        }
-                    } else {
-                        items(state.items, key = { it.filename }) { item ->
-                            VideoCard(item) {
-                                vm.clearCreateRoomError()
-                                selected = item
-                            }
-                        }
-                    }
                 }
             }
         }
@@ -246,6 +208,10 @@ fun HomeScreen(
     }
 }
 
+/**
+ * Encabezado sin panel: el nombre y el email sobre el fondo, y un botón "Cuenta" con un menú (modo oscuro, administración
+ * si corresponde y cerrar sesión). Antes eran dos tarjetas (encabezado y administración) arriba de todo.
+ */
 @Composable
 private fun Header(
     email: String,
@@ -253,32 +219,61 @@ private fun Header(
     onLogout: () -> Unit,
     darkTheme: Boolean,
     onDarkThemeChange: (Boolean) -> Unit,
+    showAdmin: Boolean,
+    onOpenAdmin: () -> Unit,
 ) {
-    HomeGlassCard {
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Column(Modifier.weight(1f)) {
-                // El título de las pantallas de entrada (Playfair Display, provisional hasta el paso 6) en un tamaño menor.
-                Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
-                if (email.isNotBlank()) {
-                    Text(
-                        email,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(
+        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(Modifier.weight(1f)) {
+            // El título de las pantallas de entrada (Playfair Display, provisional hasta el paso 6) en un tamaño menor.
+            Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
+            if (email.isNotBlank()) {
+                Text(
+                    email,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+            }
+        }
+        Box {
+            GlassButton("Cuenta", busy = false, onClick = { menuOpen = true }, modifier = Modifier.width(112.dp))
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                // El menú es una ventana aparte, con el fondo claro u oscuro normal del tema: el texto va con los colores de
+                // dentro del panel (oscuros en el modo claro, blancos en el oscuro), no con los de sobre el fondo.
+                GlassBarContent {
+                    // El interruptor no cierra el menú: así se ve cómo cambia.
+                    DropdownMenuItem(
+                        text = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text("Modo oscuro")
+                                Switch(checked = darkTheme, onCheckedChange = null)
+                            }
+                        },
+                        onClick = { onDarkThemeChange(!darkTheme) },
+                    )
+                    if (showAdmin) {
+                        DropdownMenuItem(
+                            text = { Text("Administración (abre el navegador)") },
+                            onClick = {
+                                menuOpen = false
+                                onOpenAdmin()
+                            },
+                        )
+                    }
+                    DropdownMenuItem(
+                        text = { Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión") },
+                        enabled = !isLoggingOut,
+                        onClick = {
+                            menuOpen = false
+                            onLogout()
+                        },
                     )
                 }
-            }
-            // Las acciones van en una columna a la derecha: el interruptor queda justo debajo de "Cerrar sesión" y no le
-            // quita ancho al título (en una fila, en un teléfono angosto "MovieNight" podría partirse en dos líneas).
-            Column(horizontalAlignment = Alignment.End) {
-                OutlinedButton(onClick = onLogout, enabled = !isLoggingOut) {
-                    Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión")
-                }
-                ThemeSwitch(darkTheme, onDarkThemeChange)
             }
         }
     }
@@ -310,91 +305,83 @@ private fun HomeGlassCard(
 
 private val HOME_CARD_CORNER = 24.dp
 
-/** Interruptor de modo claro / oscuro. Toda la fila es el interruptor (un solo objetivo táctil de 48 dp para lectores de pantalla). */
-@Composable
-private fun ThemeSwitch(darkTheme: Boolean, onDarkThemeChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .heightIn(min = 48.dp)
-            .toggleable(value = darkTheme, role = Role.Switch, onValueChange = onDarkThemeChange),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            "Modo oscuro",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Switch(checked = darkTheme, onCheckedChange = null)
-    }
-}
-
-/** Solo se muestra a una cuenta admin confirmada por el server (ver `shouldShowAdminAccess`). */
-@Composable
-private fun AdminCard(error: String?, onOpen: () -> Unit) {
-    HomeGlassCard {
-        Text("Administración", style = MaterialTheme.typography.titleMedium)
-        Text(
-            "El panel se abre en el navegador del teléfono. Ahí te va a pedir iniciar sesión " +
-                "con tu email y contraseña: es una sesión aparte de la de la app.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        ErrorText(error)
-        GlassButton("Abrir panel de administración", busy = false, onClick = onOpen)
-    }
-}
-
 @Composable
 private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
     var code by rememberSaveable { mutableStateOf("") }
     val joinError = vm.joinError
     fun join() = vm.joinByCode(code, onOpenRoom)
 
+    // La acción principal de la pantalla: el campo y el botón en una sola fila.
     HomeGlassCard {
         Text("Unirse a una sala", style = MaterialTheme.typography.titleMedium)
-        GlassFieldGroup {
-            GlassTextField(
-                value = code,
-                onValueChange = {
-                    code = it
-                    vm.clearJoinError()
-                },
-                label = "Código o link de la sala",
-                error = joinError,
-                imeAction = ImeAction.Go,
-                onAction = { join() },
-            )
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Box(Modifier.weight(1f)) {
+                GlassFieldGroup {
+                    GlassTextField(
+                        value = code,
+                        onValueChange = {
+                            code = it
+                            vm.clearJoinError()
+                        },
+                        label = "Código o link",
+                        error = joinError,
+                        imeAction = ImeAction.Go,
+                        onAction = { join() },
+                    )
+                }
+            }
+            GlassButton("Unirme", busy = false, onClick = ::join, modifier = Modifier.width(104.dp), enabled = code.isNotBlank())
         }
-        GlassButton("Unirme", busy = false, onClick = ::join, enabled = code.isNotBlank())
     }
 }
 
+/**
+ * Biblioteca y subida en un solo panel: título y "Actualizar", la subida (botones, o el avance si hay una en curso) y,
+ * debajo, los videos como filas separadas por una línea fina (no una tarjeta por video). Tocar una fila abre "Crear sala".
+ * Las filas no son perezosas: van todas dentro del panel (una biblioteca de decenas de videos no pesa; de cientos habría que revisarlo).
+ */
 @Composable
-private fun UploadCard(
-    state: UploadState,
+private fun LibraryCard(
+    library: LibraryState,
+    upload: UploadState,
+    onRefresh: () -> Unit,
     onPick: () -> Unit,
     onPickAndCreateRoom: () -> Unit,
     onCancel: () -> Unit,
     onRetry: () -> Unit,
     onDismiss: () -> Unit,
     onOpenRoom: (roomId: String) -> Unit,
+    onSelect: (LibraryItem) -> Unit,
 ) {
-    HomeGlassCard {
-        Text("Subir un video", style = MaterialTheme.typography.titleMedium)
+    HomeGlassCard(blurredCopy = false) {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Biblioteca", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = onRefresh, enabled = library !is LibraryState.Loading) {
+                Text("Actualizar")
+            }
+        }
         UploadStatusBody(
-            state = state,
+            state = upload,
             idle = {
                 val formats = UPLOAD_VIDEO_EXTENSIONS.joinToString(", ") { it.removePrefix(".").uppercase() }
                 Text(
-                    "Elegí un video del teléfono ($formats; hasta $MAX_SIMPLE_PUT_LABEL). " +
-                        "Se sube directo a la nube y queda en la biblioteca; si querés, se crea la sala con él al terminar.",
+                    "$formats · hasta $MAX_SIMPLE_PUT_LABEL",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // Uno bajo el otro: en dos columnas "Subir y crear sala" no cabe en un teléfono angosto.
+                // Una sola acción principal; la otra, más discreta (en dos columnas "Subir y crear sala" no cabe en un teléfono angosto).
                 GlassButton("Subir y crear sala", busy = false, onClick = onPickAndCreateRoom)
-                GlassButton("Solo subir", busy = false, onClick = onPick)
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    GlassLinkButton("Solo subir (sin crear sala)", enabled = true, onClick = onPick)
+                }
             },
             onPick = onPick,
             onCancel = onCancel,
@@ -402,28 +389,55 @@ private fun UploadCard(
             onDismiss = onDismiss,
             onOpenRoom = onOpenRoom,
         )
+        when (library) {
+            LibraryState.Loading -> Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
+                CircularProgressIndicator()
+            }
+            is LibraryState.Error -> {
+                ErrorText(library.message)
+                GlassButton("Reintentar", busy = false, onClick = onRefresh)
+            }
+            is LibraryState.Loaded -> if (library.items.isEmpty()) {
+                Text(
+                    "La biblioteca está vacía. Subí un video desde acá o desde la web para poder crear una sala.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            } else {
+                Column(Modifier.fillMaxWidth()) {
+                    library.items.forEach { item ->
+                        key(item.filename) {
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                            LibraryRow(item) { onSelect(item) }
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-private fun VideoCard(item: LibraryItem, onClick: () -> Unit) {
-    // El clip va antes del clickable para que la ondulación respete las esquinas redondeadas. Sin la copia borrosa.
-    HomeGlassCard(
-        modifier = Modifier.clip(RoundedCornerShape(HOME_CARD_CORNER)).clickable(onClick = onClick),
-        blurredCopy = false,
-        spacing = 4.dp,
+private fun LibraryRow(item: LibraryItem, onClick: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().clickable(role = Role.Button, onClick = onClick).padding(vertical = 12.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(item.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
-        val date = if (item.modifiedMillis > 0) {
-            " · " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(item.modifiedMillis))
-        } else {
-            ""
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(item.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+            val date = if (item.modifiedMillis > 0) {
+                " · " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(item.modifiedMillis))
+            } else {
+                ""
+            }
+            Text(
+                formatFileSize(item.sizeBytes) + date,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
-        Text(
-            formatFileSize(item.sizeBytes) + date,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
+        Text("Crear sala", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
 
