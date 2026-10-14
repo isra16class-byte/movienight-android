@@ -5,6 +5,17 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-14 — Fase 8, paso 3 (login, registro y recuperar contraseña con vidrio sobre fondo quieto), confirmado por la persona
+
+- **Qué:** la persona probó en el teléfono las dos últimas listas de puntos y dijo que todos funcionaron bien, que le gustó cómo quedó y que la pantalla de login está terminada. No dio detalle por punto ni dijo qué teléfono ni qué versión de Android usó.
+- **Commits (todos en `origin/main`):** de `4b47d6b` a `3e3d3e5`, unas 20 iteraciones sin lista de puntos (con un revert en `dc0ec43`); el diseño final es el de `0593cf2` más `b880f89` y `3e3d3e5`.
+- **Diseño final:** fondo quieto con copia borrosa y velo de 10 %, panel de vidrio, barra de campos y botón de cristal, título en Playfair Display (provisional), texto sin sombra dentro del panel (oscuro en claro, blanco en oscuro), borde blanco con foco, enlaces de 32 dp (los dos del login juntos) y "Mínimo 8 caracteres." solo con algo escrito y menos de 8 (`AuthValidation.newPasswordHint`).
+- **Verificado por el asistente:** `GlassLogicTest` (24) y `AuthValidationTest` (9) pasan con kotlinc 2.0.21 y un arnés propio (no con `gradlew`); una mutación sobre una copia falló como debía. La causa de la sombra que se colaba (el `merge` de `ProvideTextStyle` conserva la sombra de afuera si la de adentro es `null`) se leyó en el fuente de Compose. Nada de la UI se compiló en la sesión del asistente.
+- **Sin confirmar:** `gradlew testDebugUnitTest`; otros teléfonos y tamaños; contraste del texto blanco del modo oscuro (no medido). **Origen y permiso de las imágenes de fondo NO informados**: aclarar antes de publicar. Comentarios de código desactualizados sobre "sin panel" (patch de código aparte). Recuperar contraseña sigue sin funcionar de punta a punta (el servidor no envía emails).
+- **Solo documentación en este commit:** plan (Fase 8, paso 3 tildado, "Por decidir" de la imagen de fondo), MEMORIA (entrada nueva, dato vigente, pendiente y estructura de archivos) y esta entrada. Sin cambios de código.
+
+---
+
 ## 2026-10-13 — Fase 8, pasos 1 y 2 (tema claro/oscuro e intro de tiempo fijo), confirmados por la persona
 
 - **Qué:** la persona probó en el teléfono la lista de cada paso y dijo que todos los puntos funcionaron como debían. No dio detalle por punto ni dijo qué teléfono ni qué versión de Android usó.

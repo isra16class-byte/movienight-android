@@ -114,6 +114,7 @@ movienight-android/
         ReactionLogic.kt        # 7 (2B, 2D): emojis (barra de 14, panel de 8), validación, tope, posición, duración y recorrido según la superficie (pantalla completa, vertical, PiP) (JVM puro, 20 tests)
         ThemeModeLogic.kt       # Fase 8 (1): ThemeMode, DEFAULT_THEME_MODE (oscuro), themeModeFor, themeModeFromSwitch (JVM puro, 10 tests)
         StartupLogic.kt         # Fase 8 (2): startupScreenFor(introFinished, SessionState), INTRO_DURATION_MS (JVM puro, 11 tests)
+        GlassLogic.kt           # Fase 8 (3): coverCropRect, blurRectInPanel, visibleSourceFraction, contraste WCAG (JVM puro, 24 tests)
         FullscreenLogic.kt      # 7C: qué vista (normal / pantalla completa), qué orientación pedir, soltar la vertical, relojes de controles (3 s) y de conectados (5 s) (JVM puro, 25 tests)
         PictureInPictureLogic.kt # 7A: cuándo entrar en PiP, aspecto, contenido de la ventana, PauseOnStopTracker (cuándo pausar al dejar de verse) (JVM puro)
         UploadServiceLogic.kt  # 6C-B: qué estados necesitan el servicio, notificación de avance (porcentaje entero), UploadActivityTracker (JVM puro)
@@ -212,6 +213,16 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 8, paso 3 hecho y confirmado por la persona (2026-10-14): login, registro y recuperar contraseña con vidrio sobre fondo quieto.** La persona probó en el teléfono las dos últimas listas de puntos y dijo que todos funcionaron bien, que le gustó cómo quedó y que la pantalla de login está terminada; no dio detalle por punto ni qué teléfono ni versión de Android usó. Solo UI y lógica pura: sin servidor, sin tocar `RoomPlayer`, `RoomViewModel`, `AuthViewModel`, `SessionViewModel` ni dependencias. Todos los commits están en `origin/main` (de `4b47d6b` a `3e3d3e5`).
+
+- **Cómo llegó:** unas 20 iteraciones (`4b47d6b` a `0593cf2`, con un revert en `dc0ec43`) ajustadas con lo que la persona veía en el teléfono, sin listas de puntos; el diseño final es el de `0593cf2`, más `b880f89` (borde blanco con foco, sin sombra de texto dentro del panel, enlaces más juntos) y `3e3d3e5` (aviso de mínimo de contraseña y modo oscuro en blanco).
+- **Qué hay:** `ui/auth/AuthBackdrop.kt` (`AuthBackdrop`: fondo quieto con copia borrosa y velo de 10 %; `GlassPanel`; `GlassContent` y `GlassBarContent`, que fijan colores y quitan la sombra), `ui/auth/AuthComponents.kt` (`GlassFieldGroup`, `GlassEmailField`, `GlassPasswordField`, `GlassButton`, `GlassLinkButton`), `ui/theme/Color.kt` (`GlassColors`, `MovieNightLightGlass`, `MovieNightDarkGlass`, provisionales) y `net/GlassLogic.kt` (recorte, traslado de la copia, contraste WCAG). Título en Playfair Display (`res/font/playfair_display.ttf`, licencia OFL, `third_party/fonts/playfair-display/`). `tools/glass/backdrop_tools.py` repite la conversión a WebP, la copia borrosa y la medición de contraste.
+- **Lo que ya no es como antes:** (1) con foco, el borde de la barra es blanco (no el acento); (2) la sombra de texto de `GlassContent` **no** llega ya al texto del panel: `MaterialTheme` hace `merge` del estilo de afuera y conservaba la sombra si la de adentro era `null`; `GlassBarContent` pone `LocalTextStyle` sin sombra (leído en el fuente de Compose; que dejó de verse lo confirmó la persona en el teléfono); (3) en el modo oscuro el texto del panel, las etiquetas, los enlaces, el botón y el cursor son **blancos**, sin el verde `DarkPrimary`; (4) `GlassLinkButton` ya no es un `TextButton` (que impone 48 dp): es un `clickable` de 32 dp de alto.
+- **Verificado por el asistente:** `GlassLogicTest` (24) y `AuthValidationTest` (9, uno nuevo para `newPasswordHint`) pasan con kotlinc 2.0.21 y un arnés propio (no con `gradlew`); una copia sin la condición "hay algo escrito" hizo fallar el test nuevo. **Nada de la UI se compiló en la sesión del asistente** (sin Android SDK).
+- **Sin confirmar / deuda:** `gradlew testDebugUnitTest`; otros teléfonos y tamaños; contraste del texto blanco del modo oscuro (no medido); **origen y permiso de las imágenes de fondo NO informados**, aclarar antes de publicar (el paso 6 las reemplaza); comentarios de código desactualizados (`AuthBackdrop.kt` dice "no hay panel ni bordes", `AuthScreenLayout` dice "No hay panel" y el comentario de `GlassColors` habla de una sola hoja sin panel), para corregir en un patch de código aparte. Siguen pendientes los pasos 4 (Home), 5 (sala, espera a la 7B probada) y 6 (temática final).
+
+---
 
 **Fase 8, pasos 1 y 2 hechos y confirmados por la persona (2026-10-13).** La persona probó en el teléfono las listas de los dos pasos y dijo que todos los puntos funcionaron como debían; no dio detalle por punto ni qué teléfono ni versión de Android usó. Solo UI y lógica pura: sin servidor, sin tocar `RoomPlayer`, `RoomViewModel`, `SessionViewModel` ni `SessionManager`, sin dependencias nuevas. Ambos commits están en `origin/main`.
 
@@ -786,11 +797,12 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **PiP y rotación (7A):** `MainActivity` declara `configChanges="screenSize|smallestScreenSize|screenLayout|orientation"`: girar el teléfono o entrar
   y salir de PiP no recrean la actividad; tema, idioma y tamaño de letra sí. Sin ese `configChanges`, cerrar la ventana con la X no avisa a la
   actividad y el video no se pausa.
+- **Vidrio de entrada (Fase 8, paso 3):** login, registro y recuperar contraseña comparten fondo quieto (`AuthBackdrop`, uno solo para las tres), panel de vidrio y colores `GlassColors`; el texto de **dentro del panel** no lleva sombra (la de `GlassContent` se anula en `GlassBarContent` con `LocalTextStyle`) y es oscuro en claro y blanco en oscuro. Con foco, el borde de la barra es blanco. "Mínimo 8 caracteres." solo sale con algo escrito y menos de 8. `GlassLinkButton` mide 32 dp. Las imágenes de fondo son provisionales y de origen sin informar.
 - **Tema y arranque (Fase 8, pasos 1 y 2):** la app tiene su propio modo claro/oscuro (no sigue al teléfono), con el color dinámico apagado; el modo vive en `ThemePrefs`. `themes.xml` fija el fondo de arranque al color oscuro (`window_background`), que debe coincidir con `DarkBackground` de `Color.kt`: quien use el modo claro puede ver un instante oscuro al abrir (el XML no lee la preferencia). En Android 12+ el sistema muestra su pantalla de arranque antes de la intro. La intro dura un tiempo fijo y no espera ni se corta por la respuesta del servidor.
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
-- **Rediseño visual (Fase 8):** pasos 1 (tema) y 2 (intro) hechos y confirmados; faltan el 3 (login, registro y recuperar contraseña), el 4 (Home) y el 5 (sala, espera a la 7B), que se hacen con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros.
+- **Rediseño visual (Fase 8):** pasos 1 (tema), 2 (intro) y 3 (login, registro y recuperar contraseña) hechos y confirmados; faltan el 4 (Home) y el 5 (sala, espera a la 7B), que se hacen con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros (las `auth_bg_*` actuales tienen origen y permiso sin informar).
 - **7B sin probar al 100%:** compila (confirmado por la persona), pero faltan las pruebas de la sección 7B del plan, en teléfono real y emulador, y `gradlew testDebugUnitTest`.
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
