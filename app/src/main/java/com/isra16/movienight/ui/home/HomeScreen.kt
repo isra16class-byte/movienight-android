@@ -487,14 +487,13 @@ private fun CreateRoomDialog(
         Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4)
         GlassFieldGroup {
             GlassPasswordField(
-                label = "Contraseña de la sala (opcional)",
+                label = "Contraseña (opcional)",
                 value = password,
                 onValueChange = { password = it },
                 error = null,
                 enabled = !busy,
                 showPassword = showPassword,
                 onToggleShow = { showPassword = !showPassword },
-                hint = "Dejala vacía para una sala abierta a quien tenga el link.",
                 imeAction = ImeAction.Done,
                 onDone = { onCreate(password) },
             )

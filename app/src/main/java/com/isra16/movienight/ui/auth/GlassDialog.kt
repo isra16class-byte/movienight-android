@@ -20,9 +20,10 @@ import com.isra16.movienight.ui.theme.LocalGlassColors
  * botones de cristal. Sustituye a `AlertDialog`: [confirmButton] y [dismissButton] se pasan ya armados (normalmente un
  * `GlassButton` y un `GlassLinkButton`) y van en una fila abajo, el de cancelar a la izquierda.
  *
- * Sin la copia borrosa del fondo: una ventana es otra superficie y la posición de la copia se calcula respecto a la
- * ventana de la app, no a la del diálogo. Detrás se ve la propia pantalla, oscurecida por el sistema, y el tinte es más
- * asentado que el de las tarjetas porque lo que hay detrás puede ser texto de la lista.
+ * Con la copia borrosa del fondo, como las tarjetas: la copia se dibuja opaca y tapa lo que hay detrás del panel (sin ella
+ * se transparentaba el texto de la pantalla). Una ventana es otra superficie, así que la zona del fondo que se ve no es
+ * exactamente la de la posición del diálogo (la copia es muy borrosa y casi no se nota). Fuera de [HomeBackdrop] (por
+ * ejemplo en la sala) no hay copia: solo queda el tinte y por eso es más asentado.
  */
 @Composable
 internal fun GlassDialog(
@@ -32,14 +33,15 @@ internal fun GlassDialog(
     dismissButton: @Composable (() -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
+    val hasBackdrop = LocalGlassBackdrop.current != null
     Dialog(onDismissRequest = onDismissRequest) {
         GlassPanel(
             horizontalAlignment = Alignment.Start,
             contentPadding = 24.dp,
             cornerRadius = 28.dp,
             spacing = 12.dp,
-            blurredCopy = false,
-            tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_DIALOG_TINT_ALPHA),
+            blurredCopy = hasBackdrop,
+            tint = LocalGlassColors.current.panelTint.copy(alpha = if (hasBackdrop) GLASS_DIALOG_TINT_ALPHA else GLASS_DIALOG_TINT_ALPHA_NO_BACKDROP),
         ) {
             Text(title, style = AuthTitleStyle.copy(fontSize = 24.sp, lineHeight = 30.sp))
             content()
@@ -55,5 +57,8 @@ internal fun GlassDialog(
     }
 }
 
-/** Opacidad del tinte de las ventanas flotantes. Provisional: se ajusta en el teléfono. */
-private const val GLASS_DIALOG_TINT_ALPHA = 0.88f
+/** Opacidad del tinte con la copia borrosa debajo: la misma que las tarjetas de Home. Provisional: se ajusta en el teléfono. */
+private const val GLASS_DIALOG_TINT_ALPHA = 0.70f
+
+/** Sin copia borrosa (fuera de Home) se transparentaría la pantalla: el tinte es mucho más asentado. */
+private const val GLASS_DIALOG_TINT_ALPHA_NO_BACKDROP = 0.92f
