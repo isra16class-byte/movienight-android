@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -23,6 +24,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -38,12 +40,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.isra16.movienight.R
 import com.isra16.movienight.home.HomeViewModel
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.ADMIN_NO_BROWSER_MESSAGE
@@ -365,6 +369,8 @@ private fun LibraryCard(
         ) {
             Text("Biblioteca", style = MaterialTheme.typography.titleLarge)
             TextButton(onClick = onRefresh, enabled = library !is LibraryState.Loading) {
+                Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
                 Text("Actualizar")
             }
         }
@@ -380,7 +386,7 @@ private fun LibraryCard(
                 // Una sola acción principal; la otra, más discreta (en dos columnas "Subir y crear sala" no cabe en un teléfono angosto).
                 GlassButton("Subir y crear sala", busy = false, onClick = onPickAndCreateRoom)
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    GlassLinkButton("Solo subir (sin crear sala)", enabled = true, onClick = onPick)
+                    GlassLinkButton("Solo subir (sin crear sala)", enabled = true, onClick = onPick, icon = painterResource(R.drawable.ic_upload))
                 }
             },
             onPick = onPick,
@@ -437,7 +443,13 @@ private fun LibraryRow(item: LibraryItem, onClick: () -> Unit) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
-        Text("Crear sala", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary)
+        // La fila entera es el botón; el icono (con descripción para lectores de pantalla) deja todo el ancho al nombre.
+        Icon(
+            painterResource(R.drawable.ic_play),
+            contentDescription = "Crear sala con este video",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(28.dp),
+        )
     }
 }
 

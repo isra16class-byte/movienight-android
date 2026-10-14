@@ -4,9 +4,11 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,6 +25,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -51,6 +54,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.isra16.movienight.ui.theme.AuthTitleStyle
@@ -336,7 +340,7 @@ fun PrimaryButton(text: String, busy: Boolean, onClick: () -> Unit) {
  * ("¿No tenés cuenta? **Registrate**"). Color y sin sombra los pone el [GlassPanel].
  */
 @Composable
-fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasis: String? = null) {
+fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasis: String? = null, icon: Painter? = null) {
     val label = remember(text, emphasis) {
         buildAnnotatedString {
             append(text)
@@ -354,11 +358,16 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasi
             .padding(horizontal = 12.dp, vertical = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            label,
-            color = color,
-            style = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp),
-        )
+        val labelStyle = MaterialTheme.typography.labelLarge.copy(fontSize = 14.sp, lineHeight = 20.sp, fontWeight = FontWeight.Normal, letterSpacing = 0.sp)
+        if (icon == null) {
+            Text(label, color = color, style = labelStyle)
+        } else {
+            // Icono decorativo delante del texto (Home, "Solo subir"): el texto ya dice qué hace, el icono no se lee aparte.
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+                Text(label, color = color, style = labelStyle)
+            }
+        }
     }
 }
 
