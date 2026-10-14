@@ -164,8 +164,11 @@ internal class GlassBackdropImages(
         val Auth = GlassBackdropImages(
             R.drawable.auth_bg_light_blur, R.drawable.auth_bg_dark_blur, R.drawable.auth_panel_light, R.drawable.auth_panel_dark,
         )
+        // Home dibuja el fondo NÍTIDO (`home_bg_*.webp`, Fase 8, paso 4f); las pantallas de entrada, la copia borrosa. Los
+        // parámetros se llaman `blur*` por ellas. Las `home_bg_*_blur.webp` quedan en `res` sin usarse. Las copias de los
+        // paneles (`home_panel_*`) siguen siendo borrosas: son lo que se ve dentro del vidrio.
         val Home = GlassBackdropImages(
-            R.drawable.home_bg_light_blur, R.drawable.home_bg_dark_blur, R.drawable.home_panel_light, R.drawable.home_panel_dark,
+            R.drawable.home_bg_light, R.drawable.home_bg_dark, R.drawable.home_panel_light, R.drawable.home_panel_dark,
         )
     }
 }
