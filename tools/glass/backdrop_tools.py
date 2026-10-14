@@ -16,6 +16,11 @@ No forma parte de la app: sirve para repetir el trabajo cuando cambien las imág
            partir de la propia auth_bg_<modo>.webp del repo sin recomprimirla:
              python3 backdrop_tools.py prepare light app/src/main/res/drawable-nodpi/auth_bg_light.webp app/src/main/res/drawable-nodpi --solo-copia
 
+           Con --prefijo home los archivos se llaman home_bg_<modo>*.webp (fondo de Home, Fase 8, paso 4) en vez de
+           auth_bg_<modo>*.webp. Con --panel se escribe además <prefijo>_panel_<modo>.webp, la copia que se ve dentro de cada
+           panel (radio 6 sobre 1/3 del tamaño, como auth_panel_*.webp). Home no usa la imagen nítida: va con --solo-copia.
+             python3 backdrop_tools.py prepare light dia.jpg app/src/main/res/drawable-nodpi --prefijo home --panel --solo-copia
+
   veil     Calcula cuánto velo (oscuro o claro, según el modo) haría falta para dar texto >= 4,5:1 en cada franja del alto
            de la ventana con la copia borrosa REAL, peor caso entre varios tamaños de ventana. Es solo INFORMATIVO: el
            diseño actual usa un velo de 10 % parejo (VEIL_STOPS) a pedido de la persona, y la legibilidad la completa la
@@ -67,25 +72,33 @@ DEFAULT_BLUR_RADIUS = 3.0   # radio gaussiano aplicado a la copia ya reducida (e
 DEFAULT_BLUR_SCALE = 1.0    # fracción del tamaño de la imagen nítida a la que se genera la copia
 
 
-def prepare(mode, src, outdir, radius=DEFAULT_BLUR_RADIUS, scale=DEFAULT_BLUR_SCALE, sharp=True):
+PANEL_BLUR_RADIUS = 6.0     # copia que se ve DENTRO de cada panel (<prefijo>_panel_<modo>.webp): radio 6 sobre 1/3 del tamaño.
+PANEL_BLUR_SCALE = 1 / 3    # (medido sobre auth_panel_*.webp: el mejor ajuste es radio 6 a escala 1/3)
+
+
+def prepare(mode, src, outdir, radius=DEFAULT_BLUR_RADIUS, scale=DEFAULT_BLUR_SCALE, sharp=True, prefix="auth", panel=False):
     im = Image.open(src).convert("RGB")
     if im.width > 1080:
         im = im.resize((1080, round(im.height * 1080 / im.width)), Image.LANCZOS)
     if sharp:
-        im.save(f"{outdir}/auth_bg_{mode}.webp", "WEBP", quality=82, method=6)
+        im.save(f"{outdir}/{prefix}_bg_{mode}.webp", "WEBP", quality=82, method=6)
+    if panel:
+        small = im.resize((max(1, round(im.width * PANEL_BLUR_SCALE)), max(1, round(im.height * PANEL_BLUR_SCALE))), Image.LANCZOS)
+        small.filter(ImageFilter.GaussianBlur(radius=PANEL_BLUR_RADIUS)).save(f"{outdir}/{prefix}_panel_{mode}.webp", "WEBP", quality=80, method=6)
+        print(mode, "-> copia del panel", small.size, f"radio {PANEL_BLUR_RADIUS}")
     if scale == 1.0:
         b = im
     else:
         b = im.resize((max(1, round(im.width * scale)), max(1, round(im.height * scale))), Image.LANCZOS)
-    b.filter(ImageFilter.GaussianBlur(radius=radius)).save(f"{outdir}/auth_bg_{mode}_blur.webp", "WEBP", quality=80, method=6)
+    b.filter(ImageFilter.GaussianBlur(radius=radius)).save(f"{outdir}/{prefix}_bg_{mode}_blur.webp", "WEBP", quality=80, method=6)
     print(mode, im.size, "-> copia borrosa", b.size, f"radio {radius}, escala {scale} (sigma equivalente a tamaño completo ~{radius / scale:.1f} px)")
 
 
 def _prepare_cli(args):
-    """prepare <modo> <origen> <carpeta> [--radio N] [--escala N] [--solo-copia]"""
+    """prepare <modo> <origen> <carpeta> [--radio N] [--escala N] [--solo-copia] [--prefijo auth|home] [--panel]"""
     if len(args) < 3 or args[0] not in MODES:
         return False
-    radius, scale, sharp = DEFAULT_BLUR_RADIUS, DEFAULT_BLUR_SCALE, True
+    radius, scale, sharp, prefix, panel = DEFAULT_BLUR_RADIUS, DEFAULT_BLUR_SCALE, True, "auth", False
     rest = args[3:]
     i = 0
     while i < len(rest):
@@ -95,11 +108,15 @@ def _prepare_cli(args):
             scale = float(rest[i + 1]); i += 2
         elif rest[i] == "--solo-copia":
             sharp = False; i += 1
+        elif rest[i] == "--prefijo" and i + 1 < len(rest) and rest[i + 1] in ("auth", "home"):
+            prefix = rest[i + 1]; i += 2
+        elif rest[i] == "--panel":
+            panel = True; i += 1
         else:
             return False
     if radius < 0 or not (0 < scale <= 1):
         return False
-    prepare(args[0], args[1], args[2], radius, scale, sharp)
+    prepare(args[0], args[1], args[2], radius, scale, sharp, prefix, panel)
     return True
 
 

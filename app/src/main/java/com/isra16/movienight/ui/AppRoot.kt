@@ -27,6 +27,7 @@ import com.isra16.movienight.net.StartupScreen
 import com.isra16.movienight.net.startupScreenFor
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.AuthBackdrop
+import com.isra16.movienight.ui.auth.HomeBackdrop
 import com.isra16.movienight.ui.auth.ForgotPasswordScreen
 import com.isra16.movienight.ui.auth.LoginScreen
 import com.isra16.movienight.ui.auth.RegisterScreen
@@ -111,14 +112,17 @@ private fun MainNavHost(
     val nav = rememberNavController()
     NavHost(navController = nav, startDestination = Routes.HOME) {
         composable(Routes.HOME) {
-            HomeScreen(
-                email = session.email,
-                isLoggingOut = isLoggingOut,
-                onLogout = onLogout,
-                darkTheme = darkTheme,
-                onDarkThemeChange = onDarkThemeChange,
-                onOpenRoom = { roomId -> nav.navigate(Routes.room(roomId)) },
-            )
+            // El fondo de vidrio de Home (Fase 8, paso 4) vive solo aquí: la sala no lo lleva.
+            HomeBackdrop {
+                HomeScreen(
+                    email = session.email,
+                    isLoggingOut = isLoggingOut,
+                    onLogout = onLogout,
+                    darkTheme = darkTheme,
+                    onDarkThemeChange = onDarkThemeChange,
+                    onOpenRoom = { roomId -> nav.navigate(Routes.room(roomId)) },
+                )
+            }
         }
         // El id va como argumento de la ruta: RoomViewModel lo lee del SavedStateHandle.
         composable(Routes.ROOM) {

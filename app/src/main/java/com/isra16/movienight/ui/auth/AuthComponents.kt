@@ -177,6 +177,39 @@ fun GlassEmailField(
     )
 }
 
+/**
+ * Campo de texto suelto para dentro de un [GlassFieldGroup] (Home: "Código o link de la sala"). Sin mayúsculas
+ * automáticas; [imeAction] y [onAction] sirven para "Ir" o "Listo" en el teclado.
+ */
+@Composable
+fun GlassTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    error: String?,
+    enabled: Boolean = true,
+    imeAction: ImeAction = ImeAction.Done,
+    onAction: () -> Unit = {},
+) {
+    TextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = Modifier.fillMaxWidth(),
+        label = { Text(label) },
+        singleLine = true,
+        enabled = enabled,
+        isError = error != null,
+        supportingText = if (error != null) {
+            { Text(error) }
+        } else {
+            null
+        },
+        colors = glassFieldColors(),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = imeAction),
+        keyboardActions = KeyboardActions(onDone = { onAction() }, onGo = { onAction() }, onNext = { onAction() }),
+    )
+}
+
 /** Campo de contraseña para dentro de un [GlassFieldGroup]. [PasswordField] sigue igual: lo usan también Home y la sala. */
 @Composable
 fun GlassPasswordField(
@@ -336,19 +369,21 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasi
  * se ve el indicador de progreso y el borde más tenue. `PrimaryButton` sigue igual porque lo usa también la sala (contraseña de la sala).
  */
 @Composable
-fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit) {
+fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
     val glass = LocalGlassColors.current
+    // Con [enabled] en false (por ejemplo "Unirme" sin código) el borde y el texto se ven a la mitad; antes no había forma de atenuarlo.
+    val dimmed = busy || !enabled
     Button(
         onClick = onClick,
-        enabled = !busy,
-        modifier = Modifier.fillMaxWidth().padding(top = 4.dp).height(48.dp),
+        enabled = enabled && !busy,
+        modifier = modifier.fillMaxWidth().padding(top = 4.dp).height(48.dp),
         shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, if (busy) glass.buttonBorder.copy(alpha = glass.buttonBorder.alpha * 0.5f) else glass.buttonBorder),
+        border = BorderStroke(1.dp, if (dimmed) glass.buttonBorder.copy(alpha = glass.buttonBorder.alpha * 0.5f) else glass.buttonBorder),
         colors = ButtonDefaults.buttonColors(
             containerColor = glass.buttonFill,
             contentColor = glass.buttonContent,
             disabledContainerColor = glass.buttonFill,
-            disabledContentColor = glass.buttonContent,
+            disabledContentColor = glass.buttonContent.copy(alpha = 0.5f),
         ),
     ) {
         if (busy) {

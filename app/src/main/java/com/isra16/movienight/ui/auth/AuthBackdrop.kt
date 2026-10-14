@@ -2,6 +2,7 @@ package com.isra16.movienight.ui.auth
 
 import android.content.res.Resources
 import android.graphics.BitmapFactory
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,6 +43,7 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.R
@@ -147,25 +149,49 @@ internal class GlassBackdropState {
 
 internal val LocalGlassBackdrop = staticCompositionLocalOf<GlassBackdropState?> { null }
 
-private fun loadPanelBackdrop(resources: Resources, dark: Boolean): ImageBitmap? {
-    val options = BitmapFactory.Options().apply { inScaled = false }
-    return BitmapFactory.decodeResource(
-        resources, if (dark) R.drawable.auth_panel_dark else R.drawable.auth_panel_light, options,
-    )?.asImageBitmap()
+/**
+ * Las dos copias que usa un fondo de vidrio, para cada modo: la copia borrosa de la imagen (la hoja de fondo) y la MUY
+ * borrosa que se ve dentro de los paneles. Login, registro y recuperar usan [Auth]; Home (Fase 8, paso 4) usa [Home].
+ * Se generan con `tools/glass/backdrop_tools.py prepare` (con `--prefijo home --panel` las de Home).
+ */
+internal class GlassBackdropImages(
+    @DrawableRes val blurLight: Int,
+    @DrawableRes val blurDark: Int,
+    @DrawableRes val panelLight: Int,
+    @DrawableRes val panelDark: Int,
+) {
+    companion object {
+        val Auth = GlassBackdropImages(
+            R.drawable.auth_bg_light_blur, R.drawable.auth_bg_dark_blur, R.drawable.auth_panel_light, R.drawable.auth_panel_dark,
+        )
+        val Home = GlassBackdropImages(
+            R.drawable.home_bg_light_blur, R.drawable.home_bg_dark_blur, R.drawable.home_panel_light, R.drawable.home_panel_dark,
+        )
+    }
 }
 
-private fun loadBlurredBackdrop(resources: Resources, dark: Boolean): ImageBitmap? {
+private fun decodeNoScale(resources: Resources, id: Int): ImageBitmap? {
     // `drawable-nodpi` + inScaled=false: sin reescalado por densidad; el recorte lo hace el dibujo.
     val options = BitmapFactory.Options().apply { inScaled = false }
-    val blurred = BitmapFactory.decodeResource(
-        resources, if (dark) R.drawable.auth_bg_dark_blur else R.drawable.auth_bg_light_blur, options,
-    )
-    return blurred?.asImageBitmap()
+    return BitmapFactory.decodeResource(resources, id, options)?.asImageBitmap()
 }
+
+private fun loadPanelBackdrop(resources: Resources, images: GlassBackdropImages, dark: Boolean): ImageBitmap? =
+    decodeNoScale(resources, if (dark) images.panelDark else images.panelLight)
+
+private fun loadBlurredBackdrop(resources: Resources, images: GlassBackdropImages, dark: Boolean): ImageBitmap? =
+    decodeNoScale(resources, if (dark) images.blurDark else images.blurLight)
 
 /** Hoja de vidrio de pantalla completa: copia borrosa del fondo con un velo en degradado. Envuelve las pantallas de entrada. */
 @Composable
-fun AuthBackdrop(content: @Composable () -> Unit) {
+fun AuthBackdrop(content: @Composable () -> Unit) = GlassBackdrop(GlassBackdropImages.Auth, content)
+
+/** El mismo fondo de vidrio con la imagen de Home (Fase 8, paso 4). Envuelve solo Home, no la sala. */
+@Composable
+fun HomeBackdrop(content: @Composable () -> Unit) = GlassBackdrop(GlassBackdropImages.Home, content)
+
+@Composable
+internal fun GlassBackdrop(images: GlassBackdropImages, content: @Composable () -> Unit) {
     val dark = LocalAppDarkTheme.current
     val glass = LocalGlassColors.current
     val base = MaterialTheme.colorScheme.background
@@ -174,8 +200,10 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
     val state = remember { GlassBackdropState() }
 
     // El modo no cambia mientras se ven estas pantallas (el interruptor está en Home), pero la clave lo cubre igual.
-    LaunchedEffect(dark) {
-        val (sheet, panel) = withContext(Dispatchers.Default) { loadBlurredBackdrop(resources, dark) to loadPanelBackdrop(resources, dark) }
+    LaunchedEffect(dark, images) {
+        val (sheet, panel) = withContext(Dispatchers.Default) {
+            loadBlurredBackdrop(resources, images, dark) to loadPanelBackdrop(resources, images, dark)
+        }
         state.sheetSize = if (sheet != null) IntSize(sheet.width, sheet.height) else IntSize.Zero
         state.panelImage = panel
         image = sheet
@@ -220,20 +248,29 @@ fun AuthBackdrop(content: @Composable () -> Unit) {
  * Todo lo de adentro usa los colores de [GlassBarContent]: oscuros en el modo claro, y sin sombra.
  */
 @Composable
-internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
+internal fun GlassPanel(
+    modifier: Modifier = Modifier,
+    horizontalAlignment: Alignment.Horizontal = Alignment.CenterHorizontally,
+    contentPadding: Dp = 24.dp,
+    cornerRadius: Dp = 28.dp,
+    spacing: Dp = 12.dp,
+    // false: solo tinte y borde, sin la copia borrosa trasladada (más barato; para muchas tarjetas en una lista).
+    blurredCopy: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit,
+) {
     val backdrop = LocalGlassBackdrop.current
     val glass = LocalGlassColors.current
-    val shape = RoundedCornerShape(28.dp)
+    val shape = RoundedCornerShape(cornerRadius)
     // Posición del panel en la ventana; se actualiza al desplazar y solo se lee al dibujar.
     var panelOrigin by remember { mutableStateOf(Offset.Zero) }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .onGloballyPositioned { panelOrigin = it.positionInRoot() }
             .clip(shape)
             .drawBehind {
                 val panel = backdrop?.panelImage
-                if (backdrop != null && panel != null && backdrop.sheetSize.width > 0 && backdrop.size.width > 0) {
+                if (blurredCopy && backdrop != null && panel != null && backdrop.sheetSize.width > 0 && backdrop.size.width > 0) {
                     val image = coverCropRect(
                         backdrop.sheetSize.width, backdrop.sheetSize.height,
                         backdrop.size.width.toFloat(), backdrop.size.height.toFloat(),
@@ -243,9 +280,9 @@ internal fun GlassPanel(content: @Composable ColumnScope.() -> Unit) {
                 drawRect(glass.panelTint)
             }
             .border(1.dp, glass.panelBorder, shape)
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+            .padding(contentPadding),
+        horizontalAlignment = horizontalAlignment,
+        verticalArrangement = Arrangement.spacedBy(spacing),
     ) {
         val scope = this
         GlassBarContent { scope.content() }
