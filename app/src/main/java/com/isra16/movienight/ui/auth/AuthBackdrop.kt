@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Typography
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -59,23 +61,27 @@ import kotlin.math.roundToInt
  */
 internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.65f), offset = Offset(0f, 2f), blurRadius = 6f)
 
-/** La misma tipografía con la sombra en cada estilo; así llega a todo `Text` que use `MaterialTheme.typography`. */
+/** Sombra y letra más gruesa: lo que pesa menos de SemiBold (600) sube a SemiBold; lo que ya es más grueso se queda. */
+private fun TextStyle.glass(shadow: Shadow): TextStyle =
+    copy(shadow = shadow, fontWeight = if ((fontWeight?.weight ?: 400) < 600) FontWeight.SemiBold else fontWeight)
+
+/** La misma tipografía con la sombra y el peso de [glass] en cada estilo; así llega a todo `Text` que use `MaterialTheme.typography`. */
 private fun Typography.withShadow(shadow: Shadow) = Typography(
-    displayLarge = displayLarge.copy(shadow = shadow),
-    displayMedium = displayMedium.copy(shadow = shadow),
-    displaySmall = displaySmall.copy(shadow = shadow),
-    headlineLarge = headlineLarge.copy(shadow = shadow),
-    headlineMedium = headlineMedium.copy(shadow = shadow),
-    headlineSmall = headlineSmall.copy(shadow = shadow),
-    titleLarge = titleLarge.copy(shadow = shadow),
-    titleMedium = titleMedium.copy(shadow = shadow),
-    titleSmall = titleSmall.copy(shadow = shadow),
-    bodyLarge = bodyLarge.copy(shadow = shadow),
-    bodyMedium = bodyMedium.copy(shadow = shadow),
-    bodySmall = bodySmall.copy(shadow = shadow),
-    labelLarge = labelLarge.copy(shadow = shadow),
-    labelMedium = labelMedium.copy(shadow = shadow),
-    labelSmall = labelSmall.copy(shadow = shadow),
+    displayLarge = displayLarge.glass(shadow),
+    displayMedium = displayMedium.glass(shadow),
+    displaySmall = displaySmall.glass(shadow),
+    headlineLarge = headlineLarge.glass(shadow),
+    headlineMedium = headlineMedium.glass(shadow),
+    headlineSmall = headlineSmall.glass(shadow),
+    titleLarge = titleLarge.glass(shadow),
+    titleMedium = titleMedium.glass(shadow),
+    titleSmall = titleSmall.glass(shadow),
+    bodyLarge = bodyLarge.glass(shadow),
+    bodyMedium = bodyMedium.glass(shadow),
+    bodySmall = bodySmall.glass(shadow),
+    labelLarge = labelLarge.glass(shadow),
+    labelMedium = labelMedium.glass(shadow),
+    labelSmall = labelSmall.glass(shadow),
 )
 
 /** Dibuja [image] ocupando [rect]. */
