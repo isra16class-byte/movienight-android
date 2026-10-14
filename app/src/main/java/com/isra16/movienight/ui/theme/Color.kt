@@ -257,7 +257,9 @@ internal val MovieNightLightGlass = GlassColors(
         outline = GlassCream,
     ),
     barContent = GlassBarInk,
-    panelTint = Color.White.copy(alpha = 0.62f),
+    // 45 % (antes 62 %): más transparente a pedido de la persona. Texto oscuro sobre la copia borrosa real y este tinte
+    // (sin la barra crema ni la sombra): peor píxel 4,63:1 y 100 % >= 4,5:1; con 40 % ya baja a 3,93:1 en el peor píxel.
+    panelTint = Color.White.copy(alpha = 0.45f),
     panelBorder = Color.White.copy(alpha = 0.70f),
 )
 
