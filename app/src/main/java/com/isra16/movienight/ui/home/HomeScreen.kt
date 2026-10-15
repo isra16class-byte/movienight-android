@@ -81,7 +81,6 @@ import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.net.showHomeBottomBar
 import com.isra16.movienight.ui.auth.ErrorText
-import com.isra16.movienight.ui.auth.GlassBarContent
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassContent
 import com.isra16.movienight.ui.auth.GlassDialog
@@ -335,9 +334,6 @@ private fun HeaderCard(image: Painter?, onOpenProfile: () -> Unit) {
     }
 }
 
-/** Opacidad del fondo de la barra inferior (sobre el tinte de vidrio del modo). Provisional: se ajusta en el teléfono. */
-private const val HOME_BAR_TINT_ALPHA = 0.85f
-
 private fun HomeTab.iconRes(): Int = when (this) {
     HomeTab.ROOMS -> R.drawable.ic_nav_home
     HomeTab.LIBRARY -> R.drawable.ic_nav_library
@@ -346,34 +342,39 @@ private fun HomeTab.iconRes(): Int = when (this) {
 }
 
 /**
- * Barra de pestañas de vidrio. Se esconde con el teclado abierto (`showHomeBottomBar`); el alto del teclado se lee solo
- * aquí, para que al animarse no se recomponga toda la pantalla. El texto va con los colores de dentro del panel
- * (`GlassBarContent`: oscuros en el modo claro, blancos en el oscuro).
+ * Barra de pestañas de vidrio: un [GlassPanel] sin esquinas ni márgenes, del ancho de la ventana, con el mismo tinte que las
+ * tarjetas de Home (`HOME_TINT_ALPHA`) y la copia borrosa del fondo por dentro (Fase 8, paso 4j; antes era un tinte liso).
+ * El panel incluye la franja bajo la barra del sistema, porque `NavigationBar` pone ahí su propio relleno. Se esconde con
+ * el teclado abierto (`showHomeBottomBar`); el alto del teclado se lee solo aquí, para que al animarse no se recomponga
+ * toda la pantalla. El texto va con los colores de dentro del panel (oscuros en el modo claro, blancos en el oscuro).
  */
 @Composable
 private fun HomeBottomBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
     if (!showHomeBottomBar(WindowInsets.ime.getBottom(LocalDensity.current))) return
     val glass = LocalGlassColors.current
-    GlassBarContent {
+    GlassPanel(
+        cornerRadius = 0.dp,
+        contentPadding = 0.dp,
+        spacing = 0.dp,
+        tint = glass.panelTint.copy(alpha = HOME_TINT_ALPHA),
+    ) {
         val ink = MaterialTheme.colorScheme.onSurface
-        Column {
-            HorizontalDivider(color = glass.panelBorder)
-            NavigationBar(containerColor = glass.panelTint.copy(alpha = HOME_BAR_TINT_ALPHA), contentColor = ink) {
-                HomeTab.entries.forEach { tab ->
-                    NavigationBarItem(
-                        selected = tab == selected,
-                        onClick = { onSelect(tab) },
-                        icon = { Icon(painterResource(tab.iconRes()), contentDescription = null) },
-                        label = { Text(tab.label, maxLines = 1) },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = ink,
-                            selectedTextColor = ink,
-                            indicatorColor = ink.copy(alpha = 0.14f),
-                            unselectedIconColor = ink.copy(alpha = 0.7f),
-                            unselectedTextColor = ink.copy(alpha = 0.7f),
-                        ),
-                    )
-                }
+        // Transparente: el vidrio lo dibuja el panel de afuera.
+        NavigationBar(containerColor = Color.Transparent, contentColor = ink) {
+            HomeTab.entries.forEach { tab ->
+                NavigationBarItem(
+                    selected = tab == selected,
+                    onClick = { onSelect(tab) },
+                    icon = { Icon(painterResource(tab.iconRes()), contentDescription = null) },
+                    label = { Text(tab.label, maxLines = 1) },
+                    colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = ink,
+                        selectedTextColor = ink,
+                        indicatorColor = ink.copy(alpha = 0.14f),
+                        unselectedIconColor = ink.copy(alpha = 0.7f),
+                        unselectedTextColor = ink.copy(alpha = 0.7f),
+                    ),
+                )
             }
         }
     }
@@ -452,7 +453,7 @@ private fun UploadsCard(
 /**
  * Tarjeta de vidrio de Home: el [GlassPanel] de las pantallas de entrada, con el contenido alineado a la izquierda y más
  * compacto. [blurredCopy] en false deja solo tinte y borde (sin la copia borrosa trasladada); hoy ninguna tarjeta de Home lo
- * usa: todas llevan el vidrio completo (Fase 8, paso 4i). La barra de pestañas no es una de estas tarjetas: va con tinte liso.
+ * usa: todas llevan el vidrio completo (Fase 8, paso 4i). La barra de pestañas también lleva vidrio (paso 4j), pero con su propio panel.
  */
 @Composable
 private fun HomeGlassCard(
