@@ -5,6 +5,16 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-15 — Fase 8, paso 4 (Home con vidrio, barra inferior de cuatro pestañas y ventanas de vidrio), confirmado por la persona
+
+- **Qué:** La persona dijo que probó todos los puntos y que las pruebas salieron positivas; no dio detalle por punto ni qué teléfono ni versión de Android usó.
+- **Commits (todos en `origin/main`):** 14, de `07e6ce7` a `9b52270` (pasos "4", 4b a 4k, con arreglos en `ec16727` y `53ee707`); los docs no se habían actualizado.
+- **Diseño final:** fondo quieto propio de Home (`HomeBackdrop`), barra inferior de vidrio con Salas, Biblioteca, Subidas (provisional) y Perfil, tarjeta de encabezado, tarjetas de vidrio con tinte 0,70, `GlassDialog` para crear sala y el aviso de notificaciones, iconos nuevos y barras del sistema transparentes en los dos modos. Lógica pura en `net/HomeTabLogic.kt` (`HomeTabLogicTest`, 5 tests según el commit `9351914`).
+- **Sin confirmar:** `gradlew testDebugUnitTest` (los tests no se volvieron a correr al escribir este patch); otros teléfonos y tamaños; pestaña de arranque (propuesta nuestra); contraste de los botones del sistema sobre las barras transparentes (no medido). **Origen y permiso de las imágenes `home_bg_*` NO informados**: aclarar antes de publicar.
+- **Solo documentación en este commit:** plan (Fase 8, paso 4 tildado y estado), MEMORIA (entrada nueva, dato vigente, pendiente y estructura de archivos) y esta entrada. Sin cambios de código.
+
+---
+
 ## 2026-10-14 — Fase 8, paso 3 (login, registro y recuperar contraseña con vidrio sobre fondo quieto), confirmado por la persona
 
 - **Qué:** la persona probó en el teléfono las dos últimas listas de puntos y dijo que todos funcionaron bien, que le gustó cómo quedó y que la pantalla de login está terminada. No dio detalle por punto ni dijo qué teléfono ni qué versión de Android usó.
