@@ -403,7 +403,7 @@ private fun ProfileCard(
     showAdmin: Boolean,
     onOpenAdmin: () -> Unit,
 ) {
-    HomeGlassCard(blurredCopy = false) {
+    HomeGlassCard {
         Text("Perfil", style = MaterialTheme.typography.titleLarge)
         if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -429,7 +429,7 @@ private fun UploadsCard(
     onDismiss: () -> Unit,
     onOpenRoom: (roomId: String) -> Unit,
 ) {
-    HomeGlassCard(blurredCopy = false) {
+    HomeGlassCard {
         Text("Subidas", style = MaterialTheme.typography.titleLarge)
         UploadStatusBody(
             state = upload,
@@ -451,8 +451,8 @@ private fun UploadsCard(
 
 /**
  * Tarjeta de vidrio de Home: el [GlassPanel] de las pantallas de entrada, con el contenido alineado a la izquierda y más
- * compacto. [blurredCopy] en false deja solo tinte y borde (sin la copia borrosa trasladada): se usa en las tarjetas de la
- * biblioteca, que pueden ser muchas en una lista.
+ * compacto. [blurredCopy] en false deja solo tinte y borde (sin la copia borrosa trasladada); hoy ninguna tarjeta de Home lo
+ * usa: todas llevan el vidrio completo (Fase 8, paso 4i). La barra de pestañas no es una de estas tarjetas: va con tinte liso.
  */
 @Composable
 private fun HomeGlassCard(
@@ -532,7 +532,7 @@ private fun LibraryCard(
     onOpenRoom: (roomId: String) -> Unit,
     onSelect: (LibraryItem) -> Unit,
 ) {
-    HomeGlassCard(blurredCopy = false) {
+    HomeGlassCard {
         Row(
             Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
