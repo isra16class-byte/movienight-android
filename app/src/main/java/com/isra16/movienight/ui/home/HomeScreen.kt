@@ -1,7 +1,11 @@
 package com.isra16.movienight.ui.home
 
+import android.annotation.SuppressLint
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,19 +15,29 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -37,7 +51,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.input.ImeAction
@@ -49,13 +69,17 @@ import com.isra16.movienight.R
 import com.isra16.movienight.home.HomeViewModel
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.ADMIN_NO_BROWSER_MESSAGE
+import com.isra16.movienight.net.DEFAULT_HOME_TAB
+import com.isra16.movienight.net.HomeTab
 import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
 import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
+import com.isra16.movienight.net.homeTabAt
 import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.shouldShowAdminAccess
+import com.isra16.movienight.net.showHomeBottomBar
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.GlassBarContent
 import com.isra16.movienight.ui.auth.GlassButton
@@ -75,8 +99,10 @@ import java.text.DateFormat
 import java.util.Date
 
 /**
- * Pantalla principal: unirse a una sala por código o link, subir un video del teléfono a la biblioteca
- * y la biblioteca de videos para crear una sala nueva.
+ * Pantalla principal, con una barra inferior de cuatro pestañas (Fase 8, paso 4): Salas (unirse por código o link),
+ * Biblioteca (subir un video del teléfono y crear una sala con uno de la biblioteca), Subidas (estado de la subida en
+ * curso) y Perfil (cuenta, modo oscuro, administración y cerrar sesión). Arriba de cada pestaña va la tarjeta de
+ * encabezado. El estado (subida, biblioteca, ventanas) vive aquí y no cambia con la pestaña.
  */
 @Composable
 fun HomeScreen(
@@ -124,47 +150,79 @@ fun HomeScreen(
         }
     }
 
+    // Pestaña elegida: se guarda como número para sobrevivir al giro (ver `homeTabAt`).
+    var tabIndex by rememberSaveable { mutableStateOf(DEFAULT_HOME_TAB.ordinal) }
+    val tab = homeTabAt(tabIndex)
+    val headerImage = rememberHeaderImage()
+
     // Todo lo de Home va dentro de GlassContent: fija los colores del modo y, dentro de cada panel, GlassBarContent los cambia.
     GlassContent {
-        Box(Modifier.fillMaxSize().safeDrawingPadding(), contentAlignment = Alignment.TopCenter) {
-            LazyColumn(
-                modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                item {
-                    Header(
-                        email = email,
-                        isLoggingOut = isLoggingOut,
-                        onLogout = onLogout,
-                        darkTheme = darkTheme,
-                        onDarkThemeChange = onDarkThemeChange,
-                        showAdmin = shouldShowAdminAccess(vm.adminAccess),
-                        onOpenAdmin = {
-                            adminError = if (openInBrowser(context, vm.adminPanelLink)) null else ADMIN_NO_BROWSER_MESSAGE
-                        },
-                    )
-                }
-                if (adminError != null) item { ErrorText(adminError) }
-                item { JoinCard(vm, onOpenRoom) }
-                item {
-                    LibraryCard(
-                        library = vm.library,
-                        upload = uploadState,
-                        onRefresh = vm::refresh,
-                        onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
-                        onPickAndCreateRoom = { showUploadAndCreate = true },
-                        onCancel = vm::cancelUpload,
-                        onRetry = vm::retryUpload,
-                        onDismiss = vm::dismissUpload,
-                        onOpenRoom = onOpenRoom,
-                        onSelect = { item ->
-                            vm.clearCreateRoomError()
-                            selected = item
-                        },
-                    )
+        // Arriba y a los lados lo respeta esta columna; abajo, la barra de pestañas se extiende bajo la barra del sistema
+        // (sus propios insets) y, con el teclado abierto, el contenido sube con `imePadding` y la barra se esconde.
+        Column(
+            Modifier.fillMaxSize().windowInsetsPadding(
+                WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal),
+            ),
+        ) {
+            Box(Modifier.weight(1f).fillMaxWidth().imePadding(), contentAlignment = Alignment.TopCenter) {
+                // `key(tab)`: cada pestaña tiene su propio desplazamiento, que empieza arriba.
+                key(tab) {
+                    LazyColumn(
+                        modifier = Modifier.widthIn(max = 600.dp).fillMaxWidth(),
+                        contentPadding = PaddingValues(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        item { HeaderCard(image = headerImage, onOpenProfile = { tabIndex = HomeTab.PROFILE.ordinal }) }
+                        when (tab) {
+                            HomeTab.ROOMS -> item { JoinCard(vm, onOpenRoom) }
+                            HomeTab.LIBRARY -> item {
+                                LibraryCard(
+                                    library = vm.library,
+                                    upload = uploadState,
+                                    onRefresh = vm::refresh,
+                                    onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
+                                    onPickAndCreateRoom = { showUploadAndCreate = true },
+                                    onCancel = vm::cancelUpload,
+                                    onRetry = vm::retryUpload,
+                                    onDismiss = vm::dismissUpload,
+                                    onOpenRoom = onOpenRoom,
+                                    onSelect = { item ->
+                                        vm.clearCreateRoomError()
+                                        selected = item
+                                    },
+                                )
+                            }
+                            HomeTab.UPLOADS -> item {
+                                UploadsCard(
+                                    upload = uploadState,
+                                    onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
+                                    onCancel = vm::cancelUpload,
+                                    onRetry = vm::retryUpload,
+                                    onDismiss = vm::dismissUpload,
+                                    onOpenRoom = onOpenRoom,
+                                )
+                            }
+                            HomeTab.PROFILE -> {
+                                if (adminError != null) item { ErrorText(adminError) }
+                                item {
+                                    ProfileCard(
+                                        email = email,
+                                        isLoggingOut = isLoggingOut,
+                                        onLogout = onLogout,
+                                        darkTheme = darkTheme,
+                                        onDarkThemeChange = onDarkThemeChange,
+                                        showAdmin = shouldShowAdminAccess(vm.adminAccess),
+                                        onOpenAdmin = {
+                                            adminError = if (openInBrowser(context, vm.adminPanelLink)) null else ADMIN_NO_BROWSER_MESSAGE
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
+            HomeBottomBar(selected = tab, onSelect = { tabIndex = it.ordinal })
         }
 
         // "Subir y crear sala": pide la contraseña (opcional) y recién después abre el selector de videos.
@@ -212,12 +270,131 @@ fun HomeScreen(
     }
 }
 
+/** Nombre (sin extensión) del recurso `res/drawable-nodpi/home_header.*` con la imagen del encabezado. Si no existe, el encabezado usa un degradado. */
+private const val HOME_HEADER_IMAGE_NAME = "home_header"
+
+private const val HOME_TAGLINE = "Una película, buena compañía."
+private val HOME_HEADER_MIN_HEIGHT = 168.dp
+
+/** Fondo del encabezado mientras no hay imagen (provisional): verdes y azules oscuros, para que el texto blanco se lea. */
+private val HomeHeaderFallback = Brush.linearGradient(listOf(Color(0xFF1E5B52), Color(0xFF0B2A3A)))
+
+/** Oscurece la parte de abajo del encabezado (con o sin imagen) para que el texto blanco se lea sobre cualquier foto. */
+private val HomeHeaderScrim = Brush.verticalGradient(listOf(Color.Transparent, Color(0xA6000000)))
+
 /**
- * Encabezado sin panel: el nombre y el email sobre el fondo, y un botón "Cuenta" con un menú (modo oscuro, administración
- * si corresponde y cerrar sesión). Antes eran dos tarjetas (encabezado y administración) arriba de todo.
+ * Imagen del encabezado, o `null` si el archivo `home_header` no está en `res/drawable-nodpi`. Se busca por nombre a propósito:
+ * así basta con copiar el archivo (por ejemplo `home_header.webp`) para que aparezca, sin tocar el código. Con R8 y
+ * `shrinkResources` activados (hoy no lo están) habría que protegerlo con un `res/raw/keep.xml`.
+ */
+@SuppressLint("DiscouragedApi")
+@Composable
+private fun rememberHeaderImage(): Painter? {
+    val context = LocalContext.current
+    val id = remember(context) { context.resources.getIdentifier(HOME_HEADER_IMAGE_NAME, "drawable", context.packageName) }
+    return if (id != 0) painterResource(id) else null
+}
+
+/**
+ * Tarjeta de encabezado: imagen (o degradado) con el nombre y el lema abajo a la izquierda, y el avatar arriba a la
+ * derecha, que lleva a la pestaña Perfil. El texto es siempre blanco: va sobre la imagen oscurecida, no sobre el vidrio.
  */
 @Composable
-private fun Header(
+private fun HeaderCard(image: Painter?, onOpenProfile: () -> Unit) {
+    val shape = RoundedCornerShape(HOME_CARD_CORNER)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = HOME_HEADER_MIN_HEIGHT)
+            .clip(shape)
+            .background(HomeHeaderFallback)
+            .border(1.dp, LocalGlassColors.current.panelBorder, shape),
+    ) {
+        if (image != null) {
+            Image(image, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+        }
+        Box(Modifier.matchParentSize().background(HomeHeaderScrim))
+        Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+            // El título de las pantallas de entrada (Playfair Display, provisional hasta el paso 6).
+            Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 30.sp, lineHeight = 36.sp), color = Color.White)
+            Text(HOME_TAGLINE, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+        }
+        Box(
+            Modifier
+                .align(Alignment.TopEnd)
+                .padding(14.dp)
+                .size(44.dp)
+                .clip(CircleShape)
+                .background(Color(0x66FFFFFF))
+                .border(2.dp, Color.White, CircleShape)
+                .clickable(role = Role.Button, onClick = onOpenProfile),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_person), contentDescription = "Perfil", tint = Color.White, modifier = Modifier.size(26.dp))
+        }
+    }
+}
+
+/** Opacidad del fondo de la barra inferior (sobre el tinte de vidrio del modo). Provisional: se ajusta en el teléfono. */
+private const val HOME_BAR_TINT_ALPHA = 0.85f
+
+private fun HomeTab.iconRes(): Int = when (this) {
+    HomeTab.ROOMS -> R.drawable.ic_nav_home
+    HomeTab.LIBRARY -> R.drawable.ic_nav_library
+    HomeTab.UPLOADS -> R.drawable.ic_upload
+    HomeTab.PROFILE -> R.drawable.ic_person
+}
+
+/**
+ * Barra de pestañas de vidrio. Se esconde con el teclado abierto (`showHomeBottomBar`); el alto del teclado se lee solo
+ * aquí, para que al animarse no se recomponga toda la pantalla. El texto va con los colores de dentro del panel
+ * (`GlassBarContent`: oscuros en el modo claro, blancos en el oscuro).
+ */
+@Composable
+private fun HomeBottomBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
+    if (!showHomeBottomBar(WindowInsets.ime.getBottom(LocalDensity.current))) return
+    val glass = LocalGlassColors.current
+    GlassBarContent {
+        val ink = MaterialTheme.colorScheme.onSurface
+        Column {
+            HorizontalDivider(color = glass.panelBorder)
+            NavigationBar(containerColor = glass.panelTint.copy(alpha = HOME_BAR_TINT_ALPHA), contentColor = ink) {
+                HomeTab.entries.forEach { tab ->
+                    NavigationBarItem(
+                        selected = tab == selected,
+                        onClick = { onSelect(tab) },
+                        icon = { Icon(painterResource(tab.iconRes()), contentDescription = null) },
+                        label = { Text(tab.label, maxLines = 1) },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = ink,
+                            selectedTextColor = ink,
+                            indicatorColor = ink.copy(alpha = 0.14f),
+                            unselectedIconColor = ink.copy(alpha = 0.7f),
+                            unselectedTextColor = ink.copy(alpha = 0.7f),
+                        ),
+                    )
+                }
+            }
+        }
+    }
+}
+
+/** Fila de la pestaña Perfil: texto a la izquierda y, si hace falta, algo a la derecha; toda la fila es el botón (48 dp de alto como mínimo). */
+@Composable
+private fun ProfileRow(label: String, enabled: Boolean = true, onClick: () -> Unit, trailing: @Composable () -> Unit = {}) {
+    Row(
+        Modifier.fillMaxWidth().heightIn(min = 48.dp).clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(label, style = MaterialTheme.typography.bodyLarge)
+        trailing()
+    }
+}
+
+/** Pestaña Perfil: lo que antes era el menú "Cuenta" (modo oscuro, administración si corresponde y cerrar sesión), ahora a la vista. */
+@Composable
+private fun ProfileCard(
     email: String,
     isLoggingOut: Boolean,
     onLogout: () -> Unit,
@@ -226,60 +403,49 @@ private fun Header(
     showAdmin: Boolean,
     onOpenAdmin: () -> Unit,
 ) {
-    var menuOpen by remember { mutableStateOf(false) }
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 4.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Column(Modifier.weight(1f)) {
-            // El título de las pantallas de entrada (Playfair Display, provisional hasta el paso 6) en un tamaño menor.
-            Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 26.sp, lineHeight = 32.sp))
-            if (email.isNotBlank()) {
+    HomeGlassCard(blurredCopy = false) {
+        Text("Perfil", style = MaterialTheme.typography.titleLarge)
+        if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        ProfileRow("Modo oscuro", onClick = { onDarkThemeChange(!darkTheme) }) {
+            Switch(checked = darkTheme, onCheckedChange = null)
+        }
+        if (showAdmin) {
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ProfileRow("Administración (abre el navegador)", onClick = onOpenAdmin)
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        ProfileRow(if (isLoggingOut) "Saliendo…" else "Cerrar sesión", enabled = !isLoggingOut, onClick = onLogout)
+    }
+}
+
+/** Pestaña Subidas (provisional): el estado de la subida en curso; sin ninguna, un aviso. Las subidas se inician desde Biblioteca. */
+@Composable
+private fun UploadsCard(
+    upload: UploadState,
+    onPick: () -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
+    onOpenRoom: (roomId: String) -> Unit,
+) {
+    HomeGlassCard(blurredCopy = false) {
+        Text("Subidas", style = MaterialTheme.typography.titleLarge)
+        UploadStatusBody(
+            state = upload,
+            idle = {
                 Text(
-                    email,
-                    style = MaterialTheme.typography.bodySmall,
+                    "No hay subidas en curso. Para subir un video, andá a Biblioteca.",
+                    style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
                 )
-            }
-        }
-        Box {
-            GlassButton("Cuenta", busy = false, onClick = { menuOpen = true }, modifier = Modifier.width(112.dp))
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                // El menú es una ventana aparte, con el fondo claro u oscuro normal del tema: el texto va con los colores de
-                // dentro del panel (oscuros en el modo claro, blancos en el oscuro), no con los de sobre el fondo.
-                GlassBarContent {
-                    // El interruptor no cierra el menú: así se ve cómo cambia.
-                    DropdownMenuItem(
-                        text = {
-                            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                Text("Modo oscuro")
-                                Switch(checked = darkTheme, onCheckedChange = null)
-                            }
-                        },
-                        onClick = { onDarkThemeChange(!darkTheme) },
-                    )
-                    if (showAdmin) {
-                        DropdownMenuItem(
-                            text = { Text("Administración (abre el navegador)") },
-                            onClick = {
-                                menuOpen = false
-                                onOpenAdmin()
-                            },
-                        )
-                    }
-                    DropdownMenuItem(
-                        text = { Text(if (isLoggingOut) "Saliendo…" else "Cerrar sesión") },
-                        enabled = !isLoggingOut,
-                        onClick = {
-                            menuOpen = false
-                            onLogout()
-                        },
-                    )
-                }
-            }
-        }
+            },
+            onPick = onPick,
+            onCancel = onCancel,
+            onRetry = onRetry,
+            onDismiss = onDismiss,
+            onOpenRoom = onOpenRoom,
+        )
     }
 }
 
@@ -391,7 +557,7 @@ private fun LibraryCard(
                 // Una sola acción principal; la otra, más discreta (en dos columnas "Subir y crear sala" no cabe en un teléfono angosto).
                 GlassButton("Subir y crear sala", busy = false, onClick = onPickAndCreateRoom)
                 Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    GlassLinkButton("Solo subir (sin crear sala)", enabled = true, onClick = onPick, icon = painterResource(R.drawable.ic_upload))
+                    GlassLinkButton("Solo subir (sin crear sala)", enabled = true, onClick = onPick, icon = painterResource(R.drawable.ic_cloud_upload))
                 }
             },
             onPick = onPick,
@@ -450,10 +616,10 @@ private fun LibraryRow(item: LibraryItem, onClick: () -> Unit) {
         }
         // La fila entera es el botón; el icono (con descripción para lectores de pantalla) deja todo el ancho al nombre.
         Icon(
-            painterResource(R.drawable.ic_play),
+            painterResource(R.drawable.ic_video_clip),
             contentDescription = "Crear sala con este video",
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp),
+            tint = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.size(32.dp),
         )
     }
 }
