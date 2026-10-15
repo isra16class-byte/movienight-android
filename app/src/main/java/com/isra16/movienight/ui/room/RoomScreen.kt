@@ -30,7 +30,6 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -156,13 +155,12 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     }
     Column(Modifier.fillMaxSize().safeDrawingPadding()) {
         RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
-        HorizontalDivider()
         when (val phase = vm.phase) {
-            RoomPhase.Checking -> CenteredStatus("Comprobando la sala…", vm.notice)
-            RoomPhase.Connecting -> CenteredStatus("Entrando a la sala…", vm.notice)
-            is RoomPhase.AskPassword -> PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword)
-            RoomPhase.Kicked -> KickedState(onLeave = onLeave)
-            is RoomPhase.Failed -> FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave)
+            RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
+            RoomPhase.Connecting -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
+            is RoomPhase.AskPassword -> RoomSolidZone(Modifier.fillMaxSize()) { PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword) }
+            RoomPhase.Kicked -> RoomSolidZone(Modifier.fillMaxSize()) { KickedState(onLeave = onLeave) }
+            is RoomPhase.Failed -> RoomSolidZone(Modifier.fillMaxSize()) { FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave) }
             RoomPhase.InRoom -> RoomContent(
                 vm = vm,
                 draft = draft,
@@ -177,20 +175,23 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
 private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit) {
     val inRoom = vm.phase == RoomPhase.InRoom
 
-    Row(
-        Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        TextButton(onClick = onLeave) { Text("Salir") }
-        Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-            Text("Sala ${vm.roomId}", style = MaterialTheme.typography.titleMedium, maxLines = 1)
-            if (inRoom && vm.isHost) {
-                Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+    // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; la `safeDrawingPadding` de la sala sigue dejando libre la barra de estado.
+    RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentPadding = 4.dp) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onLeave) { Text("Salir") }
+            Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
+                Text("Sala ${vm.roomId}", style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                if (inRoom && vm.isHost) {
+                    Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
-        }
-        if (inRoom) {
-            TextButton(onClick = onShowViewers) {
-                Text(if (vm.viewerCount == 1) "1 conectado" else "${vm.viewerCount} conectados")
+            if (inRoom) {
+                TextButton(onClick = onShowViewers) {
+                    Text(if (vm.viewerCount == 1) "1 conectado" else "${vm.viewerCount} conectados")
+                }
             }
         }
     }
@@ -317,68 +318,75 @@ private fun RoomContentBody(
 
         val banner = connectionBanner(vm.isConnected, vm.restart, vm.notice)
         if (banner != null) {
-            Text(
-                banner,
-                modifier = Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(8.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSecondaryContainer,
-                textAlign = TextAlign.Center,
-            )
-        }
-
-        // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
-        LazyColumn(
-            modifier = Modifier.weight(1f).fillMaxWidth(),
-            reverseLayout = true,
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            items(vm.messages.asReversed()) { message ->
-                MessageRow(message, mine = !message.system && message.userId == vm.myUserId)
+            RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentPadding = 8.dp) {
+                Text(
+                    banner,
+                    modifier = Modifier.fillMaxWidth(),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                )
             }
         }
 
-        val typing = vm.typingUser
-        if (typing != null) {
-            Text(
-                "$typing está escribiendo…",
-                modifier = Modifier.padding(horizontal = 12.dp),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        // Chat y campo de envío: fondo liso INTERINO de 5a (5b los pasa a vidrio).
+        RoomSolidZone(Modifier.fillMaxWidth().weight(1f)) {
+            Column(Modifier.fillMaxSize()) {
+                // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
+                LazyColumn(
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    reverseLayout = true,
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    items(vm.messages.asReversed()) { message ->
+                        MessageRow(message, mine = !message.system && message.userId == vm.myUserId)
+                    }
+                }
 
-        // Reacciones (parte 2D): la fila de la web móvil, encima del campo de chat; se esconde con el teclado abierto,
-        // como la web. Silenciado se puede reaccionar (el server solo bloquea el chat), así que sigue visible.
-        if (!keyboardOpen) ReactionBar(onPick = { vm.sendReaction(it) })
+                val typing = vm.typingUser
+                if (typing != null) {
+                    Text(
+                        "$typing está escribiendo…",
+                        modifier = Modifier.padding(horizontal = 12.dp),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
 
-        if (vm.isMuted) {
-            Text(
-                MUTED_CHAT_NOTICE,
-                modifier = Modifier.fillMaxWidth().padding(12.dp),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.error,
-                textAlign = TextAlign.Center,
-            )
-        } else {
-            Row(
-                Modifier.fillMaxWidth().padding(8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                OutlinedTextField(
-                    value = draft,
-                    onValueChange = {
-                        onDraftChange(it.take(500))
-                        if (it.isNotEmpty()) vm.onTyping()
-                    },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text("Escribí un mensaje") },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { send() }),
-                )
-                Button(onClick = ::send, enabled = canSend) { Text("Enviar") }
+                // Reacciones (parte 2D): la fila de la web móvil, encima del campo de chat; se esconde con el teclado abierto,
+                // como la web. Silenciado se puede reaccionar (el server solo bloquea el chat), así que sigue visible.
+                if (!keyboardOpen) ReactionBar(onPick = { vm.sendReaction(it) })
+
+                if (vm.isMuted) {
+                    Text(
+                        MUTED_CHAT_NOTICE,
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                    )
+                } else {
+                    Row(
+                        Modifier.fillMaxWidth().padding(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        OutlinedTextField(
+                            value = draft,
+                            onValueChange = {
+                                onDraftChange(it.take(500))
+                                if (it.isNotEmpty()) vm.onTyping()
+                            },
+                            modifier = Modifier.weight(1f),
+                            placeholder = { Text("Escribí un mensaje") },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { send() }),
+                        )
+                        Button(onClick = ::send, enabled = canSend) { Text("Enviar") }
+                    }
+                }
             }
         }
     }
@@ -464,19 +472,21 @@ private fun RoomVideo(
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = liveReactions,
         )
-        Row(
-            Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                if (videoName.isNotEmpty()) videoName else "Sin cinta",
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-            )
-            if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
+        RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), contentPadding = 4.dp) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 8.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    if (videoName.isNotEmpty()) videoName else "Sin cinta",
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                )
+                if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
+            }
         }
     }
 }

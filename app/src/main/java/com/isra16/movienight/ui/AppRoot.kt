@@ -126,7 +126,11 @@ private fun MainNavHost(
         }
         // El id va como argumento de la ruta: RoomViewModel lo lee del SavedStateHandle.
         composable(Routes.ROOM) {
-            RoomScreen(onLeave = { nav.popBackStack() })
+            // Mismo fondo de vidrio que Home (Fase 8, paso 5a). Va aquí, fuera de RoomScreen, para que no se recargue al entrar o
+            // salir de la pantalla completa ni se mueva con el teclado. La caja del video sigue negra y sin vidrio.
+            HomeBackdrop {
+                RoomScreen(onLeave = { nav.popBackStack() })
+            }
         }
     }
 }

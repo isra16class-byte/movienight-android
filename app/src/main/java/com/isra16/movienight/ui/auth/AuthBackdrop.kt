@@ -80,6 +80,9 @@ import kotlin.math.roundToInt
  */
 internal val GlassTextShadow = Shadow(color = Color.Black.copy(alpha = 0.65f), offset = Offset(0f, 2f), blurRadius = 6f)
 
+/** Opacidad del tinte de las tarjetas de vidrio sobre la copia borrosa (Home, ventanas y sala). Provisional: se ajusta en el teléfono. */
+internal const val GLASS_CARD_TINT_ALPHA = 0.70f
+
 /** Sombra y letra más gruesa: lo que pesa menos de SemiBold (600) sube a SemiBold; lo que ya es más grueso se queda. */
 private fun TextStyle.glass(shadow: Shadow?): TextStyle =
     copy(shadow = shadow, fontWeight = if ((fontWeight?.weight ?: 400) < 600) FontWeight.SemiBold else fontWeight)

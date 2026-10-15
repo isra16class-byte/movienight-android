@@ -81,6 +81,7 @@ import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.net.showHomeBottomBar
 import com.isra16.movienight.ui.auth.ErrorText
+import com.isra16.movienight.ui.auth.GLASS_CARD_TINT_ALPHA
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassContent
 import com.isra16.movienight.ui.auth.GlassDialog
@@ -479,7 +480,7 @@ private fun HomeGlassCard(
 private val HOME_CARD_CORNER = 24.dp
 
 /** Opacidad del tinte de las tarjetas de Home (antes 0,45 en claro y 0,55 en oscuro, los de la paleta). Provisional: se ajusta en el teléfono. */
-private const val HOME_TINT_ALPHA = 0.70f
+private const val HOME_TINT_ALPHA = GLASS_CARD_TINT_ALPHA
 
 @Composable
 private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {

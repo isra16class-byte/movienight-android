@@ -58,7 +58,7 @@ internal fun GlassDialog(
 }
 
 /** Opacidad del tinte con la copia borrosa debajo: la misma que las tarjetas de Home. Provisional: se ajusta en el teléfono. */
-private const val GLASS_DIALOG_TINT_ALPHA = 0.70f
+private const val GLASS_DIALOG_TINT_ALPHA = GLASS_CARD_TINT_ALPHA
 
 /** Sin copia borrosa (fuera de Home) se transparentaría la pantalla: el tinte es mucho más asentado. */
 private const val GLASS_DIALOG_TINT_ALPHA_NO_BACKDROP = 0.92f

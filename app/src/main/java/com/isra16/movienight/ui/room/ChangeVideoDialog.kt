@@ -209,22 +209,25 @@ fun RoomUploadBanner(vm: RoomViewModel) {
         is UploadState.Failed -> "No se pudo cambiar el video: ${state.message}"
         else -> return
     }
-    Row(
-        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.secondaryContainer).padding(start = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            text,
-            modifier = Modifier.weight(1f).padding(vertical = 8.dp),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            maxLines = 3,
-        )
-        when {
-            // Quien ya no es host no puede abrir el cuadro: solo cortar o cerrar el aviso.
-            vm.isHost -> TextButton(onClick = vm::openChangeVideo) { Text("Ver") }
-            state.canCancel() -> TextButton(onClick = vm::cancelUpload) { Text("Cancelar") }
-            !state.isBusy() -> TextButton(onClick = vm::dismissUpload) { Text("Cerrar") }
+    // Barra de vidrio (Fase 8, paso 5a), como la cabecera de la sala.
+    RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentPadding = 4.dp) {
+        Row(
+            Modifier.fillMaxWidth().padding(start = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text,
+                modifier = Modifier.weight(1f).padding(vertical = 8.dp),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 3,
+            )
+            when {
+                // Quien ya no es host no puede abrir el cuadro: solo cortar o cerrar el aviso.
+                vm.isHost -> TextButton(onClick = vm::openChangeVideo) { Text("Ver") }
+                state.canCancel() -> TextButton(onClick = vm::cancelUpload) { Text("Cancelar") }
+                !state.isBusy() -> TextButton(onClick = vm::dismissUpload) { Text("Cerrar") }
+            }
         }
     }
 }
