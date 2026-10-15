@@ -66,20 +66,23 @@ class MainActivity : ComponentActivity(), PipHost {
      * seguirían el modo del teléfono y podrían quedar oscuros sobre fondo oscuro (o claros sobre claro). (2) El
      * fondo de la ventana, que se ve detrás de la app en el primer cuadro y mientras el teclado se mueve.
      * `enableEdgeToEdge` se puede llamar más de una vez; aquí se llama al arrancar y al cambiar el modo.
+     *
+     * Las dos barras son transparentes (Fase 8, paso 4k): la de navegación usaba `SystemBarStyle.auto`, que en Android 10+ deja
+     * activado `isNavigationBarContrastEnforced` y el sistema pintaba su propio velo (blanco en modo claro) con la navegación de 3
+     * botones. `dark` y `light` lo desactivan y fijan el color de los iconos según el modo de la app (claros en oscuro, oscuros en
+     * claro). Sin el velo, nada garantiza el contraste de los botones del sistema sobre lo que haya detrás.
      */
     private fun applyAppearance(dark: Boolean) {
         enableEdgeToEdge(
             statusBarStyle = SystemBarStyle.auto(Color.TRANSPARENT, Color.TRANSPARENT) { dark },
-            navigationBarStyle = SystemBarStyle.auto(NAV_BAR_SCRIM_LIGHT, NAV_BAR_SCRIM_DARK) { dark },
+            navigationBarStyle = if (dark) {
+                SystemBarStyle.dark(Color.TRANSPARENT)
+            } else {
+                SystemBarStyle.light(Color.TRANSPARENT, Color.TRANSPARENT)
+            },
         )
         val colors = if (dark) MovieNightDarkColors else MovieNightLightColors
         window.setBackgroundDrawable(ColorDrawable(colors.background.toArgb()))
-    }
-
-    private companion object {
-        // Los mismos valores que usa androidx.activity por defecto en la barra de navegación (solo cuentan en Android 9 o anterior).
-        val NAV_BAR_SCRIM_LIGHT = Color.argb(0xe6, 0xFF, 0xFF, 0xFF)
-        val NAV_BAR_SCRIM_DARK = Color.argb(0x80, 0x1b, 0x1b, 0x1b)
     }
 
     // --- Ventana flotante (Picture-in-Picture, Fase 7A) --------------------------------------------
