@@ -181,7 +181,12 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: ()
     val inRoom = vm.phase == RoomPhase.InRoom
 
     // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; la `safeDrawingPadding` de la sala sigue dejando libre la barra de estado.
-    RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentPadding = 4.dp) {
+    // Dentro de la sala la cabecera es la pieza de arriba del bloque de vidrio (sin hueco con el video); en los demás estados, suelta.
+    RoomGlassBar(
+        if (inRoom) Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp) else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        contentPadding = 4.dp,
+        shape = if (inRoom) RoomGlassTopShape else RoundedCornerShape(ROOM_GLASS_CORNER),
+    ) {
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -323,7 +328,7 @@ private fun RoomContentBody(
 
         val banner = connectionBanner(vm.isConnected, vm.restart, vm.notice)
         if (banner != null) {
-            RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 4.dp), contentPadding = 8.dp) {
+            RoomGlassBar(Modifier.padding(horizontal = 8.dp), contentPadding = 8.dp, shape = RoomGlassMiddleShape) {
                 Text(
                     banner,
                     modifier = Modifier.fillMaxWidth(),
@@ -337,7 +342,7 @@ private fun RoomContentBody(
         // Una sola hoja de vidrio detrás del chat, las reacciones y el campo (Fase 8, paso 5b): la copia borrosa se dibuja UNA vez
         // para toda la hoja y las burbujas son tintes lisos, sin copia borrosa por mensaje.
         val chat = roomChatColors()
-        RoomGlassBar(Modifier.weight(1f).padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp), contentPadding = 4.dp) {
+        RoomGlassBar(Modifier.weight(1f).padding(start = 8.dp, end = 8.dp, bottom = 8.dp), contentPadding = 4.dp, shape = RoomGlassBottomShape) {
             // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -485,7 +490,7 @@ private fun RoomVideo(
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = liveReactions,
         )
-        RoomGlassBar(Modifier.padding(horizontal = 8.dp, vertical = 6.dp), contentPadding = 4.dp) {
+        RoomGlassBar(Modifier.padding(horizontal = 8.dp), contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -520,7 +525,8 @@ private fun RoomVideoBox(
     onEnterFullscreen: () -> Unit,
     liveReactions: SharedFlow<String>,
 ) {
-    Box(Modifier.fillMaxWidth().height(videoHeight)) {
+    // Mismo margen lateral que el bloque de vidrio de arriba y de abajo; el video queda negro y recto, enmarcado por el vidrio.
+    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(videoHeight)) {
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
         VideoSurface(
             rp,

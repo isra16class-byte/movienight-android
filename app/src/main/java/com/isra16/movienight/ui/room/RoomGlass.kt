@@ -3,10 +3,12 @@ package com.isra16.movienight.ui.room
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.ui.auth.GLASS_CARD_TINT_ALPHA
@@ -18,6 +20,18 @@ import com.isra16.movienight.ui.theme.MovieNightDarkChat
 import com.isra16.movienight.ui.theme.MovieNightLightChat
 import com.isra16.movienight.ui.theme.RoomChatColors
 
+/** Radio de las esquinas del bloque de vidrio de la sala. */
+internal val ROOM_GLASS_CORNER = 20.dp
+
+/** Pieza de arriba del bloque: esquinas redondas arriba, rectas abajo (se pega a lo de abajo sin hueco). */
+internal val RoomGlassTopShape = RoundedCornerShape(topStart = ROOM_GLASS_CORNER, topEnd = ROOM_GLASS_CORNER, bottomStart = 0.dp, bottomEnd = 0.dp)
+
+/** Pieza del medio del bloque: esquinas rectas. */
+internal val RoomGlassMiddleShape = RoundedCornerShape(0.dp)
+
+/** Pieza de abajo del bloque: rectas arriba, redondas abajo. */
+internal val RoomGlassBottomShape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = ROOM_GLASS_CORNER, bottomEnd = ROOM_GLASS_CORNER)
+
 /**
  * Barra de vidrio de la sala (Fase 8, paso 5a): cabecera, fila de la cinta y avisos. Es el `GlassPanel` de Home con el mismo
  * tinte de las tarjetas (`GLASS_CARD_TINT_ALPHA`) y la copia borrosa del fondo por dentro. Solo va FUERA del video: la caja del
@@ -28,6 +42,7 @@ import com.isra16.movienight.ui.theme.RoomChatColors
 internal fun RoomGlassBar(
     modifier: Modifier = Modifier,
     contentPadding: Dp = 8.dp,
+    shape: Shape = RoundedCornerShape(ROOM_GLASS_CORNER),
     content: @Composable ColumnScope.() -> Unit,
 ) {
     GlassContent {
@@ -35,7 +50,7 @@ internal fun RoomGlassBar(
             modifier = modifier,
             horizontalAlignment = Alignment.Start,
             contentPadding = contentPadding,
-            cornerRadius = 20.dp,
+            panelShape = shape,
             spacing = 0.dp,
             tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_CARD_TINT_ALPHA),
             content = content,

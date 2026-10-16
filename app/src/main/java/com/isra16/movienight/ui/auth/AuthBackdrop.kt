@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.Shadow
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -264,11 +265,13 @@ internal fun GlassPanel(
     blurredCopy: Boolean = true,
     // null: el tinte de la paleta (`GlassColors.panelTint`). Home pasa uno más asentado; el login no pasa nada.
     tint: Color? = null,
+    // null: esquinas redondeadas de [cornerRadius] en las cuatro. La sala pasa una forma con esquinas rectas para pegar paneles.
+    panelShape: Shape? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val backdrop = LocalGlassBackdrop.current
     val glass = LocalGlassColors.current
-    val shape = RoundedCornerShape(cornerRadius)
+    val shape = panelShape ?: RoundedCornerShape(cornerRadius)
     // Posición del panel en la ventana; se actualiza al desplazar y solo se lee al dibujar.
     var panelOrigin by remember { mutableStateOf(Offset.Zero) }
     Column(
