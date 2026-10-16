@@ -13,17 +13,23 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.windowInsetsBottomHeight
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.layout.windowInsetsTopHeight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -158,7 +164,9 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
         )
         return
     }
-    Column(Modifier.fillMaxSize().safeDrawingPadding()) {
+    // En la sala el bloque de vidrio llega hasta los bordes de la pantalla: solo se deja el teclado y las barras del sistema las cubren las
+    // piezas de arriba y de abajo por dentro (Fase 8, paso 5d). Los demás estados siguen dentro de las zonas seguras, como antes.
+    Column(if (inRoom) Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime) else Modifier.fillMaxSize().safeDrawingPadding()) {
         RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
         when (val phase = vm.phase) {
             RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
@@ -180,13 +188,15 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
 private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit) {
     val inRoom = vm.phase == RoomPhase.InRoom
 
-    // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; la `safeDrawingPadding` de la sala sigue dejando libre la barra de estado.
+    // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; fuera de la sala la `safeDrawingPadding` deja libre la barra de estado.
     // Dentro de la sala la cabecera es la pieza de arriba del bloque de vidrio (sin hueco con el video); en los demás estados, suelta.
     RoomGlassBar(
-        if (inRoom) Modifier.padding(start = 8.dp, end = 8.dp, top = 4.dp) else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+        if (inRoom) Modifier else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         contentPadding = 4.dp,
         shape = if (inRoom) RoomGlassTopShape else RoundedCornerShape(ROOM_GLASS_CORNER),
     ) {
+        // En la sala la pieza llega hasta arriba del todo: este espacio es la barra de estado (el vidrio queda detrás de ella).
+        if (inRoom) Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         Row(
             Modifier.fillMaxWidth().padding(horizontal = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -328,7 +338,7 @@ private fun RoomContentBody(
 
         val banner = connectionBanner(vm.isConnected, vm.restart, vm.notice)
         if (banner != null) {
-            RoomGlassBar(Modifier.padding(horizontal = 8.dp), contentPadding = 8.dp, shape = RoomGlassMiddleShape) {
+            RoomGlassBar(contentPadding = 8.dp, shape = RoomGlassMiddleShape) {
                 Text(
                     banner,
                     modifier = Modifier.fillMaxWidth(),
@@ -342,7 +352,7 @@ private fun RoomContentBody(
         // Una sola hoja de vidrio detrás del chat, las reacciones y el campo (Fase 8, paso 5b): la copia borrosa se dibuja UNA vez
         // para toda la hoja y las burbujas son tintes lisos, sin copia borrosa por mensaje.
         val chat = roomChatColors()
-        RoomGlassBar(Modifier.weight(1f).padding(start = 8.dp, end = 8.dp, bottom = 8.dp), contentPadding = 4.dp, shape = RoomGlassBottomShape) {
+        RoomGlassBar(Modifier.weight(1f), contentPadding = 4.dp, shape = RoomGlassBottomShape) {
             // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -403,6 +413,9 @@ private fun RoomContentBody(
                     GlassButton("Enviar", busy = false, onClick = ::send, modifier = Modifier.width(104.dp), enabled = canSend)
                 }
             }
+            // La hoja llega hasta abajo del todo: este espacio es la barra de navegación. Con el teclado abierto vale 0, porque la
+            // `windowInsetsPadding(ime)` de arriba ya consumió esa parte del inset (la barra de navegación queda tapada por el teclado).
+            Spacer(Modifier.windowInsetsBottomHeight(WindowInsets.navigationBars))
         }
     }
 }
@@ -490,7 +503,7 @@ private fun RoomVideo(
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = liveReactions,
         )
-        RoomGlassBar(Modifier.padding(horizontal = 8.dp), contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
+        RoomGlassBar(contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -525,8 +538,8 @@ private fun RoomVideoBox(
     onEnterFullscreen: () -> Unit,
     liveReactions: SharedFlow<String>,
 ) {
-    // Mismo margen lateral que el bloque de vidrio de arriba y de abajo; el video queda negro y recto, enmarcado por el vidrio.
-    Box(Modifier.fillMaxWidth().padding(horizontal = 8.dp).height(videoHeight)) {
+    // El video ocupa el ancho completo, negro y recto, entre las piezas de vidrio de arriba y de abajo.
+    Box(Modifier.fillMaxWidth().height(videoHeight)) {
         // El toque va en el contenedor del video: el botón "Reintentar" (hijo) lo consume antes y no alterna los controles.
         VideoSurface(
             rp,

@@ -8,6 +8,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -20,17 +21,16 @@ import com.isra16.movienight.ui.theme.MovieNightDarkChat
 import com.isra16.movienight.ui.theme.MovieNightLightChat
 import com.isra16.movienight.ui.theme.RoomChatColors
 
-/** Radio de las esquinas del bloque de vidrio de la sala. */
+/** Radio de las esquinas de una barra de vidrio suelta (los estados que no son la sala). */
 internal val ROOM_GLASS_CORNER = 20.dp
 
-/** Pieza de arriba del bloque: esquinas redondas arriba, rectas abajo (se pega a lo de abajo sin hueco). */
-internal val RoomGlassTopShape = RoundedCornerShape(topStart = ROOM_GLASS_CORNER, topEnd = ROOM_GLASS_CORNER, bottomStart = 0.dp, bottomEnd = 0.dp)
-
-/** Pieza del medio del bloque: esquinas rectas. */
-internal val RoomGlassMiddleShape = RoundedCornerShape(0.dp)
-
-/** Pieza de abajo del bloque: rectas arriba, redondas abajo. */
-internal val RoomGlassBottomShape = RoundedCornerShape(topStart = 0.dp, topEnd = 0.dp, bottomStart = ROOM_GLASS_CORNER, bottomEnd = ROOM_GLASS_CORNER)
+/**
+ * Piezas del bloque de vidrio de la sala en vertical: van de borde a borde de la pantalla, sin margen ni esquinas, y la de arriba
+ * y la de abajo se estiran bajo la barra de estado y la de navegación (ver `RoomHeader` y `RoomContentBody`). Las tres son rectas.
+ */
+internal val RoomGlassTopShape: Shape = RectangleShape
+internal val RoomGlassMiddleShape: Shape = RectangleShape
+internal val RoomGlassBottomShape: Shape = RectangleShape
 
 /**
  * Barra de vidrio de la sala (Fase 8, paso 5a): cabecera, fila de la cinta y avisos. Es el `GlassPanel` de Home con el mismo

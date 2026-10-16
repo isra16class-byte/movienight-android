@@ -210,7 +210,7 @@ fun RoomUploadBanner(vm: RoomViewModel) {
         else -> return
     }
     // Barra de vidrio (Fase 8, paso 5a), como la cabecera de la sala.
-    RoomGlassBar(Modifier.padding(horizontal = 8.dp), contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
+    RoomGlassBar(contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
         Row(
             Modifier.fillMaxWidth().padding(start = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
