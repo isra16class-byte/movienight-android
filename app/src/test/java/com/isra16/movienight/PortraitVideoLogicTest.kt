@@ -3,7 +3,10 @@ package com.isra16.movienight
 import com.isra16.movienight.net.VIDEO_KEYBOARD_MAX_FRACTION
 import com.isra16.movienight.net.VIDEO_KEYBOARD_MIN_HEIGHT_DP
 import com.isra16.movienight.net.portraitVideoHeightDp
+import com.isra16.movienight.net.showRoomHeader
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortraitVideoLogicTest {
@@ -61,5 +64,13 @@ class PortraitVideoLogicTest {
     fun `un ancho inusable da cero`() {
         assertEquals(0f, portraitVideoHeightDp(0f, 400f, keyboardOpen = true), 1e-3f)
         assertEquals(0f, portraitVideoHeightDp(Float.POSITIVE_INFINITY, 400f, keyboardOpen = false), 1e-3f)
+    }
+
+    @Test
+    fun `la cabecera se ve con el teclado cerrado y se esconde con el teclado abierto`() {
+        assertTrue(showRoomHeader(0))
+        assertTrue(showRoomHeader(-5))
+        assertFalse(showRoomHeader(1))
+        assertFalse(showRoomHeader(900))
     }
 }

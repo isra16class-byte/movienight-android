@@ -103,6 +103,7 @@ import com.isra16.movienight.net.pipContentFor
 import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.roomLayoutFor
+import com.isra16.movienight.net.showRoomHeader
 import com.isra16.movienight.net.videoScale
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
@@ -170,7 +171,13 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
         // Una sola hoja de vidrio a pantalla completa detrás de toda la sala (Fase 8, paso 5e); las piezas de abajo son transparentes.
         if (inRoom) RoomGlassSheet(Modifier.fillMaxSize())
         Column(if (inRoom) Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime) else Modifier.fillMaxSize().safeDrawingPadding()) {
-            RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
+            // Con el teclado abierto, dentro de la sala, la cabecera se esconde para dejarle su alto al video (`showRoomHeader`). Se deja
+            // solo el espacio de la barra de estado: la hoja de vidrio de atrás sigue cubriéndola. En los demás estados la cabecera siempre se ve.
+            if (!inRoom || showRoomHeader(WindowInsets.ime.getBottom(LocalDensity.current))) {
+                RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
+            } else {
+                Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+            }
             when (val phase = vm.phase) {
                 RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
                 RoomPhase.Connecting -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }

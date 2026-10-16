@@ -28,3 +28,9 @@ fun portraitVideoHeightDp(widthDp: Float, availableHeightDp: Float, keyboardOpen
     if (!keyboardOpen || !availableHeightDp.isFinite() || availableHeightDp <= 0f) return natural
     return max(VIDEO_KEYBOARD_MIN_HEIGHT_DP, min(natural, availableHeightDp * VIDEO_KEYBOARD_MAX_FRACTION))
 }
+
+/**
+ * La cabecera de la sala (Salir, nombre, conectados) se ve solo con el teclado cerrado: con el teclado abierto se esconde para que el
+ * video tenga ese alto. [imeBottomPx] es el alto del teclado en píxeles; 0 o menos es teclado cerrado (mismo criterio que `showHomeBottomBar`).
+ */
+fun showRoomHeader(imeBottomPx: Int): Boolean = imeBottomPx <= 0
