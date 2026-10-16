@@ -267,6 +267,8 @@ internal fun GlassPanel(
     tint: Color? = null,
     // null: esquinas redondeadas de [cornerRadius] en las cuatro. La sala pasa una forma con esquinas rectas para pegar paneles.
     panelShape: Shape? = null,
+    // false: sin el borde fino (la hoja de vidrio de la sala, que llega a los bordes de la pantalla).
+    showBorder: Boolean = true,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val backdrop = LocalGlassBackdrop.current
@@ -290,7 +292,7 @@ internal fun GlassPanel(
                 }
                 drawRect(tint ?: glass.panelTint)
             }
-            .border(1.dp, glass.panelBorder, shape)
+            .then(if (showBorder) Modifier.border(1.dp, glass.panelBorder, shape) else Modifier)
             .padding(contentPadding),
         horizontalAlignment = horizontalAlignment,
         verticalArrangement = Arrangement.spacedBy(spacing),

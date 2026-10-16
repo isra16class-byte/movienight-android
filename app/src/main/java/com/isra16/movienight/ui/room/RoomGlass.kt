@@ -2,17 +2,20 @@ package com.isra16.movienight.ui.room
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.RectangleShape
-import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.ui.auth.GLASS_CARD_TINT_ALPHA
+import com.isra16.movienight.ui.auth.GlassBarContent
 import com.isra16.movienight.ui.auth.GlassContent
 import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.theme.LocalAppDarkTheme
@@ -25,36 +28,53 @@ import com.isra16.movienight.ui.theme.RoomChatColors
 internal val ROOM_GLASS_CORNER = 20.dp
 
 /**
- * Piezas del bloque de vidrio de la sala en vertical: van de borde a borde de la pantalla, sin margen ni esquinas, y la de arriba
- * y la de abajo se estiran bajo la barra de estado y la de navegación (ver `RoomHeader` y `RoomContentBody`). Las tres son rectas.
+ * Hoja de vidrio de la sala (Fase 8, paso 5e): UN solo `GlassPanel` a pantalla completa, sin forma ni borde ni margen, que se dibuja
+ * detrás de toda la columna de la sala (ver `RoomScreen`). Las piezas de arriba (cabecera, fila de la cinta, avisos y chat) son
+ * [RoomGlassBar] con `flat = true`: contenido transparente encima de esta hoja, así la copia borrosa y el tinte se dibujan una vez, sin
+ * costuras entre piezas. La caja del video es opaca y tapa la hoja por el medio. Debe ir dentro de `HomeBackdrop`.
  */
-internal val RoomGlassTopShape: Shape = RectangleShape
-internal val RoomGlassMiddleShape: Shape = RectangleShape
-internal val RoomGlassBottomShape: Shape = RectangleShape
+@Composable
+internal fun RoomGlassSheet(modifier: Modifier = Modifier) {
+    GlassPanel(
+        modifier = modifier,
+        contentPadding = 0.dp,
+        spacing = 0.dp,
+        panelShape = RectangleShape,
+        showBorder = false,
+        tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_CARD_TINT_ALPHA),
+    ) {}
+}
 
 /**
- * Barra de vidrio de la sala (Fase 8, paso 5a): cabecera, fila de la cinta y avisos. Es el `GlassPanel` de Home con el mismo
- * tinte de las tarjetas (`GLASS_CARD_TINT_ALPHA`) y la copia borrosa del fondo por dentro. Solo va FUERA del video: la caja del
- * video y los controles encima de ella no llevan vidrio. Debe ir dentro de `HomeBackdrop` (lo pone `AppRoot`); `GlassContent`
- * se pone aquí, y no alrededor de toda la sala, para que no cambie los colores de los controles del video.
+ * Barra de la sala (Fase 8, paso 5a): cabecera, fila de la cinta y avisos. Con `flat = false` es un `GlassPanel` suelto (los estados
+ * que no son la sala), con el tinte de las tarjetas (`GLASS_CARD_TINT_ALPHA`) y la copia borrosa del fondo por dentro. Con `flat = true`
+ * (dentro de la sala) no dibuja fondo: solo conserva los colores y el estilo de texto de `GlassContent` y `GlassBarContent`, y el
+ * vidrio lo pone [RoomGlassSheet] detrás. Solo va FUERA del video: la caja del video y sus controles no llevan vidrio.
  */
 @Composable
 internal fun RoomGlassBar(
     modifier: Modifier = Modifier,
     contentPadding: Dp = 8.dp,
-    shape: Shape = RoundedCornerShape(ROOM_GLASS_CORNER),
+    flat: Boolean = false,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     GlassContent {
-        GlassPanel(
-            modifier = modifier,
-            horizontalAlignment = Alignment.Start,
-            contentPadding = contentPadding,
-            panelShape = shape,
-            spacing = 0.dp,
-            tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_CARD_TINT_ALPHA),
-            content = content,
-        )
+        if (flat) {
+            Column(modifier.fillMaxWidth().padding(contentPadding), horizontalAlignment = Alignment.Start) {
+                val scope = this
+                GlassBarContent { scope.content() }
+            }
+        } else {
+            GlassPanel(
+                modifier = modifier,
+                horizontalAlignment = Alignment.Start,
+                contentPadding = contentPadding,
+                panelShape = RoundedCornerShape(ROOM_GLASS_CORNER),
+                spacing = 0.dp,
+                tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_CARD_TINT_ALPHA),
+                content = content,
+            )
+        }
     }
 }
 

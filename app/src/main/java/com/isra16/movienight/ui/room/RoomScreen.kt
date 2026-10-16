@@ -166,20 +166,24 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     }
     // En la sala el bloque de vidrio llega hasta los bordes de la pantalla: solo se deja el teclado y las barras del sistema las cubren las
     // piezas de arriba y de abajo por dentro (Fase 8, paso 5d). Los demás estados siguen dentro de las zonas seguras, como antes.
-    Column(if (inRoom) Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime) else Modifier.fillMaxSize().safeDrawingPadding()) {
-        RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
-        when (val phase = vm.phase) {
-            RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
-            RoomPhase.Connecting -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
-            is RoomPhase.AskPassword -> RoomSolidZone(Modifier.fillMaxSize()) { PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword) }
-            RoomPhase.Kicked -> RoomSolidZone(Modifier.fillMaxSize()) { KickedState(onLeave = onLeave) }
-            is RoomPhase.Failed -> RoomSolidZone(Modifier.fillMaxSize()) { FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave) }
-            RoomPhase.InRoom -> RoomContent(
-                vm = vm,
-                draft = draft,
-                onDraftChange = { draft = it },
-                onEnterFullscreen = { fullscreen = fullscreen.enter() },
-            )
+    Box(Modifier.fillMaxSize()) {
+        // Una sola hoja de vidrio a pantalla completa detrás de toda la sala (Fase 8, paso 5e); las piezas de abajo son transparentes.
+        if (inRoom) RoomGlassSheet(Modifier.fillMaxSize())
+        Column(if (inRoom) Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime) else Modifier.fillMaxSize().safeDrawingPadding()) {
+            RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
+            when (val phase = vm.phase) {
+                RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
+                RoomPhase.Connecting -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
+                is RoomPhase.AskPassword -> RoomSolidZone(Modifier.fillMaxSize()) { PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword) }
+                RoomPhase.Kicked -> RoomSolidZone(Modifier.fillMaxSize()) { KickedState(onLeave = onLeave) }
+                is RoomPhase.Failed -> RoomSolidZone(Modifier.fillMaxSize()) { FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave) }
+                RoomPhase.InRoom -> RoomContent(
+                    vm = vm,
+                    draft = draft,
+                    onDraftChange = { draft = it },
+                    onEnterFullscreen = { fullscreen = fullscreen.enter() },
+                )
+            }
         }
     }
 }
@@ -193,7 +197,7 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: ()
     RoomGlassBar(
         if (inRoom) Modifier else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
         contentPadding = 4.dp,
-        shape = if (inRoom) RoomGlassTopShape else RoundedCornerShape(ROOM_GLASS_CORNER),
+        flat = inRoom,
     ) {
         // En la sala la pieza llega hasta arriba del todo: este espacio es la barra de estado (el vidrio queda detrás de ella).
         if (inRoom) Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
@@ -338,7 +342,7 @@ private fun RoomContentBody(
 
         val banner = connectionBanner(vm.isConnected, vm.restart, vm.notice)
         if (banner != null) {
-            RoomGlassBar(contentPadding = 8.dp, shape = RoomGlassMiddleShape) {
+            RoomGlassBar(contentPadding = 8.dp, flat = true) {
                 Text(
                     banner,
                     modifier = Modifier.fillMaxWidth(),
@@ -352,7 +356,7 @@ private fun RoomContentBody(
         // Una sola hoja de vidrio detrás del chat, las reacciones y el campo (Fase 8, paso 5b): la copia borrosa se dibuja UNA vez
         // para toda la hoja y las burbujas son tintes lisos, sin copia borrosa por mensaje.
         val chat = roomChatColors()
-        RoomGlassBar(Modifier.weight(1f), contentPadding = 4.dp, shape = RoomGlassBottomShape) {
+        RoomGlassBar(Modifier.weight(1f), contentPadding = 4.dp, flat = true) {
             // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
             LazyColumn(
                 modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -503,7 +507,7 @@ private fun RoomVideo(
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = liveReactions,
         )
-        RoomGlassBar(contentPadding = 4.dp, shape = RoomGlassMiddleShape) {
+        RoomGlassBar(contentPadding = 4.dp, flat = true) {
             Row(
                 Modifier.fillMaxWidth().padding(start = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
