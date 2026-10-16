@@ -5,6 +5,16 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-16 — Fase 8, paso 5 (sala con vidrio) y cabecera escondida con el teclado, confirmados «hasta ahora» por la persona
+
+- **Qué:** La persona dijo (2026-10-16) que probó todos los puntos de la sala y que «han funcionado bien hasta ahora», y del ajuste del teclado que «ahí quedó mejor»; no dio detalle por punto ni qué teléfono ni versión de Android usó, ni si el video con el teclado abierto llega a verse en 16:9.
+- **Commits (todos en `origin/main`):** 6, de `f6e4ee0` a `10d7d83`: 5a, 5b, 5c («bloque»), 5d, 5e y el ajuste del teclado; los docs no se habían actualizado. El paso 5 se empezó sin esperar a que la 7B estuviera probada.
+- **Diseño final:** una sola hoja de vidrio a pantalla completa detrás de la sala (`RoomGlassSheet`), piezas transparentes (`RoomGlassBar(flat = true)`), caja del video opaca, chat con burbujas de tinte liso (`RoomChatColors`, provisionales), y con el teclado abierto la cabecera se esconde (`showRoomHeader`, `PortraitVideoLogicTest` con 10 tests, pasados con kotlinc 2.0.21 y un arnés propio, no con Gradle).
+- **Sin confirmar:** `gradlew testDebugUnitTest`; otros teléfonos y tamaños; si el video con el teclado llega a 16:9 (tope de 38 % sin cambiar); los estados de la sala siguen sobre fondo liso interino; pantalla completa, ventana flotante, fichas de reacción y diálogo de conectados no se tocaron; la 7B sigue sin probarse al 100%. **Origen y permiso de las imágenes de fondo NO informados.**
+- **Solo documentación en este commit:** plan (Fase 8, paso 5 con su avance y estado; el paso queda sin tildar porque faltan los estados), MEMORIA (entrada nueva, dato vigente del teclado, pendiente y estructura de archivos) y esta entrada. Sin cambios de código.
+
+---
+
 ## 2026-10-15 — Fase 8, paso 4 (Home con vidrio, barra inferior de cuatro pestañas y ventanas de vidrio), confirmado por la persona
 
 - **Qué:** La persona dijo que probó todos los puntos y que las pruebas salieron positivas; no dio detalle por punto ni qué teléfono ni versión de Android usó.

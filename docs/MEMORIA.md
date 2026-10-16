@@ -86,6 +86,7 @@ movienight-android/
         home/HomeScreen.kt      # unirse por código/link + subir (solo subir / subir y crear sala) + biblioteca + diálogo de crear sala
         home/AdminPanelLauncher.kt # 6B: openInBrowser(): abre un link en el navegador con ACTION_VIEW
         room/RoomScreen.kt      # sala: cabecera, contraseña, error, "te sacaron" (5), chat (el reproductor de la sala va con `RoomPlayer`, Fase 3A)
+        room/RoomGlass.kt       # Fase 8 (5): RoomGlassSheet (una hoja de vidrio a pantalla completa detrás de la sala), RoomGlassBar, RoomSolidZone (interino) y roomChatColors
         room/ViewersDialog.kt   # lista "En la sala": estado de cada persona y, para el host, el menú Acciones (hacer host / silenciar / expulsar) (5)
         room/ChangeVideoDialog.kt # host: cuadro "Cambiar video" (biblioteca o subir uno nuevo) y aviso de avance de la subida (4B)
         upload/UploadStatus.kt  # cuerpo de una subida según su UploadState (lo usan la pantalla principal y la sala) y KeepScreenOn
@@ -214,6 +215,16 @@ Android.** Ojo con `/auth/*` dentro de un comentario KDoc: en Kotlin `/*` abre u
 anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
+
+**Fase 8, paso 5 (sala con vidrio) y ajuste del teclado: hechos y confirmados «hasta ahora» por la persona (2026-10-16).** La persona dijo (2026-10-16) que probó todos los puntos de la sala y que «han funcionado bien hasta ahora», y del ajuste del teclado que «ahí quedó mejor»; no dio detalle por punto ni qué teléfono ni versión de Android usó, ni si el video con el teclado abierto llega a verse en 16:9. Solo UI y lógica pura: sin servidor, sin tocar `RoomPlayer`, `RoomViewModel`, el servicio de reproducción (7B) ni dependencias. Los 6 commits están en `origin/main` (de `f6e4ee0` a `10d7d83`; los docs no se actualizaron hasta este patch).
+
+- **Cómo llegó:** `f6e4ee0` (5a), `c94d1b6` (5b, chat), `2030b37` (5c, «bloque» en vertical), `510ef7a` (5d, de borde a borde), `be1c432` (5e, una sola hoja de vidrio) y `10d7d83` (cabecera escondida con el teclado). Se ajustó con lo que la persona veía; no hubo lista de puntos por commit. El paso 5 se empezó sin esperar a que la 7B estuviera probada.
+- **Qué hay:** `ui/room/RoomGlass.kt` (`RoomGlassSheet`: un `GlassPanel` sin forma, borde ni margen a pantalla completa detrás de toda la columna; `RoomGlassBar`, con `flat = true` dentro de la sala sin fondo propio y suelta con esquinas de 20 dp en los demás estados; `RoomSolidZone`, fondo liso **interino**; `roomChatColors`), `ui/theme/Color.kt` (`RoomChatColors`, `MovieNightLightChat`, `MovieNightDarkChat`, provisionales), `GlassPanel` con `panelShape` y `showBorder` opcionales (login, Home y diálogos no cambian), el campo del chat con `ImeAction.Send` (`RoomScreen.kt`; el cuerpo de `c94d1b6` dice que `GlassTextField` lo acepta, no se verificó en `AuthComponents.kt`), `RoomScreen.kt` (cabecera, fila de la cinta, avisos y chat sobre la hoja; la caja del video, opaca, tapa la hoja por el medio), `tools/glass/measure_chat.py` y `net/PortraitVideoLogic.kt` (`showRoomHeader`) con un test nuevo en `PortraitVideoLogicTest` (10 en total).
+- **Lo que ya no es como antes:** (1) la sala dentro de `HomeBackdrop` lleva vidrio; (2) el vidrio es una sola hoja a pantalla completa, no piezas con esquinas: no hay márgenes ni costuras, y llega bajo la barra de estado y la de navegación; (3) con el teclado abierto, dentro de la sala, la cabecera **se esconde** (queda solo el espacio de la barra de estado); el video sigue achicándose a 38 % del alto visible, y ya no tiene encima esa cabecera.
+- **Verificado por el asistente:** que los nombres citados existen en el código; `PortraitVideoLogicTest` (10) pasa con kotlinc 2.0.21 y un arnés propio (no con `gradlew`), y cambiar `<=` por `<` en `showRoomHeader` hace fallar el test nuevo. **Nada de la UI se compiló en la sesión del asistente** (sin Android SDK): lo que se sabe de la UI viene de lo que confirmó la persona y de los cuerpos de los commits (los de `510ef7a` y `10d7d83` son mínimos).
+- **Sin confirmar / deuda:** `gradlew testDebugUnitTest`; otros teléfonos y tamaños; si el video con el teclado abierto llega a verse en 16:9 (con el tope de 38 % puede seguir con barras negras; subir el tope cambiaría una decisión copiada de la web, no se hizo); los estados de la sala (comprobando, entrando, contraseña, expulsado, fallo) siguen sobre fondo liso interino; pantalla completa, ventana flotante, fichas de reacción y el diálogo de conectados no se tocaron; con el teclado abierto «Salir» y «conectados» no se alcanzan; sin animación al esconder la cabecera; contraste de los colores del chat medido solo sobre `home_panel_*`. La 7B sigue sin probarse al 100%. **Origen y permiso de las imágenes de fondo siguen sin informar**. El paso 6 (temática final) sigue sin empezar.
+
+---
 
 **Fase 8, paso 4 hecho y confirmado por la persona (2026-10-15): Home con vidrio sobre fondo quieto, barra inferior de cuatro pestañas y ventanas de vidrio.** La persona dijo que probó todos los puntos y que las pruebas salieron positivas; no dio detalle por punto ni qué teléfono ni versión de Android usó. Solo UI y lógica pura: sin servidor, sin tocar `RoomPlayer`, `RoomViewModel` ni dependencias. Los 14 commits están en `origin/main` (de `07e6ce7` a `9b52270`; los docs no se actualizaron hasta este patch).
 
@@ -788,7 +799,8 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
   1002); servicio `UploadService` con `foregroundServiceType="dataSync"` que no sube nada. El servidor no tiene push ni aviso
   previo a la expiración de salas (`ROOM_TTL_HOURS`, barrido cada 30 min; `room-error` solo después de cerrar y a los conectados).
 - **Video con el teclado abierto (vertical):** no se esconde, se achica: `portraitVideoHeightDp` copia el criterio de la web (tope 38 % del alto visible, piso de
-  90 dp, nunca más grande que el 16:9). Antes se escondía; esa decisión vieja ya no vale.
+  90 dp, nunca más grande que el 16:9). Antes se escondía; esa decisión vieja ya no vale. Lo que **sí se esconde** con el teclado abierto es la cabecera de la sala
+  (`showRoomHeader`, Fase 8 paso 5): el video se mide con ese alto de más, pero el tope de 38 % sigue.
 - **Comentarios flotantes (7, parte 2A y 2D):** `RoomViewModel.liveChat` emite solo los `chat-message` en vivo y se descarta si nadie escucha; `DanmakuLayer` solo
   existe dentro de `RoomFullscreen` y de `PipVideo` (con `DanmakuProfile.PIP`), así que salir de pantalla completa o de la ventana flotante limpia comentarios y carriles; en vertical no se dibujan. El tope de 12 es nuestro (la web no limita) y el color
   del nombre usa el mismo hash que la web, con tests contra sus valores.
@@ -814,7 +826,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 
 ## Pendientes que arrastramos (no bloquean la Fase 6)
 
-- **Rediseño visual (Fase 8):** pasos 1 (tema), 2 (intro), 3 (login, registro y recuperar contraseña) y 4 (Home) hechos y confirmados; falta el 5 (sala, espera a la 7B), que se hace con colores provisionales, y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros (las `auth_bg_*` y las `home_bg_*` actuales tienen origen y permiso sin informar).
+- **Rediseño visual (Fase 8):** pasos 1 (tema), 2 (intro), 3 (login, registro y recuperar contraseña) y 4 (Home) hechos y confirmados; el 5 (sala) con vidrio y la cabecera escondida con el teclado, confirmados «hasta ahora» (faltan los estados de la sala, aún sobre fondo liso interino); y el 6 espera a elegir temática, paleta, tipografías, logo e imagen de fondo con derechos claros (las `auth_bg_*` y las `home_bg_*` actuales tienen origen y permiso sin informar).
 - **7B sin probar al 100%:** compila (confirmado por la persona), pero faltan las pruebas de la sección 7B del plan, en teléfono real y emulador, y `gradlew testDebugUnitTest`.
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).
