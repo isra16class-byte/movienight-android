@@ -309,3 +309,24 @@ internal val MovieNightDarkGlass = GlassColors(
         outline = Color.White.copy(alpha = 0.7f),
     ),
 )
+
+/**
+ * Burbujas y avisos del chat de la sala, sobre la hoja de vidrio (Fase 8, paso 5b). PROVISIONALES. Se dibujan encima de la hoja
+ * (copia borrosa + tinte 0,70). Contraste medido con `tools/glass/measure_chat.py` sobre `home_panel_*.webp` (106 820 px, todos los píxeles): claro,
+ * texto 0E1511 peor 6,98 en la propia y 14,81 en la ajena; oscuro, texto blanco peor 5,21 en la propia y 6,05 en la ajena; el aviso de
+ * silenciado (error) peor 11,52 (claro) y 7,49 (oscuro) sobre su chip. No incluye la sombra del texto ni lo que hace el teléfono.
+ */
+@Immutable
+internal class RoomChatColors(val mine: Color, val other: Color, val notice: Color)
+
+internal val MovieNightLightChat = RoomChatColors(
+    mine = Color(0xFF0A3D24).copy(alpha = 0.18f),
+    other = Color.White.copy(alpha = 0.65f),
+    notice = Color.White.copy(alpha = 0.65f),
+)
+
+internal val MovieNightDarkChat = RoomChatColors(
+    mine = Color.White.copy(alpha = 0.12f),
+    other = Color.White.copy(alpha = 0.06f),
+    notice = DarkBackground.copy(alpha = 0.55f),
+)

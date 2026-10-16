@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -58,6 +59,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
@@ -101,6 +103,9 @@ import com.isra16.movienight.room.RoomPhase
 import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
+import com.isra16.movienight.ui.auth.GlassButton
+import com.isra16.movienight.ui.auth.GlassFieldGroup
+import com.isra16.movienight.ui.auth.GlassTextField
 import com.isra16.movienight.ui.auth.PasswordField
 import com.isra16.movienight.ui.auth.PrimaryButton
 import com.isra16.movienight.ui.upload.KeepScreenOn
@@ -329,63 +334,68 @@ private fun RoomContentBody(
             }
         }
 
-        // Chat y campo de envío: fondo liso INTERINO de 5a (5b los pasa a vidrio).
-        RoomSolidZone(Modifier.fillMaxWidth().weight(1f)) {
-            Column(Modifier.fillMaxSize()) {
-                // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
-                LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                    reverseLayout = true,
-                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp),
-                ) {
-                    items(vm.messages.asReversed()) { message ->
-                        MessageRow(message, mine = !message.system && message.userId == vm.myUserId)
-                    }
+        // Una sola hoja de vidrio detrás del chat, las reacciones y el campo (Fase 8, paso 5b): la copia borrosa se dibuja UNA vez
+        // para toda la hoja y las burbujas son tintes lisos, sin copia borrosa por mensaje.
+        val chat = roomChatColors()
+        RoomGlassBar(Modifier.weight(1f).padding(start = 8.dp, end = 8.dp, top = 4.dp, bottom = 8.dp), contentPadding = 4.dp) {
+            // reverseLayout: lo más nuevo abajo, y si no estás leyendo mensajes viejos el chat queda pegado al final.
+            LazyColumn(
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+                reverseLayout = true,
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                items(vm.messages.asReversed()) { message ->
+                    MessageRow(message, mine = !message.system && message.userId == vm.myUserId)
                 }
+            }
 
-                val typing = vm.typingUser
-                if (typing != null) {
-                    Text(
-                        "$typing está escribiendo…",
-                        modifier = Modifier.padding(horizontal = 12.dp),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
+            val typing = vm.typingUser
+            if (typing != null) {
+                Text(
+                    "$typing está escribiendo…",
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
 
-                // Reacciones (parte 2D): la fila de la web móvil, encima del campo de chat; se esconde con el teclado abierto,
-                // como la web. Silenciado se puede reaccionar (el server solo bloquea el chat), así que sigue visible.
-                if (!keyboardOpen) ReactionBar(onPick = { vm.sendReaction(it) })
+            // Reacciones (parte 2D): la fila de la web móvil, encima del campo de chat; se esconde con el teclado abierto,
+            // como la web. Silenciado se puede reaccionar (el server solo bloquea el chat), así que sigue visible.
+            if (!keyboardOpen) ReactionBar(onPick = { vm.sendReaction(it) }, chipColor = chat.other)
 
-                if (vm.isMuted) {
+            if (vm.isMuted) {
+                Surface(Modifier.fillMaxWidth().padding(8.dp), shape = RoundedCornerShape(12.dp), color = chat.notice) {
                     Text(
                         MUTED_CHAT_NOTICE,
-                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        modifier = Modifier.padding(12.dp),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,
                     )
-                } else {
-                    Row(
-                        Modifier.fillMaxWidth().padding(8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        OutlinedTextField(
-                            value = draft,
-                            onValueChange = {
-                                onDraftChange(it.take(500))
-                                if (it.isNotEmpty()) vm.onTyping()
-                            },
-                            modifier = Modifier.weight(1f),
-                            placeholder = { Text("Escribí un mensaje") },
-                            singleLine = true,
-                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                            keyboardActions = KeyboardActions(onSend = { send() }),
-                        )
-                        Button(onClick = ::send, enabled = canSend) { Text("Enviar") }
+                }
+            } else {
+                Row(
+                    Modifier.fillMaxWidth().padding(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Box(Modifier.weight(1f)) {
+                        GlassFieldGroup {
+                            GlassTextField(
+                                value = draft,
+                                onValueChange = {
+                                    onDraftChange(it.take(500))
+                                    if (it.isNotEmpty()) vm.onTyping()
+                                },
+                                label = "Escribí un mensaje",
+                                error = null,
+                                imeAction = ImeAction.Send,
+                                onAction = { send() },
+                            )
+                        }
                     }
+                    GlassButton("Enviar", busy = false, onClick = ::send, modifier = Modifier.width(104.dp), enabled = canSend)
                 }
             }
         }
@@ -405,19 +415,22 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
         return
     }
 
-    val bubbleColor = if (mine) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-    val textColor = if (mine) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    // Dentro de la hoja de vidrio (5b): tinte liso de `RoomChatColors` y la tinta del vidrio (0E1511 en claro, blanco en oscuro).
+    val chat = roomChatColors()
+    val bubbleColor = if (mine) chat.mine else chat.other
+    val textColor = MaterialTheme.colorScheme.onSurface
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Surface(
             modifier = Modifier.widthIn(max = 320.dp),
-            shape = RoundedCornerShape(12.dp),
+            shape = RoundedCornerShape(16.dp),
             color = bubbleColor,
         ) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     message.user + if (message.isHost) " · host" else "",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (message.isHost) MaterialTheme.colorScheme.primary else textColor,
+                    // En el vidrio `primary` es la misma tinta que el texto: el host se distingue en negrita, no por color.
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal),
+                    color = textColor,
                 )
                 message.replyTo?.let { reply ->
                     Text(

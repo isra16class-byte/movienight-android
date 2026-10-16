@@ -30,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalDensity
@@ -145,7 +146,11 @@ private fun BoxScope.ReactionView(
  * como la web.
  */
 @Composable
-internal fun ReactionBar(onPick: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun ReactionBar(
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    chipColor: Color = MaterialTheme.colorScheme.surfaceVariant,
+) {
     Column(modifier.fillMaxWidth()) {
         HorizontalDivider()
         Row(
@@ -157,7 +162,7 @@ internal fun ReactionBar(onPick: (String) -> Unit, modifier: Modifier = Modifier
                     Modifier
                         .size(width = 46.dp, height = 40.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant)
+                        .background(chipColor)
                         .semantics { contentDescription = "Reaccionar con $emoji" }
                         .clickable { onPick(emoji) },
                     contentAlignment = Alignment.Center,

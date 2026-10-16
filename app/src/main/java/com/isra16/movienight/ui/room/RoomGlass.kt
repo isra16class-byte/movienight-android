@@ -12,7 +12,11 @@ import androidx.compose.ui.unit.dp
 import com.isra16.movienight.ui.auth.GLASS_CARD_TINT_ALPHA
 import com.isra16.movienight.ui.auth.GlassContent
 import com.isra16.movienight.ui.auth.GlassPanel
+import com.isra16.movienight.ui.theme.LocalAppDarkTheme
 import com.isra16.movienight.ui.theme.LocalGlassColors
+import com.isra16.movienight.ui.theme.MovieNightDarkChat
+import com.isra16.movienight.ui.theme.MovieNightLightChat
+import com.isra16.movienight.ui.theme.RoomChatColors
 
 /**
  * Barra de vidrio de la sala (Fase 8, paso 5a): cabecera, fila de la cinta y avisos. Es el `GlassPanel` de Home con el mismo
@@ -47,3 +51,7 @@ internal fun RoomGlassBar(
 internal fun RoomSolidZone(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
     Box(modifier.background(MaterialTheme.colorScheme.background)) { content() }
 }
+
+/** Colores de las burbujas y avisos del chat del modo actual (provisionales; ver `RoomChatColors`). */
+@Composable
+internal fun roomChatColors(): RoomChatColors = if (LocalAppDarkTheme.current) MovieNightDarkChat else MovieNightLightChat

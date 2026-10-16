@@ -210,7 +210,7 @@ fun GlassTextField(
         },
         colors = glassFieldColors(),
         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = imeAction),
-        keyboardActions = KeyboardActions(onDone = { onAction() }, onGo = { onAction() }, onNext = { onAction() }),
+        keyboardActions = KeyboardActions(onDone = { onAction() }, onGo = { onAction() }, onNext = { onAction() }, onSend = { onAction() }),
     )
 }
 
