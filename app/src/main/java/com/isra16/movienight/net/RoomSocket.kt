@@ -84,8 +84,13 @@ class RoomSocket(
         socket = null
     }
 
-    fun sendChat(text: String) {
-        socket?.emit("chat-message", JSONObject().put("text", text))
+    /** `chat-message`. Con [replyTo] agrega `replyTo: { user, text, isHost }` (la forma de `docs/API-CONTRATO.md`); sin él manda solo `text`, como antes. */
+    fun sendChat(text: String, replyTo: ReplyTo? = null) {
+        val payload = JSONObject().put("text", text)
+        if (replyTo != null) {
+            payload.put("replyTo", JSONObject().put("user", replyTo.user).put("text", replyTo.text).put("isHost", replyTo.isHost))
+        }
+        socket?.emit("chat-message", payload)
     }
 
     fun sendTyping() {

@@ -41,6 +41,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -224,7 +226,8 @@ fun GlassTextField(
  * [GlassFieldGroup]. [GlassTextField] no cambia (Home sigue con su etiqueta y sus 56 dp).
  *
  * Sin etiqueta visible, [description] es lo que lee el lector de pantalla, y solo mientras el campo está vacío: con algo escrito se deja que
- * lea lo escrito. Sin mayúsculas automáticas; [imeAction] y [onAction] sirven para "Enviar" en el teclado.
+ * lea lo escrito. Sin mayúsculas automáticas; [imeAction] y [onAction] sirven para "Enviar" en el teclado. [focusRequester] (opcional, nulo por
+ * defecto: sin él no cambia nada) deja que la pantalla pida el foco; el chat de la sala lo usa al empezar a responder (Fase 8, paso 5o).
  */
 @Composable
 fun GlassCompactField(
@@ -234,6 +237,7 @@ fun GlassCompactField(
     modifier: Modifier = Modifier,
     imeAction: ImeAction = ImeAction.Done,
     onAction: () -> Unit = {},
+    focusRequester: FocusRequester? = null,
 ) {
     val glass = LocalGlassColors.current
     val shape = RoundedCornerShape(16.dp)
@@ -248,6 +252,7 @@ fun GlassCompactField(
             .clip(shape)
             .background(glass.barTint)
             .border(if (focused) 2.dp else 1.dp, borderBrush, shape)
+            .then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier)
             .onFocusChanged { focused = it.hasFocus }
             .semantics { if (value.isEmpty()) contentDescription = description },
         textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),

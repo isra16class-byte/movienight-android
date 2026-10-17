@@ -26,6 +26,7 @@ import com.isra16.movienight.net.ModerationAction
 import com.isra16.movienight.net.ModerationCheck
 import com.isra16.movienight.net.PendingModerations
 import com.isra16.movienight.net.PlaybackSnapshot
+import com.isra16.movienight.net.ReplyTo
 import com.isra16.movienight.net.canCancel
 import com.isra16.movienight.net.checkModeration
 import com.isra16.movienight.net.moderationTimeoutMessage
@@ -466,11 +467,11 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         connect(password)
     }
 
-    /** `true` si el mensaje se mandó (la pantalla vacía el campo); `false` si no se puede mandar ahora. */
-    fun sendChat(text: String): Boolean {
+    /** `true` si el mensaje se mandó (la pantalla vacía el campo); `false` si no se puede mandar ahora. [replyTo] es la cita si es una respuesta. */
+    fun sendChat(text: String, replyTo: ReplyTo? = null): Boolean {
         val trimmed = text.trim()
         if (trimmed.isEmpty() || !isConnected || isMuted) return false
-        roomSocket.sendChat(trimmed.take(MAX_MESSAGE_CHARS))
+        roomSocket.sendChat(trimmed.take(MAX_MESSAGE_CHARS), replyTo)
         return true
     }
 

@@ -4,26 +4,31 @@ import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
@@ -55,23 +60,35 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.Lifecycle
@@ -84,11 +101,17 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import com.isra16.movienight.R
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.FullscreenState
+import com.isra16.movienight.net.REPLY_SWIPE_MAX_DP
+import com.isra16.movienight.net.REPLY_SWIPE_RESISTANCE
+import com.isra16.movienight.net.REPLY_SWIPE_THRESHOLD_DP
 import com.isra16.movienight.net.PauseOnStopTracker
 import com.isra16.movienight.net.DanmakuProfile
 import com.isra16.movienight.net.PipConditions
@@ -97,6 +120,7 @@ import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.ReactionSurface
 import com.isra16.movienight.net.RoomLayout
 import com.isra16.movienight.net.VideoFit
+import com.isra16.movienight.net.canReplyTo
 import com.isra16.movienight.net.chatNameColorIndex
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
@@ -107,6 +131,10 @@ import com.isra16.movienight.net.pipContentFor
 import com.isra16.movienight.net.RoomHeaderMode
 import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
+import com.isra16.movienight.net.replyFor
+import com.isra16.movienight.net.replyIconAlpha
+import com.isra16.movienight.net.replySwipeOffset
+import com.isra16.movienight.net.replySwipeReached
 import com.isra16.movienight.net.roomLayoutFor
 import com.isra16.movienight.net.roomHeaderModeFor
 import com.isra16.movienight.net.videoScale
@@ -136,6 +164,10 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // dentro de RoomContent o RoomHeader se perdería al cambiar entre la vista normal y la pantalla completa.
     var fullscreen by rememberSaveable(stateSaver = FullscreenStateSaver) { mutableStateOf(FullscreenState()) }
     var draft by rememberSaveable { mutableStateOf("") }
+    // Mensaje al que se está respondiendo (Fase 8, paso 5o). Vive al mismo nivel que `draft` y se guarda igual (`ReplyingToSaver`), para que sobreviva a los
+    // mismos cambios de pantalla. Se limpia al enviar, con la ✕, al salir de la sala (se destruye con ella) y si pasan a silenciar a la persona.
+    var replyingTo by rememberSaveable(stateSaver = ReplyingToSaver) { mutableStateOf<ChatMessage?>(null) }
+    LaunchedEffect(vm.isMuted) { if (vm.isMuted) replyingTo = null }
     // Nivel de ajuste del video en pantalla completa (Entero, Medio, Llenar, Cine): se recuerda mientras la sala siga abierta (también al girar o pasar a PiP) y se
     // pierde al salir de ella. Solo visual y local: no toca la sincronización.
     var videoFit by rememberSaveable { mutableStateOf(VideoFit.FIT) }
@@ -200,6 +232,8 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
                     vm = vm,
                     draft = draft,
                     onDraftChange = { draft = it },
+                    replyingTo = replyingTo,
+                    onReplyingToChange = { replyingTo = it },
                     onEnterFullscreen = { fullscreen = fullscreen.enter() },
                 )
             }
@@ -328,13 +362,20 @@ private fun ColumnScope.FailedState(message: String, canRetry: Boolean, onRetry:
 }
 
 @Composable
-private fun RoomContent(vm: RoomViewModel, draft: String, onDraftChange: (String) -> Unit, onEnterFullscreen: () -> Unit) {
+private fun RoomContent(
+    vm: RoomViewModel,
+    draft: String,
+    onDraftChange: (String) -> Unit,
+    replyingTo: ChatMessage?,
+    onReplyingToChange: (ChatMessage?) -> Unit,
+    onEnterFullscreen: () -> Unit,
+) {
     // Con el teclado abierto el video NO se esconde (como en la web): se achica, ver `portraitVideoHeightDp`. El alto que
     // queda sobre el teclado se mide aquí, en la misma pasada de layout, para que el video no parpadee al abrirlo.
     BoxWithConstraints(Modifier.fillMaxSize()) {
         val keyboardOpen = WindowInsets.ime.getBottom(LocalDensity.current) > 0
         val videoHeight = portraitVideoHeightDp(maxWidth.value, maxHeight.value, keyboardOpen).dp
-        RoomContentBody(vm, draft, onDraftChange, onEnterFullscreen, videoHeight, keyboardOpen)
+        RoomContentBody(vm, draft, onDraftChange, replyingTo, onReplyingToChange, onEnterFullscreen, videoHeight, keyboardOpen)
     }
 }
 
@@ -343,6 +384,8 @@ private fun RoomContentBody(
     vm: RoomViewModel,
     draft: String,
     onDraftChange: (String) -> Unit,
+    replyingTo: ChatMessage?,
+    onReplyingToChange: (ChatMessage?) -> Unit,
     onEnterFullscreen: () -> Unit,
     videoHeight: Dp,
     keyboardOpen: Boolean,
@@ -350,7 +393,18 @@ private fun RoomContentBody(
     val canSend = draft.isNotBlank() && vm.isConnected && !vm.isMuted
 
     fun send() {
-        if (vm.sendChat(draft)) onDraftChange("")
+        // Con éxito se vacían el borrador y la respuesta; si no se pudo mandar (vacío, sin conexión, silenciado) no se toca nada.
+        if (vm.sendChat(draft, replyTo = replyingTo?.let(::replyFor))) {
+            onDraftChange("")
+            onReplyingToChange(null)
+        }
+    }
+
+    // Al empezar a responder se pide el foco del campo (abre el teclado). El campo solo existe si no está silenciado; `runCatching` por si
+    // todavía no está colocado.
+    val chatFocus = remember { FocusRequester() }
+    LaunchedEffect(replyingTo) {
+        if (replyingTo != null) runCatching { chatFocus.requestFocus() }
     }
 
     Column(Modifier.fillMaxSize()) {
@@ -392,7 +446,12 @@ private fun RoomContentBody(
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
                 items(vm.messages.asReversed()) { message ->
-                    MessageRow(message, mine = !message.system && message.userId == vm.myUserId)
+                    MessageRow(
+                        message,
+                        mine = !message.system && message.userId == vm.myUserId,
+                        // Sin gesto si está silenciado (no puede escribir) o si el mensaje no se puede responder.
+                        onReply = if (!vm.isMuted && canReplyTo(message)) onReplyingToChange else null,
+                    )
                 }
             }
 
@@ -421,6 +480,7 @@ private fun RoomContentBody(
                     )
                 }
             } else {
+                if (replyingTo != null) ReplyBar(replyingTo, onCancel = { onReplyingToChange(null) })
                 Row(
                     Modifier.fillMaxWidth().padding(4.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -437,6 +497,7 @@ private fun RoomContentBody(
                             description = "Escribe un mensaje",
                             imeAction = ImeAction.Send,
                             onAction = { send() },
+                            focusRequester = chatFocus,
                         )
                     }
                     GlassButton("Enviar", busy = false, onClick = ::send, modifier = Modifier.width(104.dp), enabled = canSend, compact = true)
@@ -449,8 +510,44 @@ private fun RoomContentBody(
     }
 }
 
+/** Barra de cita sobre el campo de chat mientras se responde (Fase 8, paso 5o): barra con el color del nombre, nombre, una línea del texto y ✕. */
 @Composable
-private fun MessageRow(message: ChatMessage, mine: Boolean) {
+private fun ReplyBar(message: ChatMessage, onCancel: () -> Unit) {
+    val chat = roomChatColors()
+    val nameColor = chat.names[chatNameColorIndex(message.user, chat.names.size)]
+    val textColor = MaterialTheme.colorScheme.onSurface
+    // El alto lo marca la ✕: IconButton ocupa 48 dp (el área táctil pedida), así que la barra mide 48 dp.
+    Row(Modifier.fillMaxWidth().padding(start = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        Box(Modifier.width(3.dp).height(32.dp).clip(RoundedCornerShape(2.dp)).background(nameColor))
+        Column(Modifier.weight(1f).padding(start = 8.dp)) {
+            Text(
+                message.user,
+                style = MaterialTheme.typography.labelMedium,
+                color = nameColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text(
+                replyFor(message)?.text.orEmpty(),
+                style = MaterialTheme.typography.bodySmall,
+                color = textColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        IconButton(onClick = onCancel, modifier = Modifier.semantics { contentDescription = "Cancelar respuesta" }) {
+            Text("✕", style = MaterialTheme.typography.titleMedium, color = textColor)
+        }
+    }
+}
+
+/**
+ * Un mensaje del chat. [onReply] != null activa el gesto de responder (Fase 8, paso 5o): arrastrar la burbuja a la derecha (con resistencia y tope,
+ * `replySwipeOffset`); al soltar pasando el umbral (`replySwipeReached`) vibra y llama a [onReply]; la burbuja vuelve a 0 con animación. Solo se
+ * consume el movimiento horizontal (`detectHorizontalDragGestures`): el scroll vertical del chat sigue siendo de la lista. Los avisos del sistema no se mueven.
+ */
+@Composable
+private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessage) -> Unit)?) {
     if (message.system) {
         Text(
             message.text,
@@ -467,33 +564,130 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
     val bubbleColor = if (mine) chat.mine else chat.other
     val textColor = MaterialTheme.colorScheme.onSurface
     val nameColor = chat.names[chatNameColorIndex(message.user, chat.names.size)]
+
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { REPLY_SWIPE_THRESHOLD_DP.dp.toPx() }
+    val maxPx = with(density) { REPLY_SWIPE_MAX_DP.dp.toPx() }
+    var swipePx by remember { mutableFloatStateOf(0f) }
+    val scope = rememberCoroutineScope()
+    val haptic = LocalHapticFeedback.current
+    val currentMessage by rememberUpdatedState(message)
+    val currentOnReply by rememberUpdatedState(onReply)
+    // `pointerInput` va ANTES (por fuera) del `offset`: si fuera después, la zona táctil se movería con la burbuja y el arrastre se trabaría.
+    val swipeModifier = if (onReply != null) {
+        Modifier.pointerInput(thresholdPx, maxPx) {
+            var raw = 0f
+            var returning: Job? = null
+            fun settle() {
+                returning?.cancel()
+                val from = swipePx
+                returning = scope.launch { animate(from, 0f, animationSpec = tween(180)) { value, _ -> swipePx = value } }
+            }
+            detectHorizontalDragGestures(
+                onDragStart = {
+                    returning?.cancel()
+                    raw = (swipePx / REPLY_SWIPE_RESISTANCE).coerceAtLeast(0f)
+                },
+                onDragEnd = {
+                    if (replySwipeReached(swipePx, thresholdPx)) {
+                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                        currentOnReply?.invoke(currentMessage)
+                    }
+                    settle()
+                },
+                onDragCancel = { settle() },
+                onHorizontalDrag = { _, dragAmount ->
+                    // Hacia la izquierda no pasa de 0: la burbuja nunca sale por ese lado.
+                    raw = (raw + dragAmount).coerceAtLeast(0f)
+                    swipePx = replySwipeOffset(raw, maxPx)
+                },
+            )
+        }
+    } else {
+        Modifier
+    }
+
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        Surface(
-            modifier = Modifier.widthIn(max = 320.dp),
-            shape = RoundedCornerShape(16.dp),
-            color = bubbleColor,
-        ) {
-            Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Box(swipeModifier.offset { IntOffset(swipePx.roundToInt(), 0) }) {
+            // Icono de responder: viaja con la burbuja, a su izquierda, y aparece con el avance (opacidad leída en la fase de dibujo).
+            if (onReply != null) {
                 Text(
-                    message.user + if (message.isHost) " · host" else "",
-                    // El color del nombre sale del nombre (`chatNameColorIndex`, Fase 8 paso 5n): el mismo en todos sus mensajes y en las citas.
-                    // El host se distingue en negrita, no por color.
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal),
-                    color = nameColor,
+                    "↩",
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .offset(x = (-32).dp)
+                        .graphicsLayer { alpha = replyIconAlpha(swipePx, thresholdPx) },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = textColor,
                 )
-                message.replyTo?.let { reply ->
+            }
+            Surface(
+                modifier = Modifier.widthIn(max = 320.dp),
+                shape = RoundedCornerShape(16.dp),
+                color = bubbleColor,
+            ) {
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(
-                        "↪ ${reply.user}: ${reply.text}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = textColor,
-                        maxLines = 2,
+                        message.user + if (message.isHost) " · host" else "",
+                        // El color del nombre sale del nombre (`chatNameColorIndex`, Fase 8 paso 5n): el mismo en todos sus mensajes y en las citas.
+                        // El host se distingue en negrita, no por color.
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal),
+                        color = nameColor,
                     )
+                    message.replyTo?.let { reply ->
+                        // Recuadro de cita (paso 5o): barra con el color del nombre citado, ese nombre y el texto en 2 líneas, sobre un tinte sutil.
+                        // Tocarlo no hace nada: el server no manda ids de mensaje, no se puede saltar al original. Igual para respuestas de la web.
+                        val replyColor = chat.names[chatNameColorIndex(reply.user, chat.names.size)]
+                        Row(
+                            Modifier
+                                .height(IntrinsicSize.Min)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(textColor.copy(alpha = 0.08f)),
+                        ) {
+                            Box(Modifier.width(3.dp).fillMaxHeight().background(replyColor))
+                            Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+                                Text(
+                                    reply.user,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = replyColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                                Text(
+                                    reply.text,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = textColor,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
+                        }
+                    }
+                    Text(message.text, style = MaterialTheme.typography.bodyMedium, color = textColor)
                 }
-                Text(message.text, style = MaterialTheme.typography.bodyMedium, color = textColor)
             }
         }
     }
 }
+
+/**
+ * Guarda `replyingTo` como el borrador (Fase 8, paso 5o). Solo se guardan los campos que usa `replyFor` y el aviso (`replyTo` de la propia cita no
+ * hace falta). Sin respuesta pendiente no se guarda nada.
+ */
+private val ReplyingToSaver: Saver<ChatMessage?, Any> = Saver(
+    save = { message -> message?.let { listOf(it.system, it.user, it.text, it.isHost, it.userId != null, it.userId.orEmpty()) } },
+    restore = { saved ->
+        val list = saved as List<*>
+        ChatMessage(
+            system = list[0] as Boolean,
+            user = list[1] as String,
+            text = list[2] as String,
+            isHost = list[3] as Boolean,
+            userId = if (list[4] as Boolean) list[5] as String else null,
+            replyTo = null,
+        )
+    },
+)
 
 /**
  * El video de la sala. Los controles van encima del video, como en un reproductor normal (Fase 7C; antes iban
