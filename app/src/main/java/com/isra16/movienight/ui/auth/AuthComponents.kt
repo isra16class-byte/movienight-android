@@ -214,7 +214,7 @@ fun GlassTextField(
     )
 }
 
-/** Campo de contraseña para dentro de un [GlassFieldGroup]. [PasswordField] sigue igual: lo usan también Home y la sala. */
+/** Campo de contraseña para dentro de un [GlassFieldGroup]. [PasswordField] (Material) sigue sin cambios, pero desde la Fase 8, paso 5h ya nadie lo usa: la sala pide su contraseña con este campo. */
 @Composable
 fun GlassPasswordField(
     label: String,
@@ -375,7 +375,7 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasi
  * Botón de las pantallas de entrada (Fase 8, paso 3, diseño "cristal"): otra pieza de vidrio, no un bloque sólido.
  * Relleno translúcido `GlassColors.buttonFill`, borde de un pelo `buttonBorder` y texto `buttonContent` en 15 sp Medium
  * con la letra un poco abierta; esquinas de 16 dp como la barra, 48 dp de alto y 4 dp más de aire arriba. Mientras trabaja
- * se ve el indicador de progreso y el borde más tenue. `PrimaryButton` sigue igual porque lo usa también la sala (contraseña de la sala).
+ * se ve el indicador de progreso y el borde más tenue. `PrimaryButton` sigue igual, pero desde la Fase 8, paso 5h ya nadie lo usa (la sala usa este botón).
  */
 @Composable
 fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {

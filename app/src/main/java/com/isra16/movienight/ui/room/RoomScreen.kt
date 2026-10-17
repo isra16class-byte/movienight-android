@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -35,7 +36,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -113,8 +113,8 @@ import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassFieldGroup
 import com.isra16.movienight.ui.auth.GlassTextField
-import com.isra16.movienight.ui.auth.PasswordField
-import com.isra16.movienight.ui.auth.PrimaryButton
+import com.isra16.movienight.ui.auth.GlassLinkButton
+import com.isra16.movienight.ui.auth.GlassPasswordField
 import com.isra16.movienight.ui.upload.KeepScreenOn
 
 /** Una sala: según la fase muestra la comprobación, el pedido de contraseña, un error o el chat. */
@@ -189,11 +189,11 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
                 Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
             }
             when (val phase = vm.phase) {
-                RoomPhase.Checking -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
-                RoomPhase.Connecting -> RoomSolidZone(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
-                is RoomPhase.AskPassword -> RoomSolidZone(Modifier.fillMaxSize()) { PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword) }
-                RoomPhase.Kicked -> RoomSolidZone(Modifier.fillMaxSize()) { KickedState(onLeave = onLeave) }
-                is RoomPhase.Failed -> RoomSolidZone(Modifier.fillMaxSize()) { FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave) }
+                RoomPhase.Checking -> RoomStateCard(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
+                RoomPhase.Connecting -> RoomStateCard(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
+                is RoomPhase.AskPassword -> RoomStateCard(Modifier.fillMaxSize()) { PasswordPrompt(message = phase.message, onSubmit = vm::submitPassword) }
+                RoomPhase.Kicked -> RoomStateCard(Modifier.fillMaxSize()) { KickedState(onLeave = onLeave) }
+                is RoomPhase.Failed -> RoomStateCard(Modifier.fillMaxSize()) { FailedState(phase.message, canRetry = phase.canRetry, onRetry = vm::retry, onLeave = onLeave) }
                 RoomPhase.InRoom -> RoomContent(
                     vm = vm,
                     draft = draft,
@@ -238,80 +238,56 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: ()
     }
 }
 
+/** Los cuatro estados siguientes van dentro de [RoomStateCard] (Fase 8, paso 5h): la tarjeta pone el centrado, el margen y el fondo. */
 @Composable
-private fun CenteredStatus(text: String, notice: String?) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            CircularProgressIndicator()
-            Text(text, style = MaterialTheme.typography.bodyLarge)
-            if (notice != null) {
-                Text(notice, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
+private fun ColumnScope.CenteredStatus(text: String, notice: String?) {
+    CircularProgressIndicator()
+    Text(text, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center)
+    if (notice != null) {
+        Text(notice, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, textAlign = TextAlign.Center)
     }
 }
 
 @Composable
-private fun PasswordPrompt(message: String?, onSubmit: (String) -> Unit) {
+private fun ColumnScope.PasswordPrompt(message: String?, onSubmit: (String) -> Unit) {
     var password by rememberSaveable { mutableStateOf("") }
     var showPassword by rememberSaveable { mutableStateOf(false) }
 
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.widthIn(max = 480.dp).fillMaxWidth().padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text("Esta sala tiene contraseña", style = MaterialTheme.typography.titleLarge)
-            PasswordField(
-                label = "Contraseña de la sala",
-                value = password,
-                onValueChange = { password = it },
-                error = null,
-                enabled = true,
-                showPassword = showPassword,
-                onToggleShow = { showPassword = !showPassword },
-                imeAction = ImeAction.Done,
-                onDone = { if (password.isNotEmpty()) onSubmit(password) },
-            )
-            ErrorText(message)
-            PrimaryButton("Entrar", busy = false) { if (password.isNotEmpty()) onSubmit(password) }
-        }
+    Text("Esta sala tiene contraseña", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+    GlassFieldGroup {
+        GlassPasswordField(
+            label = "Contraseña de la sala",
+            value = password,
+            onValueChange = { password = it },
+            error = null,
+            enabled = true,
+            showPassword = showPassword,
+            onToggleShow = { showPassword = !showPassword },
+            imeAction = ImeAction.Done,
+            onDone = { if (password.isNotEmpty()) onSubmit(password) },
+        )
     }
+    ErrorText(message)
+    GlassButton("Entrar", busy = false, onClick = { if (password.isNotEmpty()) onSubmit(password) })
 }
 
 /** El host te sacó (`kicked`): no es un error de conexión ni hay nada que reintentar, solo volver. */
 @Composable
-private fun KickedState(onLeave: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("Te sacaron de la sala", style = MaterialTheme.typography.titleLarge)
-            Text("El host te expulsó de esta sala.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-            OutlinedButton(onClick = onLeave) { Text("Volver") }
-        }
-    }
+private fun ColumnScope.KickedState(onLeave: () -> Unit) {
+    Text("Te sacaron de la sala", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+    Text("El host te expulsó de esta sala.", style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+    GlassButton("Volver", busy = false, onClick = onLeave)
 }
 
 @Composable
-private fun FailedState(message: String, canRetry: Boolean, onRetry: () -> Unit, onLeave: () -> Unit) {
-    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Column(
-            Modifier.padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Text("No se pudo entrar a la sala", style = MaterialTheme.typography.titleLarge)
-            Text(message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
-            if (canRetry) Button(onClick = onRetry) { Text("Reintentar") }
-            OutlinedButton(onClick = onLeave) { Text("Volver") }
-        }
+private fun ColumnScope.FailedState(message: String, canRetry: Boolean, onRetry: () -> Unit, onLeave: () -> Unit) {
+    Text("No se pudo entrar a la sala", style = MaterialTheme.typography.titleLarge, textAlign = TextAlign.Center)
+    Text(message, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center)
+    if (canRetry) {
+        GlassButton("Reintentar", busy = false, onClick = onRetry)
+        GlassLinkButton("Volver", enabled = true, onClick = onLeave)
+    } else {
+        GlassButton("Volver", busy = false, onClick = onLeave)
     }
 }
 

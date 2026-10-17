@@ -1,13 +1,12 @@
 package com.isra16.movienight.ui.room
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -79,12 +78,24 @@ internal fun RoomGlassBar(
 }
 
 /**
- * Fondo liso de lo que todavía no lleva vidrio (el chat y los estados de la sala). INTERINO de 5a: 5b (chat) y 5c (estados)
- * lo reemplazan; se pone para que ese texto no quede suelto sobre la imagen sin contraste medido.
+ * Tarjeta de vidrio centrada de los estados de la sala que no son el chat (comprobando, entrando, contraseña, expulsado y fallo;
+ * Fase 8, paso 5h): un `GlassPanel` suelto sobre el fondo de Home, con el tinte de las tarjetas ([GLASS_CARD_TINT_ALPHA]) y la copia
+ * borrosa por dentro, y los textos y botones con los colores del vidrio. Reemplaza al fondo liso interino (`RoomSolidZone`).
  */
 @Composable
-internal fun RoomSolidZone(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
-    Box(modifier.background(MaterialTheme.colorScheme.background)) { content() }
+internal fun RoomStateCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
+    GlassContent {
+        Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+            GlassPanel(
+                modifier = Modifier.widthIn(max = 480.dp),
+                contentPadding = 24.dp,
+                cornerRadius = 28.dp,
+                spacing = 12.dp,
+                tint = LocalGlassColors.current.panelTint.copy(alpha = GLASS_CARD_TINT_ALPHA),
+                content = content,
+            )
+        }
+    }
 }
 
 /** Colores de las burbujas y avisos del chat del modo actual (provisionales; ver `RoomChatColors`). */
