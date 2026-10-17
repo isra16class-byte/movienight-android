@@ -11,8 +11,8 @@ import org.junit.Test
 class PortraitVideoLogicTest {
 
     @Test
-    fun `los valores copiados de la web`() {
-        assertEquals(0.38f, VIDEO_KEYBOARD_MAX_FRACTION, 1e-6f)
+    fun `el tope es 50 por ciento (propio) y el piso 90 (copiado de la web)`() {
+        assertEquals(0.50f, VIDEO_KEYBOARD_MAX_FRACTION, 1e-6f)
         assertEquals(90f, VIDEO_KEYBOARD_MIN_HEIGHT_DP, 1e-6f)
     }
 
@@ -28,27 +28,29 @@ class PortraitVideoLogicTest {
     }
 
     @Test
-    fun `con teclado se achica al 38 por ciento del alto visible`() {
-        // Un teléfono de 357 dp de ancho con unos 400 dp libres sobre el teclado: el 16:9 mediría 200,8 y el tope es 152.
-        assertEquals(152f, portraitVideoHeightDp(357f, availableHeightDp = 400f, keyboardOpen = true), 1e-3f)
+    fun `con teclado se achica al 50 por ciento del alto visible`() {
+        // Un teléfono de 357 dp de ancho con unos 360 dp libres sobre el teclado: el 16:9 mediría 200,8 y el tope es 180.
+        assertEquals(180f, portraitVideoHeightDp(357f, availableHeightDp = 360f, keyboardOpen = true), 1e-3f)
     }
 
     @Test
     fun `con teclado nunca es mas grande que el 16 9`() {
-        // Con mucho espacio libre el tope (342) supera al 16:9 (202,5): se queda en el 16:9, no se agranda.
+        // Con mucho espacio libre el tope (450) supera al 16:9 (202,5): se queda en el 16:9, no se agranda.
         assertEquals(202.5f, portraitVideoHeightDp(360f, availableHeightDp = 900f, keyboardOpen = true), 1e-3f)
     }
 
     @Test
     fun `con teclado y muy poco espacio rige el piso de 90`() {
-        // 38 % de 150 = 57, pero el piso gana (igual que min-height sobre max-height en CSS).
+        // 50 % de 150 = 75, pero el piso gana (igual que min-height sobre max-height en CSS).
         assertEquals(90f, portraitVideoHeightDp(360f, availableHeightDp = 150f, keyboardOpen = true), 1e-3f)
     }
 
     @Test
     fun `con teclado en el limite exacto del tope`() {
-        // 16:9 de 360 = 202,5; el tope iguala a 202,5 cuando el alto visible es 532,89...
-        assertEquals(202.5f, portraitVideoHeightDp(360f, availableHeightDp = 202.5f / 0.38f, keyboardOpen = true), 1e-2f)
+        // 16:9 de 360 = 202,5; el tope iguala a 202,5 cuando el alto visible es 405.
+        assertEquals(202.5f, portraitVideoHeightDp(360f, availableHeightDp = 405f, keyboardOpen = true), 1e-2f)
+        // Un poco menos de alto visible y el tope ya manda: 50 % de 400 = 200.
+        assertEquals(200f, portraitVideoHeightDp(360f, availableHeightDp = 400f, keyboardOpen = true), 1e-3f)
     }
 
     @Test

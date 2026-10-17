@@ -5,13 +5,13 @@ import kotlin.math.min
 
 /*
  * Alto del recuadro del video en la vista vertical. JVM puro, sin Android.
- * Copia el criterio de la web (`public/style.css`, rama plan-produccion): sin teclado el video es 16:9; con el teclado
- * abierto en vertical "puede achicarse" a un tope de 38 % del alto visible y un piso de 90 px, porque la prioridad es
- * que el video se siga viendo grande, no maximizar el chat (`html.keyboard-open:not(.device-landscape) .screen-wrap`).
+ * Sin teclado el video es 16:9 (como en la web). Con el teclado abierto en vertical se achica a un tope de 50 % del alto visible
+ * (decisión propia de la Fase 8, paso 5j: la web usa 38 %, `38dvh` en `public/style.css`, pero aquí se prefirió un video más grande) y un piso
+ * de 90 dp (`min-height: 90px` en la web), nunca más grande que el 16:9.
  */
 
-/** Tope del alto del video con el teclado abierto, como fracción del alto visible (`38dvh` en la web). */
-const val VIDEO_KEYBOARD_MAX_FRACTION = 0.38f
+/** Tope del alto del video con el teclado abierto, como fracción del alto visible. Decisión propia (la web usa 0,38; se subió a 0,50 en el paso 5j). */
+const val VIDEO_KEYBOARD_MAX_FRACTION = 0.50f
 
 /** Piso del alto del video con el teclado abierto, en dp (`min-height: 90px` en la web; el piso gana al tope). */
 const val VIDEO_KEYBOARD_MIN_HEIGHT_DP = 90f
