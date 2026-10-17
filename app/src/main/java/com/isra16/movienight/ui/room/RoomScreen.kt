@@ -112,8 +112,8 @@ import com.isra16.movienight.room.RoomPlayer
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.GlassButton
+import com.isra16.movienight.ui.auth.GlassCompactField
 import com.isra16.movienight.ui.auth.GlassFieldGroup
-import com.isra16.movienight.ui.auth.GlassTextField
 import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.auth.GlassPasswordField
 import com.isra16.movienight.ui.upload.KeepScreenOn
@@ -392,21 +392,19 @@ private fun RoomContentBody(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Box(Modifier.weight(1f)) {
-                        GlassFieldGroup {
-                            GlassTextField(
-                                value = draft,
-                                onValueChange = {
-                                    onDraftChange(it.take(500))
-                                    if (it.isNotEmpty()) vm.onTyping()
-                                },
-                                label = "Escribí un mensaje",
-                                error = null,
-                                imeAction = ImeAction.Send,
-                                onAction = { send() },
-                            )
-                        }
+                        // Campo fino y sin etiqueta (Fase 8, paso 5k); el lector de pantalla lee "Escribe un mensaje" mientras está vacío.
+                        GlassCompactField(
+                            value = draft,
+                            onValueChange = {
+                                onDraftChange(it.take(500))
+                                if (it.isNotEmpty()) vm.onTyping()
+                            },
+                            description = "Escribe un mensaje",
+                            imeAction = ImeAction.Send,
+                            onAction = { send() },
+                        )
                     }
-                    GlassButton("Enviar", busy = false, onClick = ::send, modifier = Modifier.width(104.dp), enabled = canSend)
+                    GlassButton("Enviar", busy = false, onClick = ::send, modifier = Modifier.width(104.dp), enabled = canSend, compact = true)
                 }
             }
             // La hoja llega hasta abajo del todo: este espacio es la barra de navegación. Con el teclado abierto vale 0, porque la

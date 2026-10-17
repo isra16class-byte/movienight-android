@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
@@ -45,6 +46,8 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
@@ -214,6 +217,53 @@ fun GlassTextField(
     )
 }
 
+/**
+ * Campo fino de una línea, sin etiqueta, de cristal propio (Fase 8, paso 5k; el chat de la sala). Alto fijo de 40 dp: el `TextField` de Material
+ * impone 56 dp de alto mínimo (`TextFieldDefaults.MinHeight`) y su relleno interno no se verificó para bajarlo, así que va con
+ * `BasicTextField`. Se dibuja solo (fondo `barTint` y borde como [GlassFieldGroup]; con foco, 2 dp blancos): no va dentro de un
+ * [GlassFieldGroup]. [GlassTextField] no cambia (Home sigue con su etiqueta y sus 56 dp).
+ *
+ * Sin etiqueta visible, [description] es lo que lee el lector de pantalla, y solo mientras el campo está vacío: con algo escrito se deja que
+ * lea lo escrito. Sin mayúsculas automáticas; [imeAction] y [onAction] sirven para "Enviar" en el teclado.
+ */
+@Composable
+fun GlassCompactField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    description: String,
+    modifier: Modifier = Modifier,
+    imeAction: ImeAction = ImeAction.Done,
+    onAction: () -> Unit = {},
+) {
+    val glass = LocalGlassColors.current
+    val shape = RoundedCornerShape(16.dp)
+    var focused by remember { mutableStateOf(false) }
+    val borderBrush = if (focused) SolidColor(Color.White) else Brush.verticalGradient(listOf(glass.barBorderTop, glass.barBorder))
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(COMPACT_CONTROL_HEIGHT)
+            .clip(shape)
+            .background(glass.barTint)
+            .border(if (focused) 2.dp else 1.dp, borderBrush, shape)
+            .onFocusChanged { focused = it.hasFocus }
+            .semantics { if (value.isEmpty()) contentDescription = description },
+        textStyle = MaterialTheme.typography.bodyLarge.copy(color = MaterialTheme.colorScheme.onSurface),
+        singleLine = true,
+        cursorBrush = SolidColor(glass.accent),
+        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.None, imeAction = imeAction),
+        keyboardActions = KeyboardActions(onDone = { onAction() }, onGo = { onAction() }, onNext = { onAction() }, onSend = { onAction() }),
+        decorationBox = { inner ->
+            Box(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) { inner() }
+        },
+    )
+}
+
+/** Alto del campo y del botón finos del chat de la sala (Fase 8, paso 5k). */
+val COMPACT_CONTROL_HEIGHT = 40.dp
+
 /** Campo de contraseña para dentro de un [GlassFieldGroup]. [PasswordField] (Material) sigue sin cambios, pero desde la Fase 8, paso 5h ya nadie lo usa: la sala pide su contraseña con este campo. */
 @Composable
 fun GlassPasswordField(
@@ -378,14 +428,22 @@ fun GlassLinkButton(text: String, enabled: Boolean, onClick: () -> Unit, emphasi
  * se ve el indicador de progreso y el borde más tenue. `PrimaryButton` sigue igual, pero desde la Fase 8, paso 5h ya nadie lo usa (la sala usa este botón).
  */
 @Composable
-fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier, enabled: Boolean = true) {
+fun GlassButton(
+    text: String,
+    busy: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    // true: versión fina del chat de la sala (Fase 8, paso 5k): 40 dp de alto, sin los 4 dp de aire de arriba y letra de 14 sp. false: la de siempre.
+    compact: Boolean = false,
+) {
     val glass = LocalGlassColors.current
     // Con [enabled] en false (por ejemplo "Unirme" sin código) el borde y el texto se ven a la mitad; antes no había forma de atenuarlo.
     val dimmed = busy || !enabled
     Button(
         onClick = onClick,
         enabled = enabled && !busy,
-        modifier = modifier.fillMaxWidth().padding(top = 4.dp).height(48.dp),
+        modifier = modifier.fillMaxWidth().then(if (compact) Modifier.height(COMPACT_CONTROL_HEIGHT) else Modifier.padding(top = 4.dp).height(48.dp)),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, if (dimmed) glass.buttonBorder.copy(alpha = glass.buttonBorder.alpha * 0.5f) else glass.buttonBorder),
         colors = ButtonDefaults.buttonColors(
@@ -400,7 +458,12 @@ fun GlassButton(text: String, busy: Boolean, onClick: () -> Unit, modifier: Modi
         } else {
             Text(
                 text,
-                style = MaterialTheme.typography.labelLarge.copy(fontSize = 15.sp, lineHeight = 22.sp, fontWeight = FontWeight.Medium, letterSpacing = 0.4.sp),
+                style = MaterialTheme.typography.labelLarge.copy(
+                    fontSize = if (compact) 14.sp else 15.sp,
+                    lineHeight = if (compact) 20.sp else 22.sp,
+                    fontWeight = FontWeight.Medium,
+                    letterSpacing = 0.4.sp,
+                ),
             )
         }
     }
