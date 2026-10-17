@@ -3,10 +3,9 @@ package com.isra16.movienight
 import com.isra16.movienight.net.VIDEO_KEYBOARD_MAX_FRACTION
 import com.isra16.movienight.net.VIDEO_KEYBOARD_MIN_HEIGHT_DP
 import com.isra16.movienight.net.portraitVideoHeightDp
-import com.isra16.movienight.net.showRoomHeader
+import com.isra16.movienight.net.RoomHeaderMode
+import com.isra16.movienight.net.roomHeaderModeFor
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PortraitVideoLogicTest {
@@ -67,10 +66,18 @@ class PortraitVideoLogicTest {
     }
 
     @Test
-    fun `la cabecera se ve con el teclado cerrado y se esconde con el teclado abierto`() {
-        assertTrue(showRoomHeader(0))
-        assertTrue(showRoomHeader(-5))
-        assertFalse(showRoomHeader(1))
-        assertFalse(showRoomHeader(900))
+    fun `la cabecera es completa con el teclado cerrado y compacta con el teclado abierto`() {
+        assertEquals(RoomHeaderMode.FULL, roomHeaderModeFor(0))
+        assertEquals(RoomHeaderMode.COMPACT, roomHeaderModeFor(900))
+    }
+
+    @Test
+    fun `limites de la cabecera compacta`() {
+        // 0 o menos es teclado cerrado; con 1 px ya es teclado abierto (el limite es `<= 0`, no `< 0`).
+        assertEquals(RoomHeaderMode.FULL, roomHeaderModeFor(0))
+        assertEquals(RoomHeaderMode.FULL, roomHeaderModeFor(-1))
+        assertEquals(RoomHeaderMode.FULL, roomHeaderModeFor(Int.MIN_VALUE))
+        assertEquals(RoomHeaderMode.COMPACT, roomHeaderModeFor(1))
+        assertEquals(RoomHeaderMode.COMPACT, roomHeaderModeFor(Int.MAX_VALUE))
     }
 }

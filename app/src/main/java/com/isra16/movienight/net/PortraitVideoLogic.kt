@@ -29,8 +29,12 @@ fun portraitVideoHeightDp(widthDp: Float, availableHeightDp: Float, keyboardOpen
     return max(VIDEO_KEYBOARD_MIN_HEIGHT_DP, min(natural, availableHeightDp * VIDEO_KEYBOARD_MAX_FRACTION))
 }
 
+/** Cómo se ve la cabecera de la sala en la vista vertical: completa (teclado cerrado) o compacta (teclado abierto). */
+enum class RoomHeaderMode { FULL, COMPACT }
+
 /**
- * La cabecera de la sala (Salir, nombre, conectados) se ve solo con el teclado cerrado: con el teclado abierto se esconde para que el
- * video tenga ese alto. [imeBottomPx] es el alto del teclado en píxeles; 0 o menos es teclado cerrado (mismo criterio que `showHomeBottomBar`).
+ * La cabecera de la sala es completa (Salir, nombre de la sala, línea de host y conectados) con el teclado cerrado y compacta (solo Salir y
+ * conectados, en una fila baja) con el teclado abierto, para dejarle alto al video sin perder esos dos botones (Fase 8, paso 5i).
+ * [imeBottomPx] es el alto del teclado en píxeles; 0 o menos es teclado cerrado (mismo criterio que `showHomeBottomBar`).
  */
-fun showRoomHeader(imeBottomPx: Int): Boolean = imeBottomPx <= 0
+fun roomHeaderModeFor(imeBottomPx: Int): RoomHeaderMode = if (imeBottomPx <= 0) RoomHeaderMode.FULL else RoomHeaderMode.COMPACT

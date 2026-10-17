@@ -100,10 +100,11 @@ import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.orientationRequestFor
 import com.isra16.movienight.net.pipAspectFor
 import com.isra16.movienight.net.pipContentFor
+import com.isra16.movienight.net.RoomHeaderMode
 import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.roomLayoutFor
-import com.isra16.movienight.net.showRoomHeader
+import com.isra16.movienight.net.roomHeaderModeFor
 import com.isra16.movienight.net.videoScale
 import com.isra16.movienight.net.seekTargetMs
 import com.isra16.movienight.room.RoomPhase
@@ -181,13 +182,10 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
         // Una sola hoja de vidrio a pantalla completa detrás de toda la sala (Fase 8, paso 5e); las piezas de abajo son transparentes.
         if (inRoom) RoomGlassSheet(Modifier.fillMaxSize())
         Column(if (inRoom) Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.ime) else Modifier.fillMaxSize().safeDrawingPadding()) {
-            // Con el teclado abierto, dentro de la sala, la cabecera se esconde para dejarle su alto al video (`showRoomHeader`). Se deja
-            // solo el espacio de la barra de estado: la hoja de vidrio de atrás sigue cubriéndola. En los demás estados la cabecera siempre se ve.
-            if (!inRoom || showRoomHeader(WindowInsets.ime.getBottom(LocalDensity.current))) {
-                RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true })
-            } else {
-                Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
-            }
+            // Con el teclado abierto, dentro de la sala, la cabecera pasa a una fila compacta (Salir y conectados, sin título ni línea de host)
+            // para dejarle su alto al video (`roomHeaderModeFor`, Fase 8, paso 5i). En los demás estados la cabecera siempre es completa.
+            val headerMode = if (inRoom) roomHeaderModeFor(WindowInsets.ime.getBottom(LocalDensity.current)) else RoomHeaderMode.FULL
+            RoomHeader(vm = vm, onLeave = onLeave, onShowViewers = { showViewers = true }, compact = headerMode == RoomHeaderMode.COMPACT)
             when (val phase = vm.phase) {
                 RoomPhase.Checking -> RoomStateCard(Modifier.fillMaxSize()) { CenteredStatus("Comprobando la sala…", vm.notice) }
                 RoomPhase.Connecting -> RoomStateCard(Modifier.fillMaxSize()) { CenteredStatus("Entrando a la sala…", vm.notice) }
@@ -206,24 +204,27 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
 }
 
 @Composable
-private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit) {
+private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit, compact: Boolean) {
     val inRoom = vm.phase == RoomPhase.InRoom
 
     // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; fuera de la sala la `safeDrawingPadding` deja libre la barra de estado.
     // Dentro de la sala la cabecera es la pieza de arriba del bloque de vidrio (sin hueco con el video); en los demás estados, suelta.
     RoomGlassBar(
         if (inRoom) Modifier else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        contentPadding = 4.dp,
+        contentPadding = if (compact) 0.dp else 4.dp,
         flat = inRoom,
     ) {
         // En la sala la pieza llega hasta arriba del todo: este espacio es la barra de estado (el vidrio queda detrás de ella).
         if (inRoom) Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
+        // Compacta (teclado abierto, solo en la sala): fila de 40 dp con Salir a la izquierda y conectados a la derecha; sin título ni línea de host.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 4.dp),
+            Modifier.fillMaxWidth().padding(horizontal = if (compact) 8.dp else 4.dp).then(if (compact) Modifier.height(40.dp) else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onLeave) { Text("Salir") }
-            Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
+            if (compact) {
+                Spacer(Modifier.weight(1f))
+            } else Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
                 Text("Sala ${vm.roomId}", style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 if (inRoom && vm.isHost) {
                     Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
