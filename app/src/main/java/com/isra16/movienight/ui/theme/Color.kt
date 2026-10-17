@@ -317,16 +317,35 @@ internal val MovieNightDarkGlass = GlassColors(
  * silenciado (error) peor 11,52 (claro) y 7,49 (oscuro) sobre su chip. No incluye la sombra del texto ni lo que hace el teléfono.
  */
 @Immutable
-internal class RoomChatColors(val mine: Color, val other: Color, val notice: Color)
+internal class RoomChatColors(val mine: Color, val other: Color, val notice: Color, val names: List<Color>)
+
+/**
+ * Colores de nombre del chat (Fase 8, paso 5n), 8 por modo, PROVISIONALES (el paso 6 pone los finales). Se eligieron empujando la
+ * luminancia hacia el lado que da más contraste (claro: Y~0,03, tonos oscuros; oscuro: Y~0,81, tonos claros) con saturación máxima y una
+ * distancia mínima de 28 entre pares (CIE76 en Lab, criterio nuestro). Contraste medido con `tools/glass/measure_names.py` sobre
+ * `home_panel_*.webp` (106 820 px, todos los píxeles), sobre la burbuja propia / ajena: claro, peor 4,91 / 10,41 (100 % >= 4,5);
+ * oscuro, peor 4,24 / 4,92 (propia 95,3-100 % >= 4,5, ajena 100 %). No incluye la sombra ni lo que hace el teléfono. El índice de cada
+ * persona lo da `chatNameColorIndex`.
+ */
+private val ChatNamesLight = listOf(
+    Color(0xFF432D00), Color(0xFF00390A), Color(0xFF003640), Color(0xFF003161),
+    Color(0xFF1C00A6), Color(0xFF4F0077), Color(0xFF620042), Color(0xFF680011),
+)
+private val ChatNamesDark = listOf(
+    Color(0xFFFFE5B2), Color(0xFFFFE978), Color(0xFFFFFF00), Color(0xFFADFF0A),
+    Color(0xFF94FFA5), Color(0xFF6CFFE7), Color(0xFFB4F2FF), Color(0xFFFFE1E6),
+)
 
 internal val MovieNightLightChat = RoomChatColors(
     mine = Color(0xFF0A3D24).copy(alpha = 0.18f),
     other = Color.White.copy(alpha = 0.65f),
     notice = Color.White.copy(alpha = 0.65f),
+    names = ChatNamesLight,
 )
 
 internal val MovieNightDarkChat = RoomChatColors(
     mine = Color.White.copy(alpha = 0.12f),
     other = Color.White.copy(alpha = 0.06f),
     notice = DarkBackground.copy(alpha = 0.55f),
+    names = ChatNamesDark,
 )

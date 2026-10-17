@@ -97,6 +97,7 @@ import com.isra16.movienight.net.PipRequest
 import com.isra16.movienight.net.ReactionSurface
 import com.isra16.movienight.net.RoomLayout
 import com.isra16.movienight.net.VideoFit
+import com.isra16.movienight.net.chatNameColorIndex
 import com.isra16.movienight.net.connectionBanner
 import com.isra16.movienight.net.formatPlaybackTime
 import com.isra16.movienight.net.isBusy
@@ -465,6 +466,7 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
     val chat = roomChatColors()
     val bubbleColor = if (mine) chat.mine else chat.other
     val textColor = MaterialTheme.colorScheme.onSurface
+    val nameColor = chat.names[chatNameColorIndex(message.user, chat.names.size)]
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
         Surface(
             modifier = Modifier.widthIn(max = 320.dp),
@@ -474,9 +476,10 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
             Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text(
                     message.user + if (message.isHost) " · host" else "",
-                    // En el vidrio `primary` es la misma tinta que el texto: el host se distingue en negrita, no por color.
+                    // El color del nombre sale del nombre (`chatNameColorIndex`, Fase 8 paso 5n): el mismo en todos sus mensajes y en las citas.
+                    // El host se distingue en negrita, no por color.
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal),
-                    color = textColor,
+                    color = nameColor,
                 )
                 message.replyTo?.let { reply ->
                     Text(
