@@ -12,16 +12,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -41,6 +38,9 @@ import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.progressLabel
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.ErrorText
+import com.isra16.movienight.ui.auth.GlassButton
+import com.isra16.movienight.ui.auth.GlassDialog
+import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.upload.UploadStatusBody
 import com.isra16.movienight.ui.upload.rememberNotificationGate
 
@@ -60,114 +60,127 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
     val upload = vm.upload
     val busy = upload.isBusy() || vm.isChangingVideo
 
-    AlertDialog(
+    // Ventana de vidrio (Fase 8, paso 5f): misma lista con desplazamiento (alto máximo 440 dp) y mismos textos.
+    GlassDialog(
         onDismissRequest = vm::hideChangeVideo,
-        title = { Text("Cambiar el video de la sala") },
-        text = {
-            LazyColumn(
-                modifier = Modifier.heightIn(max = 440.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
+        title = "Cambiar el video de la sala",
+        confirmButton = {
+            GlassButton(
+                if (upload.isBusy()) "Ocultar" else "Cerrar",
+                busy = false,
+                onClick = vm::hideChangeVideo,
+                modifier = Modifier.width(120.dp),
+            )
+        },
+    ) {
+        LazyColumn(
+            modifier = Modifier.heightIn(max = 440.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            item {
+                UploadStatusBody(
+                    state = upload,
+                    idle = {
+                        Text(
+                            "Elegí un video del teléfono (hasta $MAX_SIMPLE_PUT_LABEL). Se sube a la biblioteca " +
+                                "y, al terminar, pasa a ser el video de la sala.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        GlassButton(
+                            "Subir uno nuevo",
+                            busy = false,
+                            onClick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
+                            enabled = !vm.isChangingVideo,
+                        )
+                    },
+                    onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
+                    onCancel = vm::cancelUpload,
+                    onRetry = vm::retryUpload,
+                    onDismiss = vm::dismissUpload,
+                    uploadingHint = "Podés usar otras apps, pero no salgas de la sala mientras sube: si salís, la subida se corta.",
+                )
+            }
+            if (vm.isChangingVideo) {
                 item {
-                    UploadStatusBody(
-                        state = upload,
-                        idle = {
-                            Text(
-                                "Elegí un video del teléfono (hasta $MAX_SIMPLE_PUT_LABEL). Se sube a la biblioteca " +
-                                    "y, al terminar, pasa a ser el video de la sala.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Button(
-                                onClick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
-                                enabled = !vm.isChangingVideo,
-                            ) { Text("Subir uno nuevo") }
-                        },
-                        onPick = { askNotifications { pickVideo.launch(arrayOf("video/*")) } },
-                        onCancel = vm::cancelUpload,
-                        onRetry = vm::retryUpload,
-                        onDismiss = vm::dismissUpload,
-                        uploadingHint = "Podés usar otras apps, pero no salgas de la sala mientras sube: si salís, la subida se corta.",
-                    )
-                }
-                if (vm.isChangingVideo) {
-                    item {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
-                            Text("Cambiando el video de la sala…", style = MaterialTheme.typography.bodyMedium)
-                        }
-                    }
-                }
-                vm.changeVideoError?.let { message -> item { ErrorText(message) } }
-                item {
-                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        HorizontalDivider()
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text("O elegí uno de la biblioteca", style = MaterialTheme.typography.titleSmall)
-                            TextButton(
-                                onClick = vm::loadChangeLibrary,
-                                enabled = vm.changeLibrary !is LibraryState.Loading,
-                            ) { Text("Actualizar") }
-                        }
-                    }
-                }
-                when (val library = vm.changeLibrary) {
-                    LibraryState.Loading -> item {
-                        Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator()
-                        }
-                    }
-                    is LibraryState.Error -> item {
-                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ErrorText(library.message)
-                            OutlinedButton(onClick = vm::loadChangeLibrary) { Text("Reintentar") }
-                        }
-                    }
-                    is LibraryState.Loaded -> if (library.items.isEmpty()) {
-                        item {
-                            Text(
-                                "La biblioteca está vacía.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    } else {
-                        items(library.items, key = { it.filename }) { item ->
-                            LibraryRow(item, enabled = !busy) { confirming = item }
-                        }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CircularProgressIndicator(Modifier.size(20.dp), strokeWidth = 2.dp)
+                        Text("Cambiando el video de la sala…", style = MaterialTheme.typography.bodyMedium)
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(onClick = vm::hideChangeVideo) { Text(if (upload.isBusy()) "Ocultar" else "Cerrar") }
-        },
-    )
+            vm.changeVideoError?.let { message -> item { ErrorText(message) } }
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text("O elegí uno de la biblioteca", style = MaterialTheme.typography.titleSmall)
+                        GlassLinkButton(
+                            "Actualizar",
+                            enabled = vm.changeLibrary !is LibraryState.Loading,
+                            onClick = vm::loadChangeLibrary,
+                        )
+                    }
+                }
+            }
+            when (val library = vm.changeLibrary) {
+                LibraryState.Loading -> item {
+                    Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
+                is LibraryState.Error -> item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        ErrorText(library.message)
+                        GlassLinkButton("Reintentar", enabled = true, onClick = vm::loadChangeLibrary)
+                    }
+                }
+                is LibraryState.Loaded -> if (library.items.isEmpty()) {
+                    item {
+                        Text(
+                            "La biblioteca está vacía.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                } else {
+                    items(library.items, key = { it.filename }) { item ->
+                        LibraryRow(item, enabled = !busy) { confirming = item }
+                    }
+                }
+            }
+        }
+    }
 
     confirming?.let { item ->
-        AlertDialog(
+        GlassDialog(
             onDismissRequest = { confirming = null },
-            title = { Text("¿Cambiar el video?") },
-            text = {
-                Text(
-                    "La sala pasa a «${item.displayName}». Todos lo ven cambiar y arranca desde el principio, en pausa.",
+            title = "¿Cambiar el video?",
+            confirmButton = {
+                GlassButton(
+                    "Cambiar",
+                    busy = false,
+                    onClick = {
+                        confirming = null
+                        vm.changeVideoTo(item)
+                    },
+                    modifier = Modifier.width(120.dp),
                 )
             },
-            confirmButton = {
-                Button(onClick = {
-                    confirming = null
-                    vm.changeVideoTo(item)
-                }) { Text("Cambiar") }
-            },
-            dismissButton = { TextButton(onClick = { confirming = null }) { Text("Cancelar") } },
-        )
+            dismissButton = { GlassLinkButton("Cancelar", enabled = true, onClick = { confirming = null }) },
+        ) {
+            Text(
+                "La sala pasa a «${item.displayName}». Todos lo ven cambiar y arranca desde el principio, en pausa.",
+                style = MaterialTheme.typography.bodyLarge,
+            )
+        }
     }
 }
 

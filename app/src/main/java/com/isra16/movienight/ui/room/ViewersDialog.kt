@@ -5,14 +5,14 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -29,6 +29,9 @@ import com.isra16.movienight.net.availableActions
 import com.isra16.movienight.net.confirmationFor
 import com.isra16.movienight.net.viewerLabel
 import com.isra16.movienight.room.RoomViewModel
+import com.isra16.movienight.ui.auth.GlassButton
+import com.isra16.movienight.ui.auth.GlassDialog
+import com.isra16.movienight.ui.auth.GlassLinkButton
 
 /** Una acción que espera confirmación: se guarda el id (no la fila) porque la lista puede cambiar mientras se decide. */
 private data class AwaitingConfirm(val action: ModerationAction, val viewerId: String, val name: String)
@@ -45,56 +48,60 @@ fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit) {
     // Un problema de una vez anterior ya no dice nada al volver a abrir la lista.
     LaunchedEffect(Unit) { vm.clearModerationMessage() }
 
-    AlertDialog(
+    // Ventana de vidrio (Fase 8, paso 5f). La lista conserva su desplazamiento con un alto máximo, como antes dentro del AlertDialog.
+    GlassDialog(
         onDismissRequest = onDismiss,
-        title = { Text("En la sala") },
-        text = {
-            Column(
-                Modifier.verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                val message = vm.moderationMessage
-                if (message != null) {
-                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                }
-                vm.viewers.forEach { viewer ->
-                    ViewerRow(
-                        viewer = viewer,
-                        isMe = vm.mySocketId != null && viewer.id == vm.mySocketId,
-                        actions = availableActions(viewer, vm.mySocketId, vm.isHost, vm.isConnected),
-                        busy = viewer.id in vm.busyViewerIds,
-                        onAction = { action ->
-                            if (confirmationFor(action, viewer.username) == null) {
-                                vm.moderate(action, viewer.id)
-                            } else {
-                                awaiting = AwaitingConfirm(action, viewer.id, viewer.username)
-                            }
-                        },
-                    )
-                }
+        title = "En la sala",
+        confirmButton = { GlassButton("Cerrar", busy = false, onClick = onDismiss, modifier = Modifier.width(120.dp)) },
+    ) {
+        Column(
+            Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            val message = vm.moderationMessage
+            if (message != null) {
+                Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
             }
-        },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
-    )
+            vm.viewers.forEach { viewer ->
+                ViewerRow(
+                    viewer = viewer,
+                    isMe = vm.mySocketId != null && viewer.id == vm.mySocketId,
+                    actions = availableActions(viewer, vm.mySocketId, vm.isHost, vm.isConnected),
+                    busy = viewer.id in vm.busyViewerIds,
+                    onAction = { action ->
+                        if (confirmationFor(action, viewer.username) == null) {
+                            vm.moderate(action, viewer.id)
+                        } else {
+                            awaiting = AwaitingConfirm(action, viewer.id, viewer.username)
+                        }
+                    },
+                )
+            }
+        }
+    }
 
     val pending = awaiting
     if (pending != null) {
         val confirmation = confirmationFor(pending.action, pending.name)
         if (confirmation != null) {
-            AlertDialog(
+            GlassDialog(
                 onDismissRequest = { awaiting = null },
-                title = { Text(confirmation.title) },
-                text = { Text(confirmation.text) },
+                title = confirmation.title,
                 confirmButton = {
-                    TextButton(
+                    GlassButton(
+                        confirmation.confirmLabel,
+                        busy = false,
                         onClick = {
                             vm.moderate(pending.action, pending.viewerId)
                             awaiting = null
                         },
-                    ) { Text(confirmation.confirmLabel) }
+                        modifier = Modifier.width(150.dp),
+                    )
                 },
-                dismissButton = { TextButton(onClick = { awaiting = null }) { Text("Cancelar") } },
-            )
+                dismissButton = { GlassLinkButton("Cancelar", enabled = true, onClick = { awaiting = null }) },
+            ) {
+                Text(confirmation.text, style = MaterialTheme.typography.bodyLarge)
+            }
         }
     }
 }
@@ -116,7 +123,7 @@ private fun ViewerRow(
         )
         if (actions.isNotEmpty()) {
             Box {
-                TextButton(onClick = { menuOpen = true }, enabled = !busy) { Text(if (busy) "…" else "Acciones") }
+                GlassLinkButton(if (busy) "…" else "Acciones", enabled = !busy, onClick = { menuOpen = true })
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     actions.forEach { action ->
                         DropdownMenuItem(

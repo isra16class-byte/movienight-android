@@ -22,8 +22,9 @@ import com.isra16.movienight.ui.theme.LocalGlassColors
  *
  * Con la copia borrosa del fondo, como las tarjetas: la copia se dibuja opaca y tapa lo que hay detrás del panel (sin ella
  * se transparentaba el texto de la pantalla). Una ventana es otra superficie, así que la zona del fondo que se ve no es
- * exactamente la de la posición del diálogo (la copia es muy borrosa y casi no se nota). Fuera de [HomeBackdrop] (por
- * ejemplo en la sala) no hay copia: solo queda el tinte y por eso es más asentado.
+ * exactamente la de la posición del diálogo (la copia es muy borrosa y casi no se nota). La sala también va dentro de
+ * [HomeBackdrop] (`AppRoot`, Fase 8 paso 5a), así que sus diálogos (conectados, cambiar video) llevan la misma copia. Solo sin
+ * [HomeBackdrop] no hay copia: queda el tinte y por eso es más asentado.
  */
 @Composable
 internal fun GlassDialog(
