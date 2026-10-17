@@ -4,6 +4,9 @@ import android.content.res.Configuration
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -206,30 +209,36 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
 @Composable
 private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: () -> Unit, compact: Boolean) {
     val inRoom = vm.phase == RoomPhase.InRoom
+    // Transición completa <-> compacta (Fase 8, paso 5l): el aire de arriba y abajo y el alto de la fila se animan con la misma duración, y el bloque
+    // del título y la línea de host se funde. Sin animación al pintar por primera vez ni en los estados fuera de la sala (siempre completos).
+    val verticalPadding by animateDpAsState(if (compact) 0.dp else 4.dp, tween(ROOM_HEADER_ANIM_MS), label = "roomHeaderPadding")
 
     // Barra de vidrio (Fase 8, paso 5a). Se queda quieta sobre el fondo; fuera de la sala la `safeDrawingPadding` deja libre la barra de estado.
     // Dentro de la sala la cabecera es la pieza de arriba del bloque de vidrio (sin hueco con el video); en los demás estados, suelta.
     RoomGlassBar(
         if (inRoom) Modifier else Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-        contentPadding = if (compact) 0.dp else 4.dp,
+        contentPadding = 0.dp,
         flat = inRoom,
     ) {
         // En la sala la pieza llega hasta arriba del todo: este espacio es la barra de estado (el vidrio queda detrás de ella).
         if (inRoom) Spacer(Modifier.windowInsetsTopHeight(WindowInsets.statusBars))
         // Compacta (teclado abierto, solo en la sala): fila de 40 dp con Salir a la izquierda y conectados a la derecha; sin título ni línea de host.
+        // `animateContentSize` va después del relleno para animar solo el alto de la fila (de su alto natural a 40 dp), sin animar el relleno dos veces.
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = if (compact) 8.dp else 4.dp).then(if (compact) Modifier.height(40.dp) else Modifier),
+            Modifier
+                .padding(horizontal = 8.dp, vertical = verticalPadding)
+                .animateContentSize(tween(ROOM_HEADER_ANIM_MS))
+                .fillMaxWidth()
+                .then(if (compact) Modifier.height(40.dp) else Modifier),
             verticalAlignment = Alignment.CenterVertically,
         ) {
             TextButton(onClick = onLeave) { Text("Salir") }
-            if (compact) {
-                Spacer(Modifier.weight(1f))
-            } else Column(Modifier.weight(1f).padding(horizontal = 4.dp)) {
-                Text("Sala ${vm.roomId}", style = MaterialTheme.typography.titleMedium, maxLines = 1)
-                if (inRoom && vm.isHost) {
-                    Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
-                }
-            }
+            RoomHeaderTitle(
+                roomId = vm.roomId,
+                showHostLine = inRoom && vm.isHost,
+                visible = !compact,
+                modifier = Modifier.weight(1f).padding(horizontal = 4.dp),
+            )
             if (inRoom) {
                 TextButton(onClick = onShowViewers) {
                     Text(if (vm.viewerCount == 1) "1 conectado" else "${vm.viewerCount} conectados")
@@ -238,6 +247,31 @@ private fun RoomHeader(vm: RoomViewModel, onLeave: () -> Unit, onShowViewers: ()
         }
     }
 }
+
+/**
+ * Título de la sala y línea de host, con fundido al pasar a la cabecera compacta. Va en una función aparte a propósito (como `RoomVideoBox`): dentro del
+ * `Column` y el `Row` de [RoomHeader], `AnimatedVisibility` se resolvería contra el `ColumnScope` de afuera y Compose lo rechaza.
+ */
+@Composable
+private fun RoomHeaderTitle(roomId: String, showHostLine: Boolean, visible: Boolean, modifier: Modifier = Modifier) {
+    Box(modifier) {
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(tween(ROOM_HEADER_ANIM_MS)),
+            exit = fadeOut(tween(ROOM_HEADER_ANIM_MS)),
+        ) {
+            Column {
+                Text("Sala $roomId", style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                if (showHostLine) {
+                    Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                }
+            }
+        }
+    }
+}
+
+/** Duración de la transición de la cabecera completa <-> compacta (Fase 8, paso 5l). */
+private const val ROOM_HEADER_ANIM_MS = 180
 
 /** Los cuatro estados siguientes van dentro de [RoomStateCard] (Fase 8, paso 5h): la tarjeta pone el centrado, el margen y el fondo. */
 @Composable
