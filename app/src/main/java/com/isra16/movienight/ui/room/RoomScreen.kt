@@ -153,7 +153,17 @@ fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
     // El cuadro "Cambiar video" es solo del host: si pierde el rol, el ViewModel lo cierra.
     if (vm.showChangeVideo && vm.isHost) ChangeVideoDialog(vm)
     // La lista de conectados (con la moderación) se abre desde la cabecera o desde la pantalla completa.
-    if (showViewers) ViewersDialog(vm = vm, onDismiss = { showViewers = false })
+    if (showViewers) {
+        ViewersDialog(
+            vm = vm,
+            onDismiss = { showViewers = false },
+            // "Cambiar video" (solo host): se cierra la lista y se abre el cuadro de cambiar, para que no queden dos ventanas apiladas.
+            onChangeVideo = {
+                showViewers = false
+                vm.openChangeVideo()
+            },
+        )
+    }
     if (layout == RoomLayout.FULLSCREEN) {
         RoomFullscreen(
             vm = vm,
@@ -334,12 +344,10 @@ private fun RoomContentBody(
     Column(Modifier.fillMaxSize()) {
         RoomVideo(
             vm.player,
-            videoName = vm.videoName,
             videoHeight = videoHeight,
             isHost = vm.isHost,
             onTogglePlay = vm::hostTogglePlay,
             onSeek = vm::hostSeekTo,
-            onChangeVideo = vm::openChangeVideo,
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = vm.liveReactions,
         )
@@ -479,7 +487,7 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
  * El video de la sala. Los controles van encima del video, como en un reproductor normal (Fase 7C; antes iban
  * debajo): aparecen al tocar el video y se esconden solos a los 3 s. Dibujar Compose encima de la `SurfaceView` del
  * `PlayerView` (que no usa los controles nativos de Media3) ya se comprobó en la pantalla completa. Debajo del
- * video quedan el nombre de la cinta y "Cambiar video".
+ * video no queda nada: el nombre de la cinta y "Cambiar video" se mudaron a la lista de conectados (Fase 8, paso 5g).
  *
  * Quien NO es host solo ve una barra de progreso de solo lectura (sin play/pause ni salto: la sala la
  * maneja el host, igual que en `room.html` con `video.controls = false`). Quien es host (confirmado por el
@@ -491,12 +499,10 @@ private fun MessageRow(message: ChatMessage, mine: Boolean) {
 @Composable
 private fun RoomVideo(
     rp: RoomPlayer,
-    videoName: String,
     videoHeight: Dp,
     isHost: Boolean,
     onTogglePlay: () -> Unit,
     onSeek: (Float) -> Unit,
-    onChangeVideo: () -> Unit,
     onEnterFullscreen: () -> Unit,
     liveReactions: SharedFlow<String>,
 ) {
@@ -514,22 +520,6 @@ private fun RoomVideo(
             onEnterFullscreen = onEnterFullscreen,
             liveReactions = liveReactions,
         )
-        RoomGlassBar(contentPadding = 4.dp, flat = true) {
-            Row(
-                Modifier.fillMaxWidth().padding(start = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    if (videoName.isNotEmpty()) videoName else "Sin cinta",
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                )
-                if (isHost) TextButton(onClick = onChangeVideo) { Text("Cambiar video") }
-            }
-        }
     }
 }
 

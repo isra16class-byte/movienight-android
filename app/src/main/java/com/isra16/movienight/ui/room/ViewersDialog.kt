@@ -40,9 +40,12 @@ private data class AwaitingConfirm(val action: ModerationAction, val viewerId: S
  * "En la sala": la lista de conectados con el estado de cada uno (host, silenciado). Si la persona es host
  * (confirmado por el server), cada fila de otra persona trae un menú con hacer host, silenciar / quitar silencio
  * y expulsar; quien no es host no ve acciones. Hacer host y expulsar piden confirmación.
+ *
+ * Arriba de la lista va la cinta de la sala ("Viendo: nombre", o "Sin cinta") para todos; el host ve debajo "Cambiar video"
+ * ([onChangeVideo]; quien llama cierra esta lista y abre el cuadro de cambiar). Fase 8, paso 5g: antes eso estaba bajo el video.
  */
 @Composable
-fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit) {
+fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit, onChangeVideo: () -> Unit) {
     var awaiting by remember { mutableStateOf<AwaitingConfirm?>(null) }
 
     // Un problema de una vez anterior ya no dice nada al volver a abrir la lista.
@@ -54,6 +57,13 @@ fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit) {
         title = "En la sala",
         confirmButton = { GlassButton("Cerrar", busy = false, onClick = onDismiss, modifier = Modifier.width(120.dp)) },
     ) {
+        Text(
+            if (vm.videoName.isNotEmpty()) "Viendo: ${vm.videoName}" else "Sin cinta",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 2,
+        )
+        if (vm.isHost) GlassLinkButton("Cambiar video", enabled = true, onClick = onChangeVideo)
         Column(
             Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(4.dp),
