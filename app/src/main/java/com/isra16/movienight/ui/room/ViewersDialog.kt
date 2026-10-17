@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -31,6 +32,7 @@ import com.isra16.movienight.net.viewerLabel
 import com.isra16.movienight.room.RoomViewModel
 import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassDialog
+import com.isra16.movienight.ui.auth.GlassFieldDivider
 import com.isra16.movienight.ui.auth.GlassLinkButton
 
 /** Una acción que espera confirmación: se guarda el id (no la fila) porque la lista puede cambiar mientras se decide. */
@@ -41,8 +43,10 @@ private data class AwaitingConfirm(val action: ModerationAction, val viewerId: S
  * (confirmado por el server), cada fila de otra persona trae un menú con hacer host, silenciar / quitar silencio
  * y expulsar; quien no es host no ve acciones. Hacer host y expulsar piden confirmación.
  *
- * Arriba de la lista va la cinta de la sala ("Viendo: nombre", o "Sin cinta") para todos; el host ve debajo "Cambiar video"
- * ([onChangeVideo]; quien llama cierra esta lista y abre el cuadro de cambiar). Fase 8, paso 5g: antes eso estaba bajo el video.
+ * Arriba de la lista va la cinta de la sala (una línea "Viendo" y debajo el nombre, o solo "Sin cinta") para todos; el host ve
+ * debajo el botón "Cambiar video" ([onChangeVideo]; quien llama cierra esta lista y abre el cuadro de cambiar). Fase 8, paso 5g:
+ * antes eso estaba bajo el video. Después, un separador y "Conectados · N" con la lista (solo ella se desplaza). Solo orden y
+ * alineación visual (paso 5m): textos, acciones y llamadas a [vm] no cambian.
  */
 @Composable
 fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit, onChangeVideo: () -> Unit) {
@@ -57,35 +61,47 @@ fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit, onChangeVideo: () ->
         title = "En la sala",
         confirmButton = { GlassButton("Cerrar", busy = false, onClick = onDismiss, modifier = Modifier.width(120.dp)) },
     ) {
-        Text(
-            if (vm.videoName.isNotEmpty()) "Viendo: ${vm.videoName}" else "Sin cinta",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 2,
-        )
-        if (vm.isHost) GlassLinkButton("Cambiar video", enabled = true, onClick = onChangeVideo)
-        Column(
-            Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
-        ) {
-            val message = vm.moderationMessage
-            if (message != null) {
-                Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+        // Bloque de la cinta: etiqueta pequeña y el nombre debajo; sin cinta, solo "Sin cinta".
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            if (vm.videoName.isNotEmpty()) {
+                Text("Viendo", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(vm.videoName, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
+            } else {
+                Text("Sin cinta", style = MaterialTheme.typography.bodyLarge, maxLines = 2)
             }
-            vm.viewers.forEach { viewer ->
-                ViewerRow(
-                    viewer = viewer,
-                    isMe = vm.mySocketId != null && viewer.id == vm.mySocketId,
-                    actions = availableActions(viewer, vm.mySocketId, vm.isHost, vm.isConnected),
-                    busy = viewer.id in vm.busyViewerIds,
-                    onAction = { action ->
-                        if (confirmationFor(action, viewer.username) == null) {
-                            vm.moderate(action, viewer.id)
-                        } else {
-                            awaiting = AwaitingConfirm(action, viewer.id, viewer.username)
-                        }
-                    },
-                )
+        }
+        if (vm.isHost) GlassButton("Cambiar video", busy = false, onClick = onChangeVideo, compact = true)
+        GlassFieldDivider()
+        // El encabezado queda fuera del desplazamiento: solo la lista (y el aviso de moderación) hace scroll.
+        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                "Conectados · ${vm.viewers.size}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Column(
+                Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                val message = vm.moderationMessage
+                if (message != null) {
+                    Text(message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+                vm.viewers.forEach { viewer ->
+                    ViewerRow(
+                        viewer = viewer,
+                        isMe = vm.mySocketId != null && viewer.id == vm.mySocketId,
+                        actions = availableActions(viewer, vm.mySocketId, vm.isHost, vm.isConnected),
+                        busy = viewer.id in vm.busyViewerIds,
+                        onAction = { action ->
+                            if (confirmationFor(action, viewer.username) == null) {
+                                vm.moderate(action, viewer.id)
+                            } else {
+                                awaiting = AwaitingConfirm(action, viewer.id, viewer.username)
+                            }
+                        },
+                    )
+                }
             }
         }
     }
@@ -116,6 +132,11 @@ fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit, onChangeVideo: () ->
     }
 }
 
+private val VIEWER_ROW_MIN_HEIGHT = 44.dp
+
+/** Igual al `padding(horizontal = 12.dp)` de `GlassLinkButton` (AuthComponents.kt); si cambia allí, cambia aquí. */
+private val GLASS_LINK_HORIZONTAL_PADDING = 12.dp
+
 @Composable
 private fun ViewerRow(
     viewer: Viewer,
@@ -125,14 +146,16 @@ private fun ViewerRow(
     onAction: (ModerationAction) -> Unit,
 ) {
     var menuOpen by remember { mutableStateOf(false) }
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+    // Alto mínimo igual con o sin "Acciones" (el enlace mide 32 dp y sin él la fila era más baja).
+    Row(Modifier.fillMaxWidth().heightIn(min = VIEWER_ROW_MIN_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
         Text(
             viewerLabel(viewer, isMe),
             modifier = Modifier.weight(1f),
             style = MaterialTheme.typography.bodyLarge,
         )
         if (actions.isNotEmpty()) {
-            Box {
+            // El enlace lleva 12 dp de aire a cada lado: el offset (no cambia el tamaño) hace que el texto termine en el borde derecho de la lista.
+            Box(Modifier.offset(x = GLASS_LINK_HORIZONTAL_PADDING)) {
                 GlassLinkButton(if (busy) "…" else "Acciones", enabled = !busy, onClick = { menuOpen = true })
                 DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                     actions.forEach { action ->
