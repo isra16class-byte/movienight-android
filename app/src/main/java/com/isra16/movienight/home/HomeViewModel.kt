@@ -19,6 +19,7 @@ import com.isra16.movienight.net.UploadGoal
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.adminAccessFrom
 import com.isra16.movienight.net.adminPanelUrl
+import com.isra16.movienight.net.MSG_WRONG_SERVER_ADDRESS
 import com.isra16.movienight.net.apiErrorMessage
 import com.isra16.movienight.net.createRoomBody
 import com.isra16.movienight.net.extractRoomId
@@ -47,7 +48,7 @@ suspend fun fetchLibrary(api: MovieNightApi, baseUrl: String, onSessionExpired: 
     if (isSessionExpired(result.code)) onSessionExpired()
     return if (result.code == 200) {
         parseLibrary(result.body)?.let { LibraryState.Loaded(it) }
-            ?: LibraryState.Error("El servidor respondió algo inesperado. Revisá que la dirección del servidor sea correcta.")
+            ?: LibraryState.Error(MSG_WRONG_SERVER_ADDRESS)
     } else {
         LibraryState.Error(apiErrorMessage(result.code, serverErrorMessage(result.body)))
     }
@@ -231,7 +232,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     fun joinByCode(input: String, onJoin: (roomId: String) -> Unit) {
         val roomId = extractRoomId(input)
         if (roomId == null) {
-            joinError = "Eso no parece un código ni un link de sala."
+            joinError = "Eso no parece un código ni un enlace de sala."
             return
         }
         joinError = null

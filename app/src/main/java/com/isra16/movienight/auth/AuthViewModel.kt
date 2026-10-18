@@ -63,7 +63,6 @@ class AuthViewModel(app: Application) : AndroidViewModel(app) {
     private companion object {
         // Texto propio (no el del server): el server responde igual exista o no la cuenta.
         const val FORGOT_PASSWORD_INFO =
-            "Si ese email tiene una cuenta, te mandamos un link para elegir una contraseña nueva. " +
-                "Revisá tu correo (y la carpeta de spam). El link se abre en el navegador."
+            "Si el correo tiene cuenta, te enviamos un enlace para cambiar la contraseña. Revisa el spam."
     }
 }

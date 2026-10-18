@@ -19,19 +19,19 @@ object AuthValidation {
     fun emailError(email: String): String? {
         val trimmed = email.trim()
         return when {
-            trimmed.isEmpty() -> "Escribí tu email."
-            !EMAIL_REGEX.matches(trimmed) -> "El email no tiene un formato válido."
+            trimmed.isEmpty() -> "Escribe tu correo."
+            !EMAIL_REGEX.matches(trimmed) -> "El correo no tiene un formato válido."
             else -> null
         }
     }
 
     /** Al iniciar sesión solo se exige que no esté vacía: la regla de largo es del registro. */
     fun loginPasswordError(password: String): String? =
-        if (password.isEmpty()) "Escribí tu contraseña." else null
+        if (password.isEmpty()) "Escribe tu contraseña." else null
 
     /** El server no recorta la contraseña (los espacios cuentan), así que acá tampoco. */
     fun newPasswordError(password: String): String? = when {
-        password.isEmpty() -> "Elegí una contraseña."
+        password.isEmpty() -> "Elige una contraseña."
         password.length < MIN_PASSWORD_LENGTH -> "La contraseña necesita al menos $MIN_PASSWORD_LENGTH caracteres."
         else -> null
     }
@@ -45,7 +45,7 @@ object AuthValidation {
         if (password.isNotEmpty() && password.length < MIN_PASSWORD_LENGTH) "Mínimo $MIN_PASSWORD_LENGTH caracteres." else null
 
     fun confirmPasswordError(password: String, confirmation: String): String? = when {
-        confirmation.isEmpty() -> "Repetí la contraseña."
+        confirmation.isEmpty() -> "Repite la contraseña."
         confirmation != password -> "Las contraseñas no coinciden."
         else -> null
     }

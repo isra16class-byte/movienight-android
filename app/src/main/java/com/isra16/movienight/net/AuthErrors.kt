@@ -17,14 +17,14 @@ package com.isra16.movienight.net
 fun authErrorMessage(code: Int, serverMessage: String?): String {
     val fromServer = serverMessage?.trim()?.takeIf { it.isNotEmpty() }
     return when (code) {
-        -1 -> "No se pudo conectar con el servidor. Revisá tu conexión a internet e intentá de nuevo."
-        400 -> fromServer ?: "Los datos no son válidos. Revisá el email y la contraseña."
-        401 -> "Email o contraseña incorrectos."
-        404 -> "El servidor no tiene las cuentas habilitadas (o la dirección del servidor es incorrecta)."
-        409 -> "Ya existe una cuenta con ese email."
-        429 -> fromServer ?: "Demasiados intentos. Esperá unos minutos e intentá de nuevo."
-        502, 503, 504 -> "El servidor no está disponible en este momento. Intentá de nuevo en un rato."
-        in 500..599 -> fromServer ?: "El servidor tuvo un problema. Intentá de nuevo en un momento."
-        else -> "Respuesta inesperada del servidor (código $code)."
+        -1 -> MSG_NO_CONNECTION
+        400 -> fromServer ?: "Los datos no son válidos. Revisa el correo y la contraseña."
+        401 -> "Correo o contraseña incorrectos."
+        404 -> "No se encontró el servicio de cuentas. Revisa la dirección del servidor."
+        409 -> "Ya existe una cuenta con ese correo."
+        429 -> fromServer ?: MSG_TOO_MANY_ATTEMPTS
+        502, 503, 504 -> MSG_SERVER_UNAVAILABLE
+        in 500..599 -> fromServer ?: MSG_SERVER_PROBLEM
+        else -> MSG_UNEXPECTED_RESPONSE
     }
 }

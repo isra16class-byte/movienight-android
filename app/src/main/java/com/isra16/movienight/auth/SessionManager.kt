@@ -1,5 +1,7 @@
 package com.isra16.movienight.auth
 
+import android.util.Log
+import com.isra16.movienight.net.MSG_WRONG_SERVER_ADDRESS
 import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.PersistentCookieJar
 import com.isra16.movienight.net.authErrorMessage
@@ -36,7 +38,7 @@ class SessionManager(
             json == null -> SessionState.Unreachable(
                 if (result.code == 200) {
                     // 200 con un cuerpo que no es JSON = no es el backend (URL equivocada, página de error).
-                    "El servidor respondió algo inesperado. Revisá que la dirección del servidor sea correcta."
+                    MSG_WRONG_SERVER_ADDRESS
                 } else {
                     authErrorMessage(result.code, serverErrorMessage(result.body))
                 },
@@ -59,10 +61,12 @@ class SessionManager(
         // sesión. Pasa, por ejemplo, contra un server HTTP sin SESSION_COOKIE_INSECURE=1 (la cookie
         // sale con secure:true y OkHttp no la reenvía por HTTP). Mejor avisarlo que fingir un login.
         if (!cookieJar.hasCookie(SESSION_COOKIE)) {
-            return AuthResult.Failure(
-                "El servidor aceptó el login pero la sesión no se guardó. " +
-                    "Si estás probando por HTTP, el server necesita SESSION_COOKIE_INSECURE=1.",
+            Log.w(
+                "MovieNightSession",
+                "El server aceptó el login pero la cookie de sesión no quedó guardada. " +
+                    "Si se prueba por HTTP, el server necesita SESSION_COOKIE_INSECURE=1.",
             )
+            return AuthResult.Failure("No se pudo mantener tu sesión iniciada. Inténtalo de nuevo.")
         }
         _state.value = loggedIn(parseJsonObject(result.body), fallbackEmail = trimmedEmail)
         return AuthResult.Success
@@ -83,8 +87,8 @@ class SessionManager(
         return when (val loginResult = login(email, password)) {
             AuthResult.Success -> AuthResult.Success
             is AuthResult.Failure -> AuthResult.Failure(
-                "Tu cuenta se creó, pero no pudimos iniciar sesión automáticamente. " +
-                    "Probá iniciar sesión. (${loginResult.message})",
+                "Tu cuenta se creó, pero no se inició la sesión. " +
+                    "Inicia sesión para continuar. (${loginResult.message})",
             )
         }
     }

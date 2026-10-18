@@ -16,15 +16,15 @@ package com.isra16.movienight.net
 fun apiErrorMessage(code: Int, serverMessage: String?): String {
     val fromServer = serverMessage?.trim()?.takeIf { it.isNotEmpty() }
     return when (code) {
-        -1 -> "No se pudo conectar con el servidor. Revisá tu conexión a internet e intentá de nuevo."
+        -1 -> MSG_NO_CONNECTION
         400 -> fromServer ?: "La solicitud no es válida."
-        401 -> "Tu sesión venció. Iniciá sesión de nuevo."
-        403 -> fromServer ?: "No tenés permiso para hacer eso."
-        404 -> fromServer ?: "No se encontró lo que buscabas en el servidor."
-        429 -> fromServer ?: "Demasiados intentos. Esperá unos minutos e intentá de nuevo."
-        502, 503, 504 -> fromServer ?: "El servidor no está disponible en este momento. Intentá de nuevo en un rato."
-        in 500..599 -> fromServer ?: "El servidor tuvo un problema. Intentá de nuevo en un momento."
-        else -> "Respuesta inesperada del servidor (código $code)."
+        401 -> "Tu sesión venció. Inicia sesión de nuevo."
+        403 -> fromServer ?: "No tienes permiso para hacer eso."
+        404 -> fromServer ?: "No se encontró lo que buscabas."
+        429 -> fromServer ?: MSG_TOO_MANY_ATTEMPTS
+        502, 503, 504 -> fromServer ?: MSG_SERVER_UNAVAILABLE
+        in 500..599 -> fromServer ?: MSG_SERVER_PROBLEM
+        else -> MSG_UNEXPECTED_RESPONSE
     }
 }
 

@@ -167,7 +167,7 @@ fun GlassEmailField(
         value = value,
         onValueChange = onValueChange,
         modifier = Modifier.fillMaxWidth(),
-        label = { Text("Email") },
+        label = { Text("Correo") },
         singleLine = true,
         enabled = enabled,
         isError = error != null,

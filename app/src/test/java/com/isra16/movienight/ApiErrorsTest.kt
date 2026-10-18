@@ -11,13 +11,13 @@ class ApiErrorsTest {
 
     @Test
     fun sinRedMuestraMensajeDeConexionSinFiltrarLaExcepcion() {
-        assertTrue(apiErrorMessage(-1, null).startsWith("No se pudo conectar"))
-        assertTrue(apiErrorMessage(-1, "UnknownHostException: x").startsWith("No se pudo conectar"))
+        assertTrue(apiErrorMessage(-1, null).startsWith("No hay conexión"))
+        assertTrue(apiErrorMessage(-1, "UnknownHostException: x").startsWith("No hay conexión"))
     }
 
     @Test
     fun error401DiceQueLaSesionVencio() {
-        assertEquals("Tu sesión venció. Iniciá sesión de nuevo.", apiErrorMessage(401, "lo que sea"))
+        assertEquals("Tu sesión venció. Inicia sesión de nuevo.", apiErrorMessage(401, "lo que sea"))
     }
 
     @Test
@@ -37,9 +37,9 @@ class ApiErrorsTest {
     }
 
     @Test
-    fun otros5xxYCodigosRaros() {
-        assertEquals("El servidor tuvo un problema. Intentá de nuevo en un momento.", apiErrorMessage(500, null))
-        assertEquals("Respuesta inesperada del servidor (código 418).", apiErrorMessage(418, null))
+    fun otros5xxYCodigosRarosNoMuestranElCodigo() {
+        assertEquals("El servidor tuvo un problema. Inténtalo de nuevo en un momento.", apiErrorMessage(500, null))
+        assertEquals("El servidor respondió algo inesperado. Inténtalo de nuevo.", apiErrorMessage(418, null))
     }
 
     @Test

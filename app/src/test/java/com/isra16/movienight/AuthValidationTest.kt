@@ -22,8 +22,8 @@ class AuthValidationTest {
 
     @Test
     fun emailVacioPideEscribirlo() {
-        assertEquals("Escribí tu email.", AuthValidation.emailError(""))
-        assertEquals("Escribí tu email.", AuthValidation.emailError("   "))
+        assertEquals("Escribe tu correo.", AuthValidation.emailError(""))
+        assertEquals("Escribe tu correo.", AuthValidation.emailError("   "))
     }
 
     @Test
@@ -35,14 +35,14 @@ class AuthValidationTest {
 
     @Test
     fun loginSoloExigeContrasenaNoVacia() {
-        assertEquals("Escribí tu contraseña.", AuthValidation.loginPasswordError(""))
+        assertEquals("Escribe tu contraseña.", AuthValidation.loginPasswordError(""))
         // Al iniciar sesión no se aplica el mínimo de 8: es regla del registro.
         assertNull(AuthValidation.loginPasswordError("abc"))
     }
 
     @Test
     fun contrasenaNuevaNecesitaOchoCaracteres() {
-        assertEquals("Elegí una contraseña.", AuthValidation.newPasswordError(""))
+        assertEquals("Elige una contraseña.", AuthValidation.newPasswordError(""))
         assertNotNull(AuthValidation.newPasswordError("1234567"))
         assertNull(AuthValidation.newPasswordError("12345678"))
     }
@@ -66,7 +66,7 @@ class AuthValidationTest {
 
     @Test
     fun confirmacionDebeCoincidir() {
-        assertEquals("Repetí la contraseña.", AuthValidation.confirmPasswordError("clave-segura", ""))
+        assertEquals("Repite la contraseña.", AuthValidation.confirmPasswordError("clave-segura", ""))
         assertEquals("Las contraseñas no coinciden.", AuthValidation.confirmPasswordError("clave-segura", "clave-segurA"))
         assertNull(AuthValidation.confirmPasswordError("clave-segura", "clave-segura"))
     }

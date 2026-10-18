@@ -9,9 +9,9 @@ class AuthErrorsTest {
 
     @Test
     fun sinRedMuestraMensajeDeConexion() {
-        assertTrue(authErrorMessage(-1, null).startsWith("No se pudo conectar"))
+        assertTrue(authErrorMessage(-1, null).startsWith("No hay conexión"))
         // El texto "de afuera" (excepción de red) nunca se le muestra a la persona.
-        assertTrue(authErrorMessage(-1, "UnknownHostException: x").startsWith("No se pudo conectar"))
+        assertTrue(authErrorMessage(-1, "UnknownHostException: x").startsWith("No hay conexión"))
     }
 
     @Test
@@ -24,23 +24,23 @@ class AuthErrorsTest {
 
     @Test
     fun error400SinMensajeUsaUnoGenerico() {
-        assertEquals("Los datos no son válidos. Revisá el email y la contraseña.", authErrorMessage(400, null))
-        assertEquals("Los datos no son válidos. Revisá el email y la contraseña.", authErrorMessage(400, "   "))
+        assertEquals("Los datos no son válidos. Revisa el correo y la contraseña.", authErrorMessage(400, null))
+        assertEquals("Los datos no son válidos. Revisa el correo y la contraseña.", authErrorMessage(400, "   "))
     }
 
     @Test
     fun error401EsSiempreElMismoMensajeGenerico() {
-        assertEquals("Email o contraseña incorrectos.", authErrorMessage(401, "lo que sea"))
+        assertEquals("Correo o contraseña incorrectos.", authErrorMessage(401, "lo que sea"))
     }
 
     @Test
     fun error404ExplicaQueFaltanLasCuentas() {
-        assertTrue(authErrorMessage(404, null).contains("cuentas habilitadas"))
+        assertTrue(authErrorMessage(404, null).contains("servicio de cuentas"))
     }
 
     @Test
-    fun error409DiceQueElEmailYaExiste() {
-        assertEquals("Ya existe una cuenta con ese email.", authErrorMessage(409, null))
+    fun error409DiceQueElCorreoYaExiste() {
+        assertEquals("Ya existe una cuenta con ese correo.", authErrorMessage(409, null))
     }
 
     @Test
@@ -65,7 +65,7 @@ class AuthErrorsTest {
     }
 
     @Test
-    fun codigoDesconocidoIncluyeElCodigo() {
-        assertEquals("Respuesta inesperada del servidor (código 418).", authErrorMessage(418, null))
+    fun codigoDesconocidoNoMuestraElCodigo() {
+        assertEquals("El servidor respondió algo inesperado. Inténtalo de nuevo.", authErrorMessage(418, null))
     }
 }

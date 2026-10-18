@@ -33,7 +33,7 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
         }
     }
 
-    AuthScreenLayout(title = "MovieNight", subtitle = "Iniciá sesión para entrar a tus salas.") {
+    AuthScreenLayout(title = "MovieNight", subtitle = "Inicia sesión para entrar a tus salas.") {
         GlassFieldGroup {
             GlassEmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
             GlassFieldDivider()
@@ -54,7 +54,7 @@ fun LoginScreen(vm: AuthViewModel, onGoRegister: () -> Unit, onGoForgot: () -> U
         // Los dos enlaces van juntos en su propia columna: el panel separa 12 dp cada hijo, y entre enlaces sobraba.
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             GlassLinkButton("¿Olvidaste tu contraseña?", enabled = !vm.isBusy, onClick = onGoForgot)
-            GlassLinkButton("¿No tenés cuenta? Registrate", enabled = !vm.isBusy, onClick = onGoRegister, emphasis = "Registrate")
+            GlassLinkButton("¿No tienes cuenta? Regístrate", enabled = !vm.isBusy, onClick = onGoRegister, emphasis = "Regístrate")
         }
     }
 }

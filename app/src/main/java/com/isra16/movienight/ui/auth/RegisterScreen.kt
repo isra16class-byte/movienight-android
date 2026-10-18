@@ -35,7 +35,7 @@ fun RegisterScreen(vm: AuthViewModel, onBack: () -> Unit) {
         }
     }
 
-    AuthScreenLayout(title = "Crear cuenta", subtitle = "Con tu cuenta podés crear salas y entrar a las de tus amigos.") {
+    AuthScreenLayout(title = "Crear cuenta", subtitle = "Con tu cuenta puedes crear salas y entrar a las de tus amigos.") {
         GlassFieldGroup {
             GlassEmailField(email, { email = it }, emailError, enabled = !vm.isBusy)
             GlassFieldDivider()
