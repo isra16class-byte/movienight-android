@@ -74,6 +74,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isra16.movienight.R
+import com.isra16.movienight.auth.limitDisplayNameInput
 import com.isra16.movienight.home.HomeViewModel
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.ADMIN_NO_BROWSER_MESSAGE
@@ -236,6 +237,10 @@ fun HomeScreen(
                                 item {
                                     ProfileCard(
                                         email = email,
+                                        displayName = vm.displayName,
+                                        hasCustomName = vm.hasCustomName,
+                                        onSaveName = vm::saveDisplayName,
+                                        onResetName = vm::resetDisplayName,
                                         isLoggingOut = isLoggingOut,
                                         onLogout = onLogout,
                                         darkTheme = darkTheme,
@@ -423,10 +428,17 @@ private fun ProfileRow(label: String, enabled: Boolean = true, onClick: () -> Un
     }
 }
 
-/** Pestaña Perfil: lo que antes era el menú "Cuenta" (modo oscuro, administración si corresponde y cerrar sesión), ahora a la vista. */
+/**
+ * Pestaña Perfil: el nombre con el que apareces en las salas, el correo, «Editar nombre» y lo que antes era el menú "Cuenta" (modo
+ * oscuro, administración si corresponde y cerrar sesión), ahora a la vista.
+ */
 @Composable
 private fun ProfileCard(
     email: String,
+    displayName: String,
+    hasCustomName: Boolean,
+    onSaveName: (String) -> String?,
+    onResetName: () -> Unit,
     isLoggingOut: Boolean,
     onLogout: () -> Unit,
     darkTheme: Boolean,
@@ -434,9 +446,13 @@ private fun ProfileCard(
     showAdmin: Boolean,
     onOpenAdmin: () -> Unit,
 ) {
+    var editingName by rememberSaveable { mutableStateOf(false) }
     HomeGlassCard {
         Text("Perfil", style = MaterialTheme.typography.titleLarge)
+        Text(displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        ProfileRow("Editar nombre", onClick = { editingName = true })
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ProfileRow("Modo oscuro", onClick = { onDarkThemeChange(!darkTheme) }) {
             Switch(checked = darkTheme, onCheckedChange = null)
@@ -447,6 +463,71 @@ private fun ProfileCard(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ProfileRow(if (isLoggingOut) "Saliendo…" else "Cerrar sesión", enabled = !isLoggingOut, onClick = onLogout)
+    }
+    if (editingName) {
+        EditNameDialog(
+            currentName = displayName,
+            hasCustomName = hasCustomName,
+            onSave = onSaveName,
+            onReset = onResetName,
+            onDismiss = { editingName = false },
+        )
+    }
+}
+
+/**
+ * Ventana para cambiar el nombre que ven los demás en las salas. El nombre vive solo en este teléfono y no es único ni está protegido (otra
+ * persona puede llamarse igual): la nota no promete más. Se aplica la próxima vez que se entra a una sala, no en vivo.
+ */
+@Composable
+private fun EditNameDialog(
+    currentName: String,
+    hasCustomName: Boolean,
+    onSave: (String) -> String?,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var text by rememberSaveable { mutableStateOf(currentName) }
+    var error by rememberSaveable { mutableStateOf<String?>(null) }
+
+    fun save() {
+        val result = onSave(text)
+        if (result == null) onDismiss() else error = result
+    }
+
+    GlassDialog(
+        onDismissRequest = onDismiss,
+        title = "Editar nombre",
+        confirmButton = { GlassButton("Guardar", busy = false, onClick = ::save, modifier = Modifier.width(150.dp)) },
+        dismissButton = { GlassLinkButton("Cancelar", enabled = true, onClick = onDismiss) },
+    ) {
+        GlassFieldGroup {
+            GlassTextField(
+                value = text,
+                onValueChange = {
+                    text = limitDisplayNameInput(it)
+                    error = null
+                },
+                label = "Nombre",
+                error = error,
+                imeAction = ImeAction.Done,
+                onAction = ::save,
+            )
+        }
+        Text(
+            "Es el nombre que verán los demás en las salas. Se aplica la próxima vez que entres a una sala.",
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        if (hasCustomName) {
+            GlassLinkButton(
+                "Usar el nombre de mi correo",
+                enabled = true,
+                onClick = {
+                    onReset()
+                    onDismiss()
+                },
+            )
+        }
     }
 }
 

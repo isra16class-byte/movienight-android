@@ -9,6 +9,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.isra16.movienight.MovieNightApp
 import com.isra16.movienight.auth.SessionState
+import com.isra16.movienight.auth.displayNameError
+import com.isra16.movienight.auth.effectiveUsername
 import com.isra16.movienight.net.ADMIN_PROBE_PATH
 import com.isra16.movienight.net.AdminAccess
 import com.isra16.movienight.net.CREATE_ROOM_FROM_UPLOAD_PATH
@@ -45,6 +47,8 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+
+private const val MSG_NAME_NOT_SAVED = "No se pudo guardar. Inténtalo de nuevo."
 
 /** Estado de la lista de la biblioteca. */
 sealed interface LibraryState {
@@ -142,6 +146,41 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
     private var lastRecentCheckMillis = 0L
 
     private fun accountId(): String? = (container.session.state.value as? SessionState.LoggedIn)?.id
+
+    // --- Nombre que se muestra en las salas (Home > Perfil) -------------------------------------------
+
+    private fun loggedInEmail(): String = (container.session.state.value as? SessionState.LoggedIn)?.email.orEmpty()
+
+    private fun savedCustomName(): String? = accountId()?.let { container.profilePrefs.getName(it) }
+
+    /** El nombre efectivo: el elegido si existe y, si no, el del correo. Solo se aplica al entrar a una sala; lo guardado vive en este teléfono. */
+    var displayName by mutableStateOf(effectiveUsername(savedCustomName(), loggedInEmail()))
+        private set
+
+    /** Si hay un nombre elegido (para ofrecer volver al del correo). */
+    var hasCustomName by mutableStateOf(savedCustomName() != null)
+        private set
+
+    private fun refreshDisplayName() {
+        val custom = savedCustomName()
+        displayName = effectiveUsername(custom, loggedInEmail())
+        hasCustomName = custom != null
+    }
+
+    /** Guarda el nombre. Devuelve el mensaje de error para mostrar bajo el campo, o null si se guardó. */
+    fun saveDisplayName(input: String): String? {
+        displayNameError(input)?.let { return it }
+        val account = accountId() ?: return MSG_NAME_NOT_SAVED
+        container.profilePrefs.setName(account, input)
+        refreshDisplayName()
+        return null
+    }
+
+    /** Vuelve al nombre del correo. */
+    fun resetDisplayName() {
+        accountId()?.let { container.profilePrefs.clearName(it) }
+        refreshDisplayName()
+    }
 
     /**
      * 1) Muestra al instante lo guardado (conservando lo último que se supo de cada sala). 2) Comprueba cada sala con
