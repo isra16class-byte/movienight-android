@@ -133,6 +133,7 @@ import com.isra16.movienight.net.portraitVideoHeightDp
 import com.isra16.movienight.net.progressFraction
 import com.isra16.movienight.net.replyFor
 import com.isra16.movienight.net.replyIconAlpha
+import com.isra16.movienight.net.replySwipeDirection
 import com.isra16.movienight.net.replySwipeOffset
 import com.isra16.movienight.net.replySwipeReached
 import com.isra16.movienight.net.roomLayoutFor
@@ -542,7 +543,7 @@ private fun ReplyBar(message: ChatMessage, onCancel: () -> Unit) {
 }
 
 /**
- * Un mensaje del chat. [onReply] != null activa el gesto de responder (Fase 8, paso 5o): arrastrar la burbuja a la derecha (con resistencia y tope,
+ * Un mensaje del chat. [onReply] != null activa el gesto de responder (Fase 8, paso 5o): arrastrar la burbuja a la derecha (los mensajes propios, a la izquierda: `replySwipeDirection`; con resistencia y tope,
  * `replySwipeOffset`); al soltar pasando el umbral (`replySwipeReached`) vibra y llama a [onReply]; la burbuja vuelve a 0 con animación. Solo se
  * consume el movimiento horizontal (`detectHorizontalDragGestures`): el scroll vertical del chat sigue siendo de la lista. Los avisos del sistema no se mueven.
  */
@@ -573,9 +574,11 @@ private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessa
     val haptic = LocalHapticFeedback.current
     val currentMessage by rememberUpdatedState(message)
     val currentOnReply by rememberUpdatedState(onReply)
+    // +1 = a la derecha (mensajes de los demás), -1 = a la izquierda (los míos). `swipePx` siempre es la magnitud, >= 0.
+    val direction = replySwipeDirection(mine)
     // `pointerInput` va ANTES (por fuera) del `offset`: si fuera después, la zona táctil se movería con la burbuja y el arrastre se trabaría.
     val swipeModifier = if (onReply != null) {
-        Modifier.pointerInput(thresholdPx, maxPx) {
+        Modifier.pointerInput(thresholdPx, maxPx, direction) {
             var raw = 0f
             var returning: Job? = null
             fun settle() {
@@ -597,8 +600,8 @@ private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessa
                 },
                 onDragCancel = { settle() },
                 onHorizontalDrag = { _, dragAmount ->
-                    // Hacia la izquierda no pasa de 0: la burbuja nunca sale por ese lado.
-                    raw = (raw + dragAmount).coerceAtLeast(0f)
+                    // Hacia el lado contrario al de [direction] no pasa de 0: la burbuja nunca sale por ese lado.
+                    raw = (raw + dragAmount * direction).coerceAtLeast(0f)
                     swipePx = replySwipeOffset(raw, maxPx)
                 },
             )
@@ -608,14 +611,15 @@ private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessa
     }
 
     Row(Modifier.fillMaxWidth(), horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start) {
-        Box(swipeModifier.offset { IntOffset(swipePx.roundToInt(), 0) }) {
-            // Icono de responder: viaja con la burbuja, a su izquierda, y aparece con el avance (opacidad leída en la fase de dibujo).
+        Box(swipeModifier.offset { IntOffset((swipePx * direction).roundToInt(), 0) }) {
+            // Icono de responder: viaja con la burbuja, del lado de donde viene (a su izquierda en los ajenos, a su derecha en los
+            // míos), y aparece con el avance (opacidad leída en la fase de dibujo).
             if (onReply != null) {
                 Text(
                     "↩",
                     modifier = Modifier
-                        .align(Alignment.CenterStart)
-                        .offset(x = (-32).dp)
+                        .align(if (mine) Alignment.CenterEnd else Alignment.CenterStart)
+                        .offset(x = (32 * -direction).dp)
                         .graphicsLayer { alpha = replyIconAlpha(swipePx, thresholdPx) },
                     style = MaterialTheme.typography.titleMedium,
                     color = textColor,

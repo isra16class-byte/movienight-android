@@ -8,6 +8,7 @@ import com.isra16.movienight.net.ReplyTo
 import com.isra16.movienight.net.canReplyTo
 import com.isra16.movienight.net.replyFor
 import com.isra16.movienight.net.replyIconAlpha
+import com.isra16.movienight.net.replySwipeDirection
 import com.isra16.movienight.net.replySwipeOffset
 import com.isra16.movienight.net.replySwipeReached
 import org.junit.Assert.assertEquals
@@ -130,6 +131,22 @@ class ChatReplyLogicTest {
         // 70 dp de dedo * 0,8 = 56 dp: justo el umbral; el tope de 72 dp lo permite.
         assertTrue(replySwipeReached(replySwipeOffset(70f, 72f), 56f))
         assertFalse(replySwipeReached(replySwipeOffset(69f, 72f), 56f))
+    }
+
+    @Test
+    fun `los mensajes propios se deslizan a la izquierda y los ajenos a la derecha`() {
+        assertEquals(-1f, replySwipeDirection(true), 0f)
+        assertEquals(1f, replySwipeDirection(false), 0f)
+    }
+
+    @Test
+    fun `con la direccion aplicada el arrastre hacia el lado correcto avanza y hacia el otro no`() {
+        // Misma cuenta que MessageRow: raw = (raw + arrastre * dirección).coerceAtLeast(0).
+        fun offsetFor(drag: Float, mine: Boolean) = replySwipeOffset((drag * replySwipeDirection(mine)).coerceAtLeast(0f), 72f)
+        assertEquals(40f, offsetFor(50f, mine = false), 1e-4f)
+        assertEquals(0f, offsetFor(-50f, mine = false), 1e-6f)
+        assertEquals(40f, offsetFor(-50f, mine = true), 1e-4f)
+        assertEquals(0f, offsetFor(50f, mine = true), 1e-6f)
     }
 
     @Test

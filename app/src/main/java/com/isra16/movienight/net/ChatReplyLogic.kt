@@ -54,6 +54,12 @@ fun replySwipeOffset(rawDrag: Float, maxOffset: Float): Float {
     return (rawDrag * REPLY_SWIPE_RESISTANCE).coerceAtMost(maxOffset)
 }
 
+/**
+ * Hacia qué lado se arrastra la burbuja para responder: +1 a la derecha (mensajes de los demás) y -1 a la izquierda (los propios, que quedan
+ * pegados al borde derecho y se deslizan al lado contrario, Fase 8 paso 5o).
+ */
+fun replySwipeDirection(mine: Boolean): Float = if (mine) -1f else 1f
+
 /** `true` si al soltar con [offset] se responde (llegó al [threshold]). */
 fun replySwipeReached(offset: Float, threshold: Float): Boolean = threshold > 0f && offset >= threshold
 
