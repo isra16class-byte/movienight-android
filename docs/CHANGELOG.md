@@ -5,6 +5,15 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-18 — `gradlew testDebugUnitTest` completo pasa (530 tests, 0 fallos)
+
+- **Qué:** La persona corrió `./gradlew testDebugUnitTest` sobre `522e8fc` (`origin/main`) y mostró `BUILD SUCCESSFUL in 23s` y el reporte de Gradle 8.13 (`app/build/reports/tests/testDebugUnitTest/index.html`): **530 tests, 0 fallos, 0 ignorados**, 100 % de éxito. El asistente no lo vio correr: lo sabe por lo que la persona pegó.
+- **Qué confirma:** que el proyecto compila (código principal y de tests, también la UI que el asistente nunca pudo compilar) y que pasan todos los tests, incluidos `ModerationLogicTest`, `UploadLogicTest`, `VideoUrlTest` y `UserMessagesGuardTest`, que el arnés del asistente no podía correr, y `PlaybackServiceLogicTest`. Los 530 son todos los de la carpeta de tests, no solo los del nombre de Perfil.
+- **Qué no confirma:** nada visual ni del comportamiento en el teléfono, otros teléfonos y tamaños, ni las pruebas de la 7B en teléfono real.
+- **Solo documentación en este commit:** MEMORIA (entrada del nombre de Perfil y pendientes), plan (casilla de `gradlew` de la 7B y línea de Perfil) y esta entrada. Los «sin confirmar `gradlew`» de las entradas históricas no se tocan: eran ciertos cuando se escribieron. Sin cambios de código.
+
+---
+
 ## 2026-10-18 — Pestañas de Home, parte 2: nombre elegido por la persona (Perfil), hecha y confirmada
 
 - **Qué:** La persona dijo (2026-10-18) que «todas las pruebas dieron positivo» (las 10 de la lista); no dio detalle por punto ni qué teléfono ni versión de Android usó. Ahora se puede cambiar, desde Perfil, el nombre con el que apareces en las salas; antes era siempre la parte del correo antes de la `@`.
