@@ -1,7 +1,18 @@
 package com.isra16.movienight
 
 import com.isra16.movienight.net.apiErrorMessage
+import com.isra16.movienight.net.ModerationAction
+import com.isra16.movienight.net.ModerationCheck
 import com.isra16.movienight.net.PutOutcome
+import com.isra16.movienight.net.RECONNECTING_MESSAGE
+import com.isra16.movienight.net.RESTART_ANNOUNCED_MESSAGE
+import com.isra16.movienight.net.RESTART_RECONNECTING_MESSAGE
+import com.isra16.movienight.net.Viewer
+import com.isra16.movienight.net.checkModeration
+import com.isra16.movienight.net.confirmationFor
+import com.isra16.movienight.net.moderationTimeoutMessage
+import com.isra16.movienight.net.roomErrorAfterRestart
+import com.isra16.movienight.net.viewerLabel
 import com.isra16.movienight.net.authErrorMessage
 import com.isra16.movienight.net.failureFromPut
 import com.isra16.movienight.net.interpretPresign
@@ -65,6 +76,33 @@ class UserMessagesGuardTest {
             assertFalse("voseo: $m", voseo.containsMatchIn(m))
             assertFalse("tecnicismo: $m", tecnicismos.containsMatchIn(m))
             assertFalse("código de respuesta: $m", m.any { it.isDigit() })
+            assertTrue("mide ${m.length}: $m", m.length <= 100)
+        }
+    }
+
+    @Test
+    fun losMensajesDeSalaYModeracionNoTienenVoseoNiTecnicismos() {
+        val yo = Viewer(id = "a", username = "ana", isHost = true, muted = false, buffering = false)
+        val otro = Viewer(id = "b", username = "beto", isHost = false, muted = true, buffering = false)
+        val mensajes = buildList {
+            for (host in listOf(true, false)) for (conectado in listOf(true, false)) {
+                for (id in listOf("a", "b", "zz")) {
+                    val r = checkModeration(id, listOf(yo, otro), "a", host, conectado)
+                    if (r is ModerationCheck.Rejected) add(r.message)
+                }
+            }
+            for (a in ModerationAction.entries) {
+                add(moderationTimeoutMessage(a, "beto"))
+                confirmationFor(a, "beto")?.let { add(it.title); add(it.text); add(it.confirmLabel) }
+            }
+            add(viewerLabel(yo, isMe = true))
+            add(RESTART_ANNOUNCED_MESSAGE); add(RESTART_RECONNECTING_MESSAGE); add(RECONNECTING_MESSAGE)
+            add(roomErrorAfterRestart("La sala no existe."))
+        }
+        assertTrue(mensajes.size > 15)
+        for (m in mensajes) {
+            assertFalse("voseo: $m", voseo.containsMatchIn(m))
+            assertFalse("tecnicismo: $m", tecnicismos.containsMatchIn(m))
             assertTrue("mide ${m.length}: $m", m.length <= 100)
         }
     }

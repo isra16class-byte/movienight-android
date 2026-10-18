@@ -123,7 +123,7 @@ class ModerationLogicTest {
     @Test
     fun siYaNoEsHostSeRechaza() {
         val check = checkModeration("sock-ana", room, "sock-me", isHost = false, isConnected = true)
-        assertEquals(ModerationCheck.Rejected("Ya no sos el host de la sala."), check)
+        assertEquals(ModerationCheck.Rejected("Ya no eres el host de la sala."), check)
     }
 
     @Test
@@ -163,9 +163,9 @@ class ModerationLogicTest {
     @Test
     fun laFilaMuestraVosHostYSilenciado() {
         assertEquals("ana", viewerLabel(ana, isMe = false))
-        assertEquals("isra · vos, host", viewerLabel(me, isMe = true))
+        assertEquals("isra · tú, host", viewerLabel(me, isMe = true))
         assertEquals("beto · silenciado", viewerLabel(beto, isMe = false))
-        assertEquals("beto · vos, silenciado", viewerLabel(beto, isMe = true))
+        assertEquals("beto · tú, silenciado", viewerLabel(beto, isMe = true))
     }
 
     // --- Se ve el resultado en viewer-list -----------------------------------------------------------

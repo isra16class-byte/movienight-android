@@ -455,7 +455,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
         // La subida pudo tardar: si mientras tanto el host pasó a ser otro, no se le pisa el video.
         if (!isHost) {
             return FollowUpOutcome.Failed(
-                RoomVideoFailure("Ya no sos el host de la sala, así que el video no se cambió.", canRetry = false),
+                RoomVideoFailure("Ya no eres el host de la sala, así que el video no se cambió.", canRetry = false),
             )
         }
         val result = container.api.postJson(baseUrl, changeVideoPath(roomId), changeVideoBody(key, hostToken))
@@ -545,7 +545,7 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.ConnectError -> {
                 isConnected = false
-                notice = "No se pudo conectar con el servidor. Reintentando…"
+                notice = "No hay conexión con el servidor. Reintentando…"
             }
             is RoomEvent.RoomError -> {
                 // Si veníamos de un reinicio, el error se explica con eso (típico: la sala no se recuperó).

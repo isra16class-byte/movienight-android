@@ -13,7 +13,7 @@ package com.isra16.movienight.net
 /** Cuánto se mantiene el aviso de reinicio si la conexión no vuelve (después se vuelve al aviso genérico). */
 const val RESTART_GIVE_UP_MS = 90_000L
 
-const val RESTART_ANNOUNCED_MESSAGE = "El servidor se va a reiniciar en unos segundos. La app reconecta sola."
+const val RESTART_ANNOUNCED_MESSAGE = "El servidor se reiniciará en unos segundos. La app se reconectará sola."
 const val RESTART_RECONNECTING_MESSAGE = "El servidor se está reiniciando. Reconectando en cuanto vuelva…"
 const val RECONNECTING_MESSAGE = "Reconectando…"
 

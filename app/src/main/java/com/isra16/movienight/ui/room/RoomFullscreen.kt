@@ -224,7 +224,7 @@ internal fun RoomFullscreen(
                 exit = fadeOut(),
             ) {
                 Text(
-                    "Sos el host",
+                    "Eres el host",
                     modifier = Modifier
                         .clip(RoundedCornerShape(20.dp))
                         .background(MaterialTheme.colorScheme.primary)

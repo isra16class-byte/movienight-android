@@ -50,8 +50,8 @@ fun checkModeration(
     isHost: Boolean,
     isConnected: Boolean,
 ): ModerationCheck {
-    if (!isConnected) return ModerationCheck.Rejected("Sin conexión con la sala. Esperá a que se reconecte.")
-    if (!isHost) return ModerationCheck.Rejected("Ya no sos el host de la sala.")
+    if (!isConnected) return ModerationCheck.Rejected("Sin conexión con la sala. Espera a que se reconecte.")
+    if (!isHost) return ModerationCheck.Rejected("Ya no eres el host de la sala.")
     val target = viewers.firstOrNull { it.id == targetId }
         ?: return ModerationCheck.Rejected("Esa persona ya no está en la sala.")
     if (!isModerationTarget(target, myId)) {
@@ -80,21 +80,21 @@ data class ModerationConfirmation(val title: String, val text: String, val confi
 fun confirmationFor(action: ModerationAction, name: String): ModerationConfirmation? = when (action) {
     ModerationAction.KICK -> ModerationConfirmation(
         title = "¿Expulsar a $name?",
-        text = "Sale de la sala ahora mismo. Si tiene el link (y la contraseña, si hay), puede volver a entrar.",
+        text = "Saldrá de la sala ahora. Con el enlace (y la contraseña, si hay), podrá volver a entrar.",
         confirmLabel = "Expulsar",
     )
     ModerationAction.MAKE_HOST -> ModerationConfirmation(
         title = "¿Pasarle el control a $name?",
-        text = "Va a poder pausar, adelantar y moderar la sala, y vos dejás de poder hacerlo.",
+        text = "Podrá pausar, adelantar y moderar la sala, y tú dejarás de poder hacerlo.",
         confirmLabel = "Hacer host",
     )
     ModerationAction.TOGGLE_MUTE -> null
 }
 
-/** Cómo se ve una fila de la lista de conectados: nombre y, si corresponde, "vos", host y silenciado. */
+/** Cómo se ve una fila de la lista de conectados: nombre y, si corresponde, "tú", host y silenciado. */
 fun viewerLabel(viewer: Viewer, isMe: Boolean): String {
     val tags = buildList {
-        if (isMe) add("vos")
+        if (isMe) add("tú")
         if (viewer.isHost) add("host")
         if (viewer.muted) add("silenciado")
     }
@@ -116,9 +116,9 @@ fun outcomeReached(action: ModerationAction, before: Viewer, viewers: List<Viewe
 
 /** Aviso cuando el server no devolvió el cambio esperado en el tiempo de espera (no manda errores propios). */
 fun moderationTimeoutMessage(action: ModerationAction, name: String): String = when (action) {
-    ModerationAction.MAKE_HOST -> "El servidor no confirmó el traspaso del host a $name. Revisá la lista y probá de nuevo."
-    ModerationAction.TOGGLE_MUTE -> "El servidor no confirmó el cambio de silencio de $name. Revisá la lista y probá de nuevo."
-    ModerationAction.KICK -> "$name sigue en la sala: el servidor no confirmó la expulsión. Probá de nuevo."
+    ModerationAction.MAKE_HOST -> "No se confirmó el traspaso del host a $name. Revisa la lista e inténtalo de nuevo."
+    ModerationAction.TOGGLE_MUTE -> "No se confirmó el cambio de silencio de $name. Revisa la lista e inténtalo de nuevo."
+    ModerationAction.KICK -> "$name sigue en la sala: no se confirmó la expulsión. Inténtalo de nuevo."
 }
 
 /**

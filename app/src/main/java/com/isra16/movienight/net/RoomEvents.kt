@@ -89,7 +89,7 @@ fun parseServerEvent(name: String, args: Array<out Any?>): RoomEvent? {
         "chat-message" -> (first as? JSONObject)?.let { RoomEvent.Chat(parseChatMessage(it)) }
         "chat-rate-limited" -> RoomEvent.ChatRateLimited(
             (first as? JSONObject)?.optString("message", "")?.takeIf { it.isNotBlank() }
-                ?: "Estás mandando mensajes muy rápido, esperá un toque.",
+                ?: "Estás enviando mensajes muy rápido. Espera un momento.",
         )
         "host-status" -> (first as? JSONObject)?.let {
             val isHost = it.optBoolean("isHost", false)

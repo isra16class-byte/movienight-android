@@ -299,7 +299,7 @@ private fun RoomHeaderTitle(roomId: String, showHostLine: Boolean, visible: Bool
             Column {
                 Text("Sala $roomId", style = MaterialTheme.typography.titleMedium, maxLines = 1)
                 if (showHostLine) {
-                    Text("Sos el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
+                    Text("Eres el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
             }
         }
@@ -953,7 +953,7 @@ internal fun GuestProgressBar(
 private const val PROGRESS_REFRESH_MS = 500L
 
 /** Aviso de que el host silenció al usuario (en el campo de texto de la vista normal y arriba en pantalla completa). */
-internal const val MUTED_CHAT_NOTICE = "El host te silenció: no podés escribir en el chat."
+internal const val MUTED_CHAT_NOTICE = "El host te silenció: no puedes escribir en el chat."
 
 /**
  * Llama a [onStop] cuando la app deja de verse (Home, apagar la pantalla, cerrar la ventana flotante...), pero no
