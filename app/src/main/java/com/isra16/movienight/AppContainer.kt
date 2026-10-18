@@ -1,6 +1,7 @@
 package com.isra16.movienight
 
 import android.content.Context
+import com.isra16.movienight.auth.RecentRoomsStore
 import com.isra16.movienight.auth.SessionManager
 import com.isra16.movienight.auth.UserIdStore
 import com.isra16.movienight.net.MovieNightApi
@@ -55,6 +56,9 @@ class AppContainer(context: Context) {
     val session = SessionManager(api, cookieJar, baseUrl)
     val userIds = UserIdStore(context)
     val roomPasswords = RoomPasswordCache()
+
+    /** Las salas a las que entró cada cuenta en este teléfono ("Mis salas", Home > Salas). */
+    val recentRooms = RecentRoomsStore(context)
 
     /** Cuántas pantallas de la app se ven ahora (lo actualiza [MovieNightApp]); el aviso de subida lo consulta. */
     val visibility = VisibilityCounter()

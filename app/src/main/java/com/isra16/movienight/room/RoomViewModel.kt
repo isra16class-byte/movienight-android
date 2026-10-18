@@ -589,6 +589,11 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
             }
             is RoomEvent.RoomData -> {
                 videoName = videoDisplayName(event.videoFile)
+                // "Mis salas" (Home): `room-data` es lo último que manda el server al aceptar el `join-room`, así que una sala a la que se
+                // falló la contraseña no llega acá. También llega al reconectar: el registro es un upsert (no duplica, actualiza la hora).
+                (container.session.state.value as? SessionState.LoggedIn)?.let {
+                    container.recentRooms.record(it.id, roomId, videoName, System.currentTimeMillis())
+                }
                 // El subtítulo va primero, para que el video cargue ya con él (y, al reconectar, para enterarse
                 // de uno que cambió mientras no había conexión).
                 player.setSubtitle(resolveSubtitleUrl(baseUrl, event.subtitleFile))
