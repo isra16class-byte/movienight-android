@@ -78,7 +78,7 @@ fun interpretCreateRoom(code: Int, body: String): CreateRoomResult {
             CreateRoomResult.Ok(roomId)
         } else {
             CreateRoomResult.Failed(
-                RoomVideoFailure("El servidor respondió algo inesperado al crear la sala. Intentá de nuevo.", canRetry = true),
+                RoomVideoFailure(MSG_UNEXPECTED_RESPONSE, canRetry = true),
             )
         }
     }
@@ -90,8 +90,7 @@ fun interpretChangeVideo(code: Int, body: String): ChangeVideoResult {
     if (code == 200) return ChangeVideoResult.Ok
     val failure = when (code) {
         403 -> RoomVideoFailure(
-            "Solo quien creó la sala puede cambiarle el video, y esta cuenta no la creó (aunque ahora seas el host). " +
-                "Pedile a esa persona que lo cambie.",
+            "Solo quien creó la sala puede cambiar su video, aunque seas el host. Pídeselo a esa persona.",
             canRetry = false,
         )
         404 -> RoomVideoFailure("Esa sala ya no existe o se cerró.", canRetry = false)

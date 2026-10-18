@@ -10,3 +10,5 @@ internal const val MSG_SERVER_UNAVAILABLE = "El servidor no está disponible aho
 internal const val MSG_SERVER_PROBLEM = "El servidor tuvo un problema. Inténtalo de nuevo en un momento."
 internal const val MSG_UNEXPECTED_RESPONSE = "El servidor respondió algo inesperado. Inténtalo de nuevo."
 internal const val MSG_WRONG_SERVER_ADDRESS = "El servidor respondió algo inesperado. Revisa su dirección."
+internal const val MSG_PICK_VIDEO_FROM_PHONE = "Elige un video de tu teléfono."
+internal const val MSG_UPLOAD_OTHER_APPS = "Puedes usar otras apps: la subida sigue y verás el avance en una notificación."

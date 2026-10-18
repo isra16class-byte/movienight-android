@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.net.ALREADY_UPLOADED_NOTE
+import com.isra16.movienight.net.MSG_UPLOAD_OTHER_APPS
 import com.isra16.movienight.net.UploadGoal
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.doneMessage
@@ -46,7 +47,7 @@ fun UploadStatusBody(
     modifier: Modifier = Modifier,
     /** Si no es `null`, un "listo" de crear sala ofrece este botón (por si la pantalla no navegó sola). */
     onOpenRoom: ((roomId: String) -> Unit)? = null,
-    uploadingHint: String = "Podés usar otras apps: la subida sigue y se ve el avance en una notificación.",
+    uploadingHint: String = MSG_UPLOAD_OTHER_APPS,
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
         when (state) {
@@ -61,7 +62,7 @@ fun UploadStatusBody(
                 LinearProgressIndicator(progress = { state.fraction }, modifier = Modifier.fillMaxWidth())
                 Text(
                     if (state.sentBytes >= state.totalBytes) {
-                        "Terminando… esperando que la nube confirme."
+                        "Terminando la subida…"
                     } else {
                         progressLabel(state.sentBytes, state.totalBytes)
                     },

@@ -55,10 +55,10 @@ fun shouldLoadVideo(loadedUrl: String?, newUrl: String?, force: Boolean): Boolea
  * 1.11.1; se usan como número para que esta función se pueda probar sin la librería.
  */
 fun playbackErrorMessage(errorCode: Int): String = when (errorCode) {
-    2001, 2002 -> "No se pudo cargar el video: revisá tu conexión."
-    2004, 2005 -> "El servidor no encontró el video. Puede que lo hayan borrado de la biblioteca."
-    2007 -> "El video está en una dirección sin cifrar (http) y la app no la permite."
-    in 3001..3004 -> "El archivo de video está dañado o tiene un formato que no se puede leer."
+    2001, 2002 -> "No se pudo cargar el video. Revisa tu conexión."
+    2004, 2005 -> "No se encontró el video. Puede que lo hayan borrado de la biblioteca."
+    2007 -> "No se puede reproducir este video: su dirección no es segura."
+    in 3001..3004 -> "El video está dañado o tiene un formato no compatible."
     in 4001..4006 -> "Este teléfono no puede reproducir este video."
     else -> "No se pudo reproducir el video."
 }

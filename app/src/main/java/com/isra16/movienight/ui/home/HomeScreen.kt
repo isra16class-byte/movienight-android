@@ -73,6 +73,7 @@ import com.isra16.movienight.net.DEFAULT_HOME_TAB
 import com.isra16.movienight.net.HomeTab
 import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
+import com.isra16.movienight.net.MSG_PICK_VIDEO_FROM_PHONE
 import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
@@ -229,7 +230,7 @@ fun HomeScreen(
         if (showUploadAndCreate) {
             CreateRoomDialog(
                 title = "Subir y crear sala",
-                subtitle = "Elegí un video del teléfono: se sube a la biblioteca y, al terminar, se crea la sala con él.",
+                subtitle = "$MSG_PICK_VIDEO_FROM_PHONE Se sube a la biblioteca y se crea la sala.",
                 confirmLabel = "Elegir video",
                 busy = false,
                 error = null,
@@ -437,7 +438,7 @@ private fun UploadsCard(
             state = upload,
             idle = {
                 Text(
-                    "No hay subidas en curso. Para subir un video, andá a Biblioteca.",
+                    "No hay subidas en curso. Para subir un video, ve a Biblioteca.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -504,7 +505,7 @@ private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
                             code = it
                             vm.clearJoinError()
                         },
-                        label = "Código o link",
+                        label = "Código o enlace",
                         error = joinError,
                         imeAction = ImeAction.Go,
                         onAction = { join() },
@@ -578,7 +579,7 @@ private fun LibraryCard(
             }
             is LibraryState.Loaded -> if (library.items.isEmpty()) {
                 Text(
-                    "La biblioteca está vacía. Subí un video desde acá o desde la web para poder crear una sala.",
+                    "La biblioteca está vacía. Sube un video aquí o desde la web para crear una sala.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

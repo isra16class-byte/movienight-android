@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
+import com.isra16.movienight.net.MSG_PICK_VIDEO_FROM_PHONE
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.canCancel
 import com.isra16.movienight.net.finishingLabel
@@ -83,8 +84,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                     state = upload,
                     idle = {
                         Text(
-                            "Elegí un video del teléfono (hasta $MAX_SIMPLE_PUT_LABEL). Se sube a la biblioteca " +
-                                "y, al terminar, pasa a ser el video de la sala.",
+                            "$MSG_PICK_VIDEO_FROM_PHONE Máximo $MAX_SIMPLE_PUT_LABEL. Se sube y pasa a ser el video de la sala.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -99,7 +99,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                     onCancel = vm::cancelUpload,
                     onRetry = vm::retryUpload,
                     onDismiss = vm::dismissUpload,
-                    uploadingHint = "Podés usar otras apps, pero no salgas de la sala mientras sube: si salís, la subida se corta.",
+                    uploadingHint = "Puedes usar otras apps, pero no salgas de la sala: la subida se cortaría.",
                 )
             }
             if (vm.isChangingVideo) {
@@ -122,7 +122,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("O elegí uno de la biblioteca", style = MaterialTheme.typography.titleSmall)
+                        Text("O elige uno de la biblioteca", style = MaterialTheme.typography.titleSmall)
                         GlassLinkButton(
                             "Actualizar",
                             enabled = vm.changeLibrary !is LibraryState.Loading,
@@ -178,7 +178,7 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
             dismissButton = { GlassLinkButton("Cancelar", enabled = true, onClick = { confirming = null }) },
         ) {
             Text(
-                "La sala pasa a «${item.displayName}». Todos lo ven cambiar y arranca desde el principio, en pausa.",
+                "La sala pasará a «${item.displayName}». Todos verán el cambio y empezará en pausa.",
                 style = MaterialTheme.typography.bodyLarge,
             )
         }

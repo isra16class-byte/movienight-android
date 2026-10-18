@@ -179,7 +179,7 @@ class UploadLogicTest {
         // 404: "La subida directa no está disponible: este servidor no tiene Cloudflare R2 configurado."
         val f = (interpretPresign(404, """{"error":"La subida directa no está disponible"}""") as PresignResult.Failed).failure
         assertFalse(f.canRetry)
-        assertTrue(f.message, f.message.contains("R2"))
+        assertTrue(f.message, f.message.contains("no está disponible"))
     }
 
     @Test
@@ -189,7 +189,7 @@ class UploadLogicTest {
         assertTrue(f.message, f.message.startsWith("La biblioteca llegó al límite de 10 video(s)"))
         assertFalse(f.canRetry)
         val sinMensaje = (interpretPresign(413, "") as PresignResult.Failed).failure
-        assertTrue(sinMensaje.message.contains("límite"))
+        assertTrue(sinMensaje.message.contains("llena"))
     }
 
     @Test
@@ -225,7 +225,7 @@ class UploadLogicTest {
     fun putConFirmaInvalida() {
         val xml = """<Error><Code>SignatureDoesNotMatch</Code><Message>The request signature we calculated does not match</Message></Error>"""
         val f = failureFromPut(PutOutcome.Response(403, xml))!!
-        assertTrue(f.message, f.message.contains("firma"))
+        assertTrue(f.message, f.message.contains("autorizó"))
         assertFalse(f.message.contains("venció"))
         assertTrue(f.canRetry)
     }
@@ -241,9 +241,9 @@ class UploadLogicTest {
     @Test
     fun putConErrorDelBucketOSinRed() {
         assertTrue(failureFromPut(PutOutcome.Response(503, "<html>"))!!.canRetry)
-        assertTrue(failureFromPut(PutOutcome.Response(500, ""))!!.message.contains("500"))
+        assertTrue(failureFromPut(PutOutcome.Response(500, ""))!!.message.contains("problema temporal"))
         assertTrue(failureFromPut(PutOutcome.NetworkFailure("UnknownHostException"))!!.canRetry)
-        assertTrue(failureFromPut(PutOutcome.NetworkFailure("x"))!!.message.contains("desde el principio"))
+        assertTrue(failureFromPut(PutOutcome.NetworkFailure("x"))!!.message.contains("desde cero"))
         val source = failureFromPut(PutOutcome.SourceFailure("El archivo creció"))!!
         assertFalse(source.canRetry)
     }

@@ -190,13 +190,13 @@ class VideoUrlTest {
 
     @Test
     fun videoInexistenteEnElServidor() {
-        assertTrue("no encontró" in playbackErrorMessage(2004)) // IO_BAD_HTTP_STATUS (ej. 404)
-        assertTrue("no encontró" in playbackErrorMessage(2005)) // IO_FILE_NOT_FOUND
+        assertTrue("encontró" in playbackErrorMessage(2004)) // IO_BAD_HTTP_STATUS (ej. 404)
+        assertTrue("encontró" in playbackErrorMessage(2005)) // IO_FILE_NOT_FOUND
     }
 
     @Test
     fun httpSinCifrarBloqueadoPorLaApp() {
-        assertTrue("http" in playbackErrorMessage(2007)) // IO_CLEARTEXT_NOT_PERMITTED
+        assertTrue("segura" in playbackErrorMessage(2007)) // IO_CLEARTEXT_NOT_PERMITTED
     }
 
     @Test

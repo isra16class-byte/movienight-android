@@ -1,7 +1,11 @@
 package com.isra16.movienight
 
 import com.isra16.movienight.net.apiErrorMessage
+import com.isra16.movienight.net.PutOutcome
 import com.isra16.movienight.net.authErrorMessage
+import com.isra16.movienight.net.failureFromPut
+import com.isra16.movienight.net.interpretPresign
+import com.isra16.movienight.net.PresignResult
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -35,6 +39,34 @@ class UserMessagesGuardTest {
     @Test
     fun authErrorMessageSinTextoDelServerNoTieneVoseoNiCodigosYEsBreve() {
         for (code in codes) check("authErrorMessage", code, authErrorMessage(code, null))
+    }
+
+    private val tecnicismos = Regex(
+        "(?U)\\b(R2|Cloudflare|firma|token|socket|http|https|código|permiso de subida|nube)\\b",
+        RegexOption.IGNORE_CASE,
+    )
+
+    @Test
+    fun losMensajesDeSubidaNoTienenVoseoNiTecnicismos() {
+        val xmlExpirado = "<Error><Code>ExpiredRequest</Code></Error>"
+        val mensajes = buildList {
+            for (c in listOf(200, 400, 403, 404, 408, 418, 429, 500, 503)) {
+                add(failureFromPut(PutOutcome.Response(c, if (c == 403) xmlExpirado else ""))?.message)
+                add(failureFromPut(PutOutcome.Response(c, "<Error><Code>SignatureDoesNotMatch</Code></Error>"))?.message)
+            }
+            add(failureFromPut(PutOutcome.NetworkFailure("x"))?.message)
+            add(failureFromPut(PutOutcome.SourceFailure("x"))?.message)
+            for (c in listOf(-1, 200, 400, 401, 403, 404, 413, 418, 429, 500, 502)) {
+                add((interpretPresign(c, "") as? PresignResult.Failed)?.failure?.message)
+            }
+        }.filterNotNull()
+        assertTrue(mensajes.size > 20)
+        for (m in mensajes) {
+            assertFalse("voseo: $m", voseo.containsMatchIn(m))
+            assertFalse("tecnicismo: $m", tecnicismos.containsMatchIn(m))
+            assertFalse("código de respuesta: $m", m.any { it.isDigit() })
+            assertTrue("mide ${m.length}: $m", m.length <= 100)
+        }
     }
 
     @Test

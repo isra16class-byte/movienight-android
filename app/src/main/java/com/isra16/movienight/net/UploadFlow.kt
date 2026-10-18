@@ -1,6 +1,7 @@
 package com.isra16.movienight.net
 
 import android.net.Uri
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -110,7 +111,7 @@ class UploadFlow(
         launch(gen) {
             val video = uploader.inspect(uri)
             if (video == null) {
-                setState(gen, failed("", "No se pudo leer el archivo elegido. Probá con otro.", false))
+                setState(gen, failed("", "No se pudo leer el archivo elegido. Prueba con otro.", false))
                 return@launch
             }
             currentName = video.fileName
@@ -175,11 +176,12 @@ class UploadFlow(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
+                Log.w("MovieNightUpload", "error inesperado durante la subida: ${e.javaClass.simpleName}: ${e.message}")
                 setState(
                     gen,
                     failed(
                         currentName,
-                        "Pasó algo inesperado durante la subida (${e.javaClass.simpleName}). Intentá de nuevo.",
+                        "Algo salió mal durante la subida. Inténtalo de nuevo.",
                         canRetry = picked != null || uploadedKey != null,
                         alreadyUploaded = uploadedKey != null,
                     ),
@@ -213,6 +215,7 @@ class UploadFlow(
         }
         val failure = failureFromPut(outcome)
         if (failure != null) {
+            Log.w("MovieNightUpload", "la subida al almacenamiento falló: ${outcome.toString().take(300)}")
             setState(gen, failed(video.fileName, failure.message, failure.canRetry))
             return
         }

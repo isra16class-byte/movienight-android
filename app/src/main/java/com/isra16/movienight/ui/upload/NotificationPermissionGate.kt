@@ -71,8 +71,8 @@ fun rememberNotificationGate(): (proceed: () -> Unit) -> Unit {
             },
         ) {
             Text(
-                "Subir un video grande puede tardar. Si salís de la app mientras sube, mostramos el avance " +
-                    "en una notificación y te avisamos cuando termine o si falla. Solo la usamos para eso.",
+                "Si sales de la app mientras sube, te mostraremos el avance " +
+                    "y te avisaremos al terminar o si falla.",
             )
         }
     }

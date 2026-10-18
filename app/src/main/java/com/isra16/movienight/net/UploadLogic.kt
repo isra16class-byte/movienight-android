@@ -112,8 +112,7 @@ fun validateUpload(fileName: String, sizeBytes: Long): String? {
         return "El archivo está vacío o no se pudo saber cuánto pesa."
     }
     if (sizeBytes > MAX_SIMPLE_PUT_BYTES) {
-        return "El archivo pesa ${formatFileSize(sizeBytes)} y el máximo para subir desde la app es $MAX_SIMPLE_PUT_LABEL " +
-            "(el límite de una subida simple a la nube)."
+        return "El archivo pesa ${formatFileSize(sizeBytes)}. El máximo desde la app es $MAX_SIMPLE_PUT_LABEL."
     }
     return null
 }
@@ -150,17 +149,17 @@ fun interpretPresign(code: Int, body: String): PresignResult {
             return PresignResult.Ok(PresignedUpload(key, url, obj!!.optLong("expiresIn", 0L)))
         }
         return PresignResult.Failed(
-            UploadFailure("El servidor respondió algo inesperado al preparar la subida. Intentá de nuevo.", true),
+            UploadFailure(MSG_UNEXPECTED_RESPONSE, true),
         )
     }
     val server = serverErrorMessage(body)
     val failure = when (code) {
         404 -> UploadFailure(
-            "Este servidor no tiene la subida directa a la nube (Cloudflare R2) configurada, así que no se puede subir desde la app.",
+            "La subida de videos no está disponible en este servidor.",
             false,
         )
         413 -> UploadFailure(
-            server ?: "La biblioteca llegó a su límite de almacenamiento. Borrá algún video desde la web e intentá de nuevo.",
+            server ?: "La biblioteca está llena. Borra algún video desde la web e inténtalo de nuevo.",
             false,
         )
         400, 401, 403 -> UploadFailure(apiErrorMessage(code, server), false)
@@ -189,11 +188,11 @@ fun r2ErrorCode(body: String): String? =
 /** `null` si el PUT salió bien (2xx); si no, el mensaje y si conviene ofrecer reintentar. */
 fun failureFromPut(outcome: PutOutcome): UploadFailure? = when (outcome) {
     is PutOutcome.NetworkFailure -> UploadFailure(
-        "Se cortó la conexión durante la subida. Al reintentar empieza de nuevo desde el principio.",
+        "Se cortó la conexión. Al reintentar, la subida empieza desde cero.",
         true,
     )
     is PutOutcome.SourceFailure -> UploadFailure(
-        "No se pudo leer el archivo del teléfono (¿lo moviste, lo borraste o cambió mientras subía?). Elegilo de nuevo.",
+        "No se pudo leer el archivo. Quizá se movió o se borró. Vuelve a elegirlo.",
         false,
     )
     is PutOutcome.Response -> if (outcome.code in 200..299) null else failureFromBucket(outcome.code, outcome.body)
@@ -205,22 +204,22 @@ private fun failureFromBucket(code: Int, body: String): UploadFailure {
         (code == 403 && body.contains("expired", ignoreCase = true))
     return when {
         errorCode.equals("EntityTooLarge", ignoreCase = true) -> UploadFailure(
-            "La nube rechazó el archivo por ser demasiado grande (máximo $MAX_SIMPLE_PUT_LABEL).",
+            "El archivo es demasiado grande. El máximo es $MAX_SIMPLE_PUT_LABEL.",
             false,
         )
         expired -> UploadFailure(
-            "El permiso de subida venció (pasa si la subida tarda demasiado). Reintentá: se pide uno nuevo y la subida empieza de cero.",
+            "La subida tardó demasiado y venció. Inténtalo de nuevo: empezará desde cero.",
             true,
         )
         code == 403 -> UploadFailure(
-            "La nube rechazó la subida (permiso o firma no válidos). Reintentá; si se repite, avisá a quien administra el servidor.",
+            "No se autorizó la subida. Inténtalo de nuevo; si se repite, avisa al administrador.",
             true,
         )
         code == 408 || code == 429 || code in 500..599 -> UploadFailure(
-            "La nube no respondió bien (código $code). Reintentá en un momento.",
+            "La subida falló por un problema temporal. Inténtalo en un momento.",
             true,
         )
-        else -> UploadFailure("La nube rechazó la subida (código $code).", true)
+        else -> UploadFailure("No se pudo completar la subida. Inténtalo de nuevo.", true)
     }
 }
 
