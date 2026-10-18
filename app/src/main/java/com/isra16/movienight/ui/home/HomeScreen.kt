@@ -32,6 +32,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -42,6 +44,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -61,10 +64,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.isra16.movienight.R
 import com.isra16.movienight.home.HomeViewModel
@@ -75,11 +82,14 @@ import com.isra16.movienight.net.HomeTab
 import com.isra16.movienight.net.LibraryItem
 import com.isra16.movienight.net.MAX_SIMPLE_PUT_LABEL
 import com.isra16.movienight.net.MSG_PICK_VIDEO_FROM_PHONE
+import com.isra16.movienight.net.RecentRoomItem
 import com.isra16.movienight.net.UPLOAD_VIDEO_EXTENSIONS
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.formatFileSize
 import com.isra16.movienight.net.homeTabAt
 import com.isra16.movienight.net.isBusy
+import com.isra16.movienight.net.recentRoomSubtitle
+import com.isra16.movienight.net.recentRoomTitle
 import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.net.showHomeBottomBar
 import com.isra16.movienight.ui.auth.ErrorText
@@ -92,6 +102,7 @@ import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.auth.GlassPasswordField
 import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.auth.GlassTextField
+import com.isra16.movienight.ui.room.findActivity
 import com.isra16.movienight.ui.theme.AuthTitleStyle
 import com.isra16.movienight.ui.theme.LocalGlassColors
 import com.isra16.movienight.ui.upload.KeepScreenOn
@@ -157,6 +168,19 @@ fun HomeScreen(
     val tab = homeTabAt(tabIndex)
     val headerImage = rememberHeaderImage()
 
+    // "Mis salas": se refresca al mostrar la pestaña Salas y cada vez que Home vuelve al frente (al salir de una sala, al volver de
+    // otra app): el ON_RESUME de la actividad, como en RoomFullscreen. El ViewModel no repite la comprobación de red si se hizo hace
+    // menos de 30 s (la lista guardada sí se relee siempre, así una sala recién visitada aparece de inmediato).
+    val lifecycleActivity = LocalContext.current.findActivity()
+    LaunchedEffect(tab) { if (tab == HomeTab.ROOMS) vm.refreshRecentRooms() }
+    DisposableEffect(lifecycleActivity, tab) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME && tab == HomeTab.ROOMS) vm.refreshRecentRooms()
+        }
+        lifecycleActivity?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleActivity?.lifecycle?.removeObserver(observer) }
+    }
+
     // Todo lo de Home va dentro de GlassContent: fija los colores del modo y, dentro de cada panel, GlassBarContent los cambia.
     GlassContent {
         // Arriba y a los lados lo respeta esta columna; abajo, la barra de pestañas se extiende bajo la barra del sistema
@@ -176,7 +200,10 @@ fun HomeScreen(
                     ) {
                         item { HeaderCard(image = headerImage, onOpenProfile = { tabIndex = HomeTab.PROFILE.ordinal }) }
                         when (tab) {
-                            HomeTab.ROOMS -> item { JoinCard(vm, onOpenRoom) }
+                            HomeTab.ROOMS -> {
+                                item { JoinCard(vm, onOpenRoom) }
+                                item { MyRoomsCard(vm, onOpenRoom) }
+                            }
                             HomeTab.LIBRARY -> item {
                                 LibraryCard(
                                     library = vm.library,
@@ -514,6 +541,101 @@ private fun JoinCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
                 }
             }
             GlassButton("Unirme", busy = false, onClick = ::join, modifier = Modifier.width(104.dp), enabled = code.isNotBlank())
+        }
+    }
+}
+
+/**
+ * "Mis salas": las salas a las que la cuenta entró en este teléfono y que siguen existiendo (aunque estén vacías). La lista es
+ * local (el servidor no tiene un endpoint de "mis salas") y cada sala se comprueba con `GET /api/room/<id>`; ver
+ * [HomeViewModel.refreshRecentRooms]. Las filas salen de inmediato y una sala que ya no existe desaparece al terminar la comprobación.
+ */
+@Composable
+private fun MyRoomsCard(vm: HomeViewModel, onOpenRoom: (String) -> Unit) {
+    val rooms = vm.recentRooms
+    // La hora se toma al cambiar la lista (o al volver a la pantalla): los "hace N min" se ponen al día con cada actualización.
+    val now = remember(rooms) { System.currentTimeMillis() }
+    HomeGlassCard {
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text("Mis salas", style = MaterialTheme.typography.titleLarge)
+            TextButton(onClick = { vm.refreshRecentRooms(force = true) }, enabled = !vm.isCheckingRecentRooms) {
+                Icon(painterResource(R.drawable.ic_refresh), contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(6.dp))
+                Text("Actualizar")
+            }
+        }
+        if (rooms.isEmpty()) {
+            Text(
+                "Aún no has entrado a ninguna sala. Usa un código o enlace para unirte.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            if (vm.recentRoomsOffline) {
+                Text(
+                    "Sin conexión: no se pudo comprobar si siguen activas.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Column(Modifier.fillMaxWidth()) {
+                rooms.forEach { room ->
+                    key(room.roomId) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                        RecentRoomRow(
+                            item = room,
+                            nowMillis = now,
+                            onOpen = { onOpenRoom(room.roomId) },
+                            onForget = { vm.forgetRecentRoom(room.roomId) },
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Una sala de "Mis salas": toda la fila abre la sala (que pide la contraseña si hace falta); el menú ⋮ la quita de la lista. */
+@Composable
+private fun RecentRoomRow(item: RecentRoomItem, nowMillis: Long, onOpen: () -> Unit, onForget: () -> Unit) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Row(Modifier.fillMaxWidth().heightIn(min = 56.dp), verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            Modifier.weight(1f).heightIn(min = 56.dp).clickable(role = Role.Button, onClick = onOpen).padding(vertical = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.CenterVertically),
+        ) {
+            Text(recentRoomTitle(item), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                recentRoomSubtitle(item, nowMillis),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        // Área de toque de 48 dp; el glifo ⋮ es texto (la app no tiene un icono de menú en recursos).
+        Box(
+            Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .clickable(role = Role.Button, onClick = { menuOpen = true })
+                .semantics { contentDescription = "Más opciones" },
+            contentAlignment = Alignment.Center,
+        ) {
+            Text("⋮", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text("Quitar de la lista") },
+                    onClick = {
+                        menuOpen = false
+                        onForget()
+                    },
+                )
+            }
         }
     }
 }

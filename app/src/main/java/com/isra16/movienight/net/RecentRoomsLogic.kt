@@ -8,6 +8,12 @@ package com.isra16.movienight.net
 /** Máximo de salas guardadas por cuenta. */
 const val RECENT_ROOMS_MAX = 20
 
+/** No se repite la comprobación de las salas si se hizo hace menos de esto (salvo con "Actualizar"). */
+const val RECENT_ROOMS_CHECK_INTERVAL_MS = 30_000L
+
+/** Consultas a la vez al comprobar las salas (el servidor limita las consultas por IP). */
+const val RECENT_ROOMS_PARALLEL_CHECKS = 4
+
 /** Una sala a la que la persona entró: id (ya normalizado), nombre del video al entrar y cuándo fue la última vez. */
 data class RecentRoom(val roomId: String, val videoName: String, val lastJoinedMillis: Long)
 

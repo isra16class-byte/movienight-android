@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.isra16.movienight.MovieNightApp
+import com.isra16.movienight.auth.SessionState
 import com.isra16.movienight.net.ADMIN_PROBE_PATH
 import com.isra16.movienight.net.AdminAccess
 import com.isra16.movienight.net.CREATE_ROOM_FROM_UPLOAD_PATH
@@ -19,7 +20,12 @@ import com.isra16.movienight.net.UploadGoal
 import com.isra16.movienight.net.UploadState
 import com.isra16.movienight.net.adminAccessFrom
 import com.isra16.movienight.net.adminPanelUrl
+import com.isra16.movienight.net.applyRoomCheck
 import com.isra16.movienight.net.MSG_WRONG_SERVER_ADDRESS
+import com.isra16.movienight.net.RECENT_ROOMS_CHECK_INTERVAL_MS
+import com.isra16.movienight.net.RECENT_ROOMS_PARALLEL_CHECKS
+import com.isra16.movienight.net.RecentRoomItem
+import com.isra16.movienight.net.RoomCheckStatus
 import com.isra16.movienight.net.apiErrorMessage
 import com.isra16.movienight.net.createRoomBody
 import com.isra16.movienight.net.extractRoomId
@@ -27,10 +33,18 @@ import com.isra16.movienight.net.interpretCreateRoom
 import com.isra16.movienight.net.isBusy
 import com.isra16.movienight.net.isSessionExpired
 import com.isra16.movienight.net.mergeAdminAccess
+import com.isra16.movienight.net.parseJsonObject
 import com.isra16.movienight.net.parseLibrary
+import com.isra16.movienight.net.roomCheckFailedByNetwork
+import com.isra16.movienight.net.roomCheckStatus
 import com.isra16.movienight.net.serverErrorMessage
 import com.isra16.movienight.net.toFollowUp
+import com.isra16.movienight.net.toItem
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 /** Estado de la lista de la biblioteca. */
 sealed interface LibraryState {
@@ -109,6 +123,78 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
             val result = api.get(baseUrl, ADMIN_PROBE_PATH)
             adminAccess = mergeAdminAccess(adminAccess, adminAccessFrom(result.code, result.body))
         }
+    }
+
+    // --- Mis salas (Home > Salas) --------------------------------------------------------------------
+
+    /** Las salas a las que la cuenta entró en este teléfono y que siguen existiendo (o no se pudo comprobar), de la más reciente a la más antigua. */
+    var recentRooms by mutableStateOf<List<RecentRoomItem>>(emptyList())
+        private set
+
+    /** Alguna comprobación falló por falta de red: la lista se ve, pero no se sabe si las salas siguen activas. */
+    var recentRoomsOffline by mutableStateOf(false)
+        private set
+
+    var isCheckingRecentRooms by mutableStateOf(false)
+        private set
+
+    private var recentCheckJob: Job? = null
+    private var lastRecentCheckMillis = 0L
+
+    private fun accountId(): String? = (container.session.state.value as? SessionState.LoggedIn)?.id
+
+    /**
+     * 1) Muestra al instante lo guardado (conservando lo último que se supo de cada sala). 2) Comprueba cada sala con
+     * `GET /api/room/<id>`, de a [RECENT_ROOMS_PARALLEL_CHECKS]: 404 la quita de la lista y del teléfono, 200 actualiza si
+     * pide contraseña, cualquier otro resultado (sin red, 429, 5xx...) la conserva. No repite la comprobación si se hizo
+     * hace menos de [RECENT_ROOMS_CHECK_INTERVAL_MS], salvo con [force] ("Actualizar"); tampoco si ya hay una en curso.
+     */
+    fun refreshRecentRooms(force: Boolean = false) {
+        val account = accountId()
+        if (account == null) {
+            recentRooms = emptyList()
+            return
+        }
+        val known = recentRooms.associateBy { it.roomId }
+        recentRooms = container.recentRooms.load(account).map { it.toItem(known[it.roomId]) }
+        if (recentRooms.isEmpty()) {
+            recentRoomsOffline = false
+            return
+        }
+        // Con una comprobación en curso no se lanza otra (ni siquiera con "Actualizar", que además se desactiva mientras tanto).
+        if (recentCheckJob?.isActive == true) return
+        if (!force && System.currentTimeMillis() - lastRecentCheckMillis < RECENT_ROOMS_CHECK_INTERVAL_MS) return
+        val ids = recentRooms.map { it.roomId }
+        recentCheckJob = viewModelScope.launch {
+            isCheckingRecentRooms = true
+            try {
+                val gate = Semaphore(RECENT_ROOMS_PARALLEL_CHECKS)
+                var failedByNetwork = false
+                coroutineScope {
+                    for (id in ids) {
+                        launch {
+                            val result = gate.withPermit { api.get(baseUrl, "/api/room/$id") }
+                            val status = roomCheckStatus(result.code)
+                            if (roomCheckFailedByNetwork(result.code)) failedByNetwork = true
+                            val passwordProtected = parseJsonObject(result.body)?.takeIf { it.has("passwordProtected") }?.optBoolean("passwordProtected")
+                            if (status == RoomCheckStatus.GONE) container.recentRooms.remove(account, id)
+                            recentRooms = applyRoomCheck(recentRooms, id, status, passwordProtected)
+                        }
+                    }
+                }
+                recentRoomsOffline = failedByNetwork
+                lastRecentCheckMillis = System.currentTimeMillis()
+            } finally {
+                isCheckingRecentRooms = false
+            }
+        }
+    }
+
+    /** "Quitar de la lista": solo la quita de este teléfono; si se vuelve a entrar a la sala, reaparece. */
+    fun forgetRecentRoom(roomId: String) {
+        val account = accountId() ?: return
+        container.recentRooms.remove(account, roomId)
+        recentRooms = recentRooms.filter { it.roomId != roomId }
     }
 
     // --- Subir un video del teléfono (Fase 4A) y crear la sala con él (Fase 4B) --------------------
