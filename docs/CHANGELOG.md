@@ -5,6 +5,19 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-18 — Pestañas de Home, parte 2: nombre elegido por la persona (Perfil), hecha y confirmada
+
+- **Qué:** La persona dijo (2026-10-18) que «todas las pruebas dieron positivo» (las 10 de la lista); no dio detalle por punto ni qué teléfono ni versión de Android usó. Ahora se puede cambiar, desde Perfil, el nombre con el que apareces en las salas; antes era siempre la parte del correo antes de la `@`.
+- **Commits (en `origin/main`):** `debad00` (lógica, almacenamiento y `RoomViewModel`) y `42d8bfe` (pantalla). Los docs no se habían actualizado desde `551de4a`.
+- **Qué hay:** `auth/ProfileNameLogic.kt` (JVM puro), `auth/ProfilePrefs.kt` (una clave por cuenta, solo en el teléfono; `AppContainer.profilePrefs`), `HomeViewModel` (`displayName`, `hasCustomName`, `saveDisplayName`, `resetDisplayName`) y, en Perfil, el nombre y el correo, la fila «Editar nombre» y `EditNameDialog` (campo con tope de 40, error bajo el campo, nota, «Guardar», «Cancelar» y «Usar el nombre de mi correo» si hay nombre elegido). Modo oscuro, administración y cerrar sesión siguen igual; el encabezado de Home no cambió.
+- **Cómo se comporta:** el cambio vale desde la próxima vez que se entra a una sala (el `username` se calcula al crear el `RoomViewModel`); el nombre no es único ni está protegido y no se sincroniza entre teléfonos; «mis» mensajes se identifican por `userId`, no por nombre. Reglas de limpieza (decisiones del asistente): saltos de línea y tabuladores pasan a un espacio, tope de 40 unidades UTF-16 sin partir un emoji, mínimo de 2 caracteres reales.
+- **Excepción a «no tocar `RoomViewModel`» (autorizada por la persona, solo esto):** la declaración `private val username` y su import.
+- **Verificado por el asistente:** con grep, que `username` solo sirve para `join-room` y que «mis» mensajes van por `userId`; 15 tests de lógica pura (12 nuevos y los 3 de `UsernameTest`) con kotlinc 2.0.21 y un arnés propio (**no `gradlew`**), con mutaciones que fallaron como debían; que `origin/main` tiene el código que se probó. **Nada de la UI se compiló** (sin Android SDK).
+- **Sin confirmar:** `gradlew testDebugUnitTest`; otros teléfonos y tamaños; el mensaje «No se pudo guardar…» (no se vio); `UserMessagesGuardTest` no cubre los mensajes nuevos (llevan un dígito); dos personas con el mismo nombre comparten color en el chat; los avisos del servidor siguen en voseo.
+- **Solo documentación en este commit:** plan (Perfil tildado, regla de las excepciones), MEMORIA (entrada nueva, estructura de archivos, dato vigente, pendientes) y esta entrada. Sin cambios de código.
+
+---
+
 ## 2026-10-18 — Fase 8, paso 5 (sala: diálogos, estados, teclado, chat con colores y respuestas) y textos en español neutro, hechos; pestañas de Home: «Mis salas» confirmada
 
 - **Qué:** La persona dijo (2026-10-18) de «Mis salas» que «todas pruebas dieron resultados positivos». Antes, en la conversación, dijo de los cambios de la sala 5f a 5l que «esta bien todo», con una objeción (el diálogo «En la sala» se veía desordenado; lo arregló 5m), y de 5n y 5o que «funcionó bien», con un cambio pedido (que los mensajes propios se respondan deslizando a la izquierda; `74fbf74`). No dio detalle por punto ni qué teléfono ni versión de Android usó. **No confirmó** 5m, el ajuste de 5o (`74fbf74`), los textos nuevos (5p) ni el arreglo de compilación `35359a7`.
