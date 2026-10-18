@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.net.ALREADY_UPLOADED_NOTE
@@ -120,7 +121,7 @@ fun UploadStatusBody(
 
 @Composable
 private fun FileNameLine(fileName: String) {
-    if (fileName.isNotBlank()) Text(fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2)
+    if (fileName.isNotBlank()) Text(fileName, style = MaterialTheme.typography.bodyMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
 }
 
 @Composable

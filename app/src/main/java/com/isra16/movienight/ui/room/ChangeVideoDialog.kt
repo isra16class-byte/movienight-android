@@ -27,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.net.LibraryItem
@@ -198,6 +199,7 @@ private fun LibraryRow(item: LibraryItem, enabled: Boolean, onClick: () -> Unit)
             item.displayName,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
             color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Text(
@@ -235,6 +237,7 @@ fun RoomUploadBanner(vm: RoomViewModel) {
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
             )
             when {
                 // Quien ya no es host no puede abrir el cuadro: solo cortar o cerrar el aviso.

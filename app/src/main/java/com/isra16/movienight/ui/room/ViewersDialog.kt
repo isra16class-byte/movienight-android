@@ -22,6 +22,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.isra16.movienight.net.ModerationAction
 import com.isra16.movienight.net.Viewer
@@ -65,7 +66,7 @@ fun ViewersDialog(vm: RoomViewModel, onDismiss: () -> Unit, onChangeVideo: () ->
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             if (vm.videoName.isNotEmpty()) {
                 Text("Viendo", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text(vm.videoName, style = MaterialTheme.typography.bodyLarge, maxLines = 2)
+                Text(vm.videoName, style = MaterialTheme.typography.bodyLarge, maxLines = 2, overflow = TextOverflow.Ellipsis)
             } else {
                 Text("Sin cinta", style = MaterialTheme.typography.bodyLarge, maxLines = 2)
             }
@@ -148,11 +149,21 @@ private fun ViewerRow(
     var menuOpen by remember { mutableStateOf(false) }
     // Alto mínimo igual con o sin "Acciones" (el enlace mide 32 dp y sin él la fila era más baja).
     Row(Modifier.fillMaxWidth().heightIn(min = VIEWER_ROW_MIN_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
-        Text(
-            viewerLabel(viewer, isMe),
-            modifier = Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-        )
+        // El nombre se recorta con elipsis y el sufijo (" · tú, host") queda siempre visible: viewerLabel empieza por el nombre.
+        val label = viewerLabel(viewer, isMe)
+        val suffix = label.removePrefix(viewer.username)
+        Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                viewer.username,
+                modifier = Modifier.weight(1f, fill = false),
+                style = MaterialTheme.typography.bodyLarge,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (suffix.isNotEmpty()) {
+                Text(suffix, style = MaterialTheme.typography.bodyLarge, maxLines = 1, softWrap = false)
+            }
+        }
         if (actions.isNotEmpty()) {
             // El enlace lleva 12 dp de aire a cada lado: el offset (no cambia el tamaño) hace que el texto termine en el borde derecho de la lista.
             Box(Modifier.offset(x = GLASS_LINK_HORIZONTAL_PADDING)) {

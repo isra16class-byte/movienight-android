@@ -108,6 +108,15 @@ class UserMessagesGuardTest {
     }
 
     @Test
+    fun laEtiquetaDeConectadoEmpiezaPorElNombre() {
+        // ViewerRow separa el nombre del sufijo con removePrefix(username): esto lo garantiza.
+        for (isMe in listOf(true, false)) for (host in listOf(true, false)) for (muted in listOf(true, false)) {
+            val v = Viewer(id = "a", username = "ana", isHost = host, muted = muted, buffering = false)
+            assertTrue(viewerLabel(v, isMe).startsWith("ana"))
+        }
+    }
+
+    @Test
     fun laGuardaDetectaElVoseo() {
         assertTrue(voseo.containsMatchIn("Intentá de nuevo."))
         assertTrue(voseo.containsMatchIn("Ya no sos el host."))

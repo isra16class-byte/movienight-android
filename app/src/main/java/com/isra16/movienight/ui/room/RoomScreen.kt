@@ -297,7 +297,7 @@ private fun RoomHeaderTitle(roomId: String, showHostLine: Boolean, visible: Bool
             exit = fadeOut(tween(ROOM_HEADER_ANIM_MS)),
         ) {
             Column {
-                Text("Sala $roomId", style = MaterialTheme.typography.titleMedium, maxLines = 1)
+                Text("Sala $roomId", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 if (showHostLine) {
                     Text("Eres el host", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.primary)
                 }
@@ -631,13 +631,22 @@ private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessa
                 color = bubbleColor,
             ) {
                 Column(Modifier.padding(horizontal = 12.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(
-                        message.user + if (message.isHost) " · host" else "",
-                        // El color del nombre sale del nombre (`chatNameColorIndex`, Fase 8 paso 5n): el mismo en todos sus mensajes y en las citas.
-                        // El host se distingue en negrita, no por color.
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal),
-                        color = nameColor,
-                    )
+                    // El color del nombre sale del nombre (`chatNameColorIndex`, Fase 8 paso 5n): el mismo en todos sus mensajes y en las citas.
+                    // El host se distingue en negrita, no por color. El nombre se recorta con elipsis y " · host" queda siempre visible.
+                    val nameStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            message.user,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = nameStyle,
+                            color = nameColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (message.isHost) {
+                            Text(" · host", style = nameStyle, color = nameColor, maxLines = 1, softWrap = false)
+                        }
+                    }
                     message.replyTo?.let { reply ->
                         // Recuadro de cita (paso 5o): barra con el color del nombre citado, ese nombre y el texto en 2 líneas, sobre un tinte sutil.
                         // Tocarlo no hace nada: el server no manda ids de mensaje, no se puede saltar al original. Igual para respuestas de la web.

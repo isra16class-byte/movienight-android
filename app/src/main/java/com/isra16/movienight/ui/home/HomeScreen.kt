@@ -51,6 +51,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -368,7 +369,7 @@ private fun HomeBottomBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
                     selected = tab == selected,
                     onClick = { onSelect(tab) },
                     icon = { Icon(painterResource(tab.iconRes()), contentDescription = null) },
-                    label = { Text(tab.label, maxLines = 1) },
+                    label = { Text(tab.label, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = ink,
                         selectedTextColor = ink,
@@ -408,7 +409,7 @@ private fun ProfileCard(
 ) {
     HomeGlassCard {
         Text("Perfil", style = MaterialTheme.typography.titleLarge)
-        if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1)
+        if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ProfileRow("Modo oscuro", onClick = { onDarkThemeChange(!darkTheme) }) {
             Switch(checked = darkTheme, onCheckedChange = null)
@@ -605,7 +606,7 @@ private fun LibraryRow(item: LibraryItem, onClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text(item.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2)
+            Text(item.displayName, style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
             val date = if (item.modifiedMillis > 0) {
                 " · " + DateFormat.getDateInstance(DateFormat.MEDIUM).format(Date(item.modifiedMillis))
             } else {
@@ -653,7 +654,7 @@ private fun CreateRoomDialog(
         },
         dismissButton = { GlassLinkButton("Cancelar", enabled = !busy, onClick = onDismiss) },
     ) {
-        Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4)
+        Text(subtitle, style = MaterialTheme.typography.bodyLarge, maxLines = 4, overflow = TextOverflow.Ellipsis)
         GlassFieldGroup {
             GlassPasswordField(
                 label = "Contraseña (opcional)",
