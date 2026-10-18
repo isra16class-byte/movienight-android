@@ -13,7 +13,7 @@ import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.viewModelScope
 import com.isra16.movienight.MovieNightApp
 import com.isra16.movienight.auth.SessionState
-import com.isra16.movienight.auth.defaultUsername
+import com.isra16.movienight.auth.effectiveUsername
 import android.net.Uri
 import com.isra16.movienight.home.LibraryState
 import com.isra16.movienight.home.fetchLibrary
@@ -104,8 +104,11 @@ class RoomViewModel(app: Application, savedStateHandle: SavedStateHandle) : Andr
 
     /** `userId` por dispositivo: sirve para distinguir "mis" mensajes y para que el server reconozca reconexiones. */
     val myUserId: String = container.userIds.userId
-    private val username: String =
-        defaultUsername((container.session.state.value as? SessionState.LoggedIn)?.email.orEmpty())
+    // El nombre elegido en Perfil si existe y, si no, el del correo. Se calcula al crear el ViewModel (al entrar a la sala): un cambio de
+    // nombre se aplica la próxima vez que se entra, no en vivo.
+    private val username: String = (container.session.state.value as? SessionState.LoggedIn).let { account ->
+        effectiveUsername(account?.let { container.profilePrefs.getName(it.id) }, account?.email.orEmpty())
+    }
 
     // Los callbacks de Socket.IO llegan en hilos de la librería: pasan por un canal y se procesan en orden en el principal.
     private val events = Channel<RoomEvent>(Channel.UNLIMITED)
