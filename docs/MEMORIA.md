@@ -223,6 +223,15 @@ anidado y rompe la compilación (ya pasó una vez).
 
 ## Por dónde seguir
 
+**El servidor ya tiene avatares; la app todavía no los usa (2026-10-18).** En el repo `movienight` (rama `plan-produccion`, commits `7ac4edb` a `62aadf8`) se agregaron los avatares de cuenta con 6 iconos reales (`koala-ninja`, `caballero`, `viajero`, `pajaro-rojo`, `trex` y `pinguino`, PNG de 256x256). Es todo aditivo: la app actual no se rompe (su parseo ignora los campos nuevos). **Los avatares del servidor, confirmados por la persona** (2026-10-18): dijo «si hice todas las pruebas» (las que se le pasaron: las de los avatares del servidor, la web de siempre y la app Android actual); no dio detalle por punto ni qué navegador, teléfono ni versión de Android usó. Aquí solo cambia la documentación: el contrato está en `docs/API-CONTRATO.md`, sección «Avatares».
+
+- **Lo que hay en el servidor:** `GET /api/avatars` (lista pública con `id`, `name` y `url` relativa), `PUT /auth/avatar` (elegir o quitar), `avatar` en `GET /auth/me` y `avatarId` en `viewer-list` y `chat-message`. El cambio se ve al volver a entrar a una sala.
+- **Lo que falta en la app (propuesto, sin construir):** elegir avatar en Perfil, y mostrarlo en el chat, la lista de conectados y «Mis salas»/Perfil si se decide. Hay que decidir cómo cargar las imágenes sin dependencias nuevas (solo hay `BitmapFactory`): PNG, con caché; la dirección del servidor se antepone a la `url`; `undefined` se trata como `null`.
+- **Pendientes del servidor que afectan a la app:** origen y licencia de los 6 iconos sin informar (`NO INFORMADO`), y `pajaro-rojo` se parece a un personaje de marca. Detalle en el repo del servidor, `docs/MEMORIA.md`.
+- **La web** (`room.html`) todavía no muestra avatares: sin decidir.
+
+---
+
 **Pestañas de Home, parte 2: nombre elegido por la persona (Perfil), hecha y confirmada (2026-10-18).** La persona dijo (2026-10-18) que «todas las pruebas dieron positivo» (las 10 de la lista que se le pasó); no dio detalle por punto ni qué teléfono ni versión de Android usó. Sin servidor; `RoomPlayer`, el servicio 7B y las dependencias no se tocaron. Son 2 commits en `origin/main`: `debad00` (lógica, almacenamiento y `RoomViewModel`) y `42d8bfe` (pantalla); los docs no se actualizaron desde `551de4a`.
 
 - **Qué hay:** `auth/ProfileNameLogic.kt` (JVM puro: `normalizeDisplayName`, `displayNameError`, `limitDisplayNameInput`, `effectiveUsername`, `DISPLAY_NAME_MAX_LENGTH` = 40, `DISPLAY_NAME_MIN_LENGTH` = 2; 12 tests en `ProfileNameLogicTest`), `auth/ProfilePrefs.kt` (SharedPreferences `movienight_profile`, una clave `name_<id de la cuenta>`, `getName`/`setName`/`clearName`; `AppContainer.profilePrefs`), `HomeViewModel` (`displayName`, `hasCustomName`, `saveDisplayName(input): String?`, `resetDisplayName()`) y, en `HomeScreen.kt`, `ProfileCard` (nombre efectivo y correo, fila «Editar nombre» antes de «Modo oscuro») y `EditNameDialog` (`GlassDialog` con campo «Nombre», error bajo el campo, nota, «Guardar», «Cancelar» y, solo con nombre elegido, «Usar el nombre de mi correo»).
@@ -869,7 +878,7 @@ completo, con lo que se verificó y los bugs de cada fase: `docs/historico/MEMOR
 - **Textos y pruebas de la Fase 8 (5p):** `ModerationLogicTest`, `UploadLogicTest`, `VideoUrlTest` y `UserMessagesGuardTest` cambiaron con los textos y no se pudieron correr fuera de Gradle; **ya pasaron en `gradlew testDebugUnitTest` completo** (530 tests, 0 fallos, 2026-10-18, confirmado por la persona). Faltan otros teléfonos y tamaños, y mirar cada pantalla en el teléfono.
 - **Contraste de los nombres del chat:** en oscuro siete de los ocho colores bajan de 4,5 en el peor píxel de la burbuja propia (el peor, 4,24); medido solo sobre `home_panel_*`. La paleta es provisional (paso 6).
 - **Textos del servidor en voseo:** errores y avisos que manda el servidor; no se pueden cambiar sin tocar el servidor. Por decidir.
-- **Perfil:** el nombre elegido ya está hecho y confirmado; faltan la foto o los avatares (aparcados; exigirían cambiar el servidor) y el historial de Subidas (sin decidir).
+- **Perfil:** el nombre elegido ya está hecho y confirmado; el servidor ya tiene avatares (6 iconos reales, ver la primera entrada de «Por dónde seguir»); falta que la app los use (elegir en Perfil y mostrarlos), y el historial de Subidas sigue sin decidir.
 - **7B sin probar al 100%:** compila (confirmado por la persona), pero faltan las pruebas de la sección 7B del plan, en teléfono real y emulador. (`gradlew testDebugUnitTest` ya pasó completo el 2026-10-18.)
 - **Recuperar contraseña de punta a punta:** el servidor no tiene configurado el envío de emails
   (`RESEND_API_KEY`, `EMAIL_FROM`, `APP_BASE_URL`).

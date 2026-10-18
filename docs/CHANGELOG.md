@@ -5,6 +5,15 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-18 — Docs: el servidor ya tiene avatares; la app todavía no los usa (avatares del servidor confirmados por la persona)
+
+- **Qué:** en el repo del servidor (`movienight`, rama `plan-produccion`, `7ac4edb` a `62aadf8`) se agregaron los avatares de cuenta con 6 iconos reales. Esta entrada solo deja constancia en los docs de la app; **no hay cambios de código**.
+- **Contrato:** `docs/API-CONTRATO.md` suma `GET /api/avatars`, `PUT /auth/avatar`, el campo `avatar` de `/auth/me` y `avatarId` en `viewer-list` y `chat-message` (opcionales; la app actual los ignora), y una sección «Avatares». Leído en el código del servidor el 2026-10-18; no es una prueba contra el servidor en marcha.
+- **Confirmado por la persona (2026-10-18):** dijo «si hice todas las pruebas» (las que se le pasaron: las de los avatares del servidor, la web de siempre y la app Android actual); no dio detalle por punto ni qué navegador, teléfono ni versión de Android usó. **Pendiente:** que la app los use (elegir en Perfil y mostrarlos; decidir cómo cargar las imágenes sin dependencias nuevas). Origen y licencia de los 6 iconos sin informar en el servidor; `pajaro-rojo` se parece a un personaje de marca.
+- **Solo documentación:** `API-CONTRATO.md`, `MEMORIA.md` (entrada nueva y el pendiente de Perfil), `PLAN-PRODUCCION.md` (el ítem de la foto de perfil pasa a «Avatares de cuenta») y esta entrada.
+
+---
+
 ## 2026-10-18 — `gradlew testDebugUnitTest` completo pasa (530 tests, 0 fallos)
 
 - **Qué:** La persona corrió `./gradlew testDebugUnitTest` sobre `522e8fc` (`origin/main`) y mostró `BUILD SUCCESSFUL in 23s` y el reporte de Gradle 8.13 (`app/build/reports/tests/testDebugUnitTest/index.html`): **530 tests, 0 fallos, 0 ignorados**, 100 % de éxito. El asistente no lo vio correr: lo sabe por lo que la persona pegó.

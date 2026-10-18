@@ -48,7 +48,8 @@ de Engine.IO deja la request colgada ~25 s y con el timeout por defecto de OkHtt
 | `/auth/register` | POST | `{ email, password }` | `201 { id, email }` — **no deja sesión iniciada**: el cliente tiene que hacer `/auth/login` después | 400 si falta algo o formato inválido; 409 si el email ya existe (case-insensitive); 404 si el server no tiene cuentas habilitadas (`DATABASE_URL` no configurada) |
 | `/auth/login` | POST | `{ email, password }` | `200 { id, email }` + `Set-Cookie: movienight.sid` | 401 con mensaje genérico si el email no existe O la contraseña está mal (no distingue, a propósito); 429 tras 3 intentos fallidos (bloqueo 15 min, clave ip+email) |
 | `/auth/logout` | POST | — | `200 { ok: true }` | Borra la sesión en Redis y expira la cookie. No requiere estar logueado. |
-| `/auth/me` | GET | — | `200 { loggedIn: bool, id?, email? }` | Única forma de que el cliente sepa el estado de sesión (la cookie es httpOnly, no legible desde código) |
+| `/auth/me` | GET | — | `200 { loggedIn: bool, id?, email?, avatar? }` (`avatar`: `{ id, name, url }` o `null`; ver «Avatares») | Única forma de que el cliente sepa el estado de sesión (la cookie es httpOnly, no legible desde código) |
+| `/auth/avatar` | PUT | `{ avatarId: string \| null }` | `200 { ok: true, avatar: { id, name, url } \| null }` | 401 sin sesión; 400 `{ error }` si el id no existe; 403 con `Origin` ajeno (sin `Origin` ni `Referer`, como OkHttp, pasa); 404 si el servidor no tiene base de datos; 429 al pasar de 20 pedidos cada 10 min por cuenta. `null` quita el avatar. *(leído en `server.js` el 2026-10-18, commit `62aadf8`)* |
 | `/auth/forgot-password` | POST | `{ email }` | `200 { ok, message }` siempre el mismo mensaje genérico (también si el email no existe, si hay límite de pedidos —3 por hora por ip+email— o ante un error interno) | 400 `{ error }` solo si falta el email. No confirma si el email existe (anti-enumeración). El email trae un link `<APP_BASE_URL>/reset-password.html?token=...` (vence en 1 h) |
 | `/auth/reset-password` | POST | `{ token, password }` | `200 { ok: true }` | 400 `{ error }` si falta algo, la contraseña tiene menos de 8 caracteres o el token venció / ya se usó. **La app no lo llama:** el link del email se abre en el navegador y `reset-password.html` lo resuelve |
 
@@ -106,13 +107,13 @@ una sala sin cuenta).
 |---|---|---|
 | `room-error` | string | Sala inexistente, contraseña incorrecta, rate limit alcanzado |
 | `chat-history` | `Array<mensaje>` | Al hacer `join-room`, una sola vez |
-| `chat-message` | `{ system: bool, user?, text, replyTo?, isHost?, userId? }` | Mensajes nuevos (de otros, del sistema, o el propio reflejado) |
+| `chat-message` | `{ system: bool, user?, text, replyTo?, isHost?, userId?, avatarId? }` | Mensajes nuevos (de otros, del sistema, o el propio reflejado) |
 | `chat-rate-limited` | `{ message }` | Solo a quien mandó de más, no se ve en el chat de nadie más |
 | `host-status` | `{ isHost: bool, hostToken: string\|null }` | Al hacer join, y cada vez que cambia el rol de host |
 | `room-data` | `{ videoFile, subtitleFile, position }` | Al hacer join — el estado actual del video para sincronizarse |
 | `mute-status` | `{ muted: bool }` | Al ser muteado/desmuteado |
 | `viewer-count` | number | Cada vez que entra/sale alguien |
-| `viewer-list` | `Array<{ id, username, isHost, muted, buffering }>` *(verificado en `server.js`)* | Se re-emite en varios eventos (join, mute, buffering, etc.) |
+| `viewer-list` | `Array<{ id, username, isHost, muted, buffering, avatarId? }>` *(verificado en `server.js`)* | Se re-emite en varios eventos (join, mute, buffering, etc.) |
 | `sync` | igual shape que el `sync` que manda el host | Retransmitido a todos menos al propio host |
 | `video-changed` | *(nuevo videoFile)* | Al cambiar de cinta |
 | `subtitle-changed` | *(nuevo subtitleFile)* | Al subir un subtítulo nuevo |
@@ -120,6 +121,19 @@ una sala sin cuenta).
 | `reaction` | emoji (string) | Retransmitido tal cual |
 | `kicked` | *(sin payload)* | Al ser expulsado — el server llama `disconnect(true)` justo después |
 | `server-restarting` | *(sin payload)* | El backend está por reiniciarse (graceful shutdown) — conviene mostrar un aviso y esperar la reconexión |
+
+---
+
+## Avatares (servidor desde `fc1d27c`; la app todavía **no** los usa)
+
+*(Leído en `server.js` y `lib/avatars.js` del repo `movienight`, rama `plan-produccion`, commit `62aadf8`, el 2026-10-18; no es una prueba contra el servidor en marcha.)*
+
+- `GET /api/avatars` (público, sin sesión): `{ avatars: [{ id, name, url }] }` en el orden del manifiesto. `url` es **relativa** (`/avatars/<archivo>?v=<hash>`): hay que anteponerle la dirección del servidor. El `?v=` cambia si se reemplaza el archivo: sirve para la caché. Cabecera `Cache-Control: public, max-age=60`.
+- `avatar` en `/auth/me` y `avatarId` en `viewer-list` y `chat-message` son **nuevos y opcionales**: en los eventos va solo el `id` (se resuelve con la lista de `/api/avatars`); `null` o ausente = sin avatar. Los mensajes del historial de una sala anteriores al cambio no lo traen: tratar `undefined` como `null`. La app actual ya ignora los campos que no conoce (el parseo usa `opt*`).
+- El servidor pone `avatarId` desde la sesión; el que mande el cliente en `join-room` o `chat-message` se ignora. Las personas sin cuenta llevan `null`.
+- Un cambio de avatar se ve al volver a entrar a una sala; un socket ya conectado conserva el anterior.
+- Los iconos son PNG de 256x256 (el servidor también admite WebP y SVG). **La app no tiene ninguna librería para SVG** (solo `BitmapFactory`): usar PNG o WebP, o decidir una dependencia nueva.
+- Los ids no se renombran: renombrar uno deja sin avatar a quien lo eligió (el servidor lo trata como `null`).
 
 ---
 
