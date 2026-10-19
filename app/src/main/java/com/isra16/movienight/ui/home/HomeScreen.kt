@@ -68,6 +68,7 @@ import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -256,8 +257,10 @@ fun HomeScreen(
                             }
                             HomeTab.PROFILE -> {
                                 if (adminError != null) item { ErrorText(adminError) }
-                                item {
-                                    ProfileCard(
+                                // `key`: el estado de los diálogos (rememberSaveable) no debe depender de la posición del item (con `adminError` cambia).
+                                item(key = "profile") {
+                                    ProfileSection(
+                                        image = headerImage,
                                         email = email,
                                         displayName = vm.displayName,
                                         hasCustomName = vm.hasCustomName,
@@ -471,12 +474,106 @@ private fun ProfileRow(label: String, enabled: Boolean = true, onClick: () -> Un
     }
 }
 
+private val PROFILE_COVER_MIN_HEIGHT = 200.dp
+
 /**
- * Pestaña Perfil: tu avatar junto al nombre con el que apareces en las salas y al correo, «Cambiar avatar», «Editar nombre» y lo que antes era el menú "Cuenta" (modo
- * oscuro, administración si corresponde y cerrar sesión), ahora a la vista.
+ * Oscurecido de la portada de Perfil, más fuerte que el del encabezado porque el texto va al centro y no abajo: desde el 45 % de la
+ * altura hacia abajo (donde quedan el nombre y el correo) nunca baja de 0x99 (60 %), así que el texto blanco pasa de 4,5:1 incluso
+ * sobre una imagen blanca pura (medido, ver el mensaje del commit). Arriba es más suave, para que se vea la imagen.
+ */
+private val ProfileCoverScrim = Brush.verticalGradient(
+    0f to Color(0x33000000),
+    0.45f to Color(0x99000000),
+    1f to Color(0xB3000000),
+)
+
+/** Tinta del lápiz sobre su círculo blanco (igual a `DarkBackground`, como la inicial del avatar en modo oscuro). */
+private val ProfileCoverBadgeInk = Color(0xFF0E1511)
+
+/**
+ * Portada de la pestaña Perfil: la misma forma, imagen (o degradado), borde y fondo de respaldo que el encabezado de las otras
+ * pestañas, con el avatar grande al centro, el nombre y el correo en blanco. Tocar el avatar abre el selector ([onChangeAvatar]).
+ * El área táctil es el círculo completo; se anuncia «Cambiar avatar» como botón y el lápiz (solo una pista visual) no se anuncia aparte.
  */
 @Composable
-private fun ProfileCard(
+private fun ProfileCover(image: Painter?, avatarId: String?, displayName: String, email: String, onChangeAvatar: () -> Unit) {
+    val shape = RoundedCornerShape(HOME_CARD_CORNER)
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = PROFILE_COVER_MIN_HEIGHT)
+            .clip(shape)
+            .background(HomeHeaderFallback)
+            .border(1.dp, LocalGlassColors.current.panelBorder, shape),
+    ) {
+        if (image != null) {
+            Image(image, contentDescription = null, modifier = Modifier.matchParentSize(), contentScale = ContentScale.Crop)
+        }
+        Box(Modifier.matchParentSize().background(ProfileCoverScrim))
+        Column(
+            Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 20.dp, vertical = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            // Círculo de 92 dp: borde blanco de 2 dp y el avatar de 88 dp dentro. La capa de arriba es el botón (el ripple se ve sobre la imagen).
+            Box(
+                Modifier
+                    .size(92.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66FFFFFF))
+                    .border(2.dp, Color.White, CircleShape),
+            ) {
+                Box(Modifier.align(Alignment.Center).clearAndSetSemantics { }) { AvatarImage(avatarId, displayName, 88.dp) }
+                Box(
+                    Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(12.dp)
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .clearAndSetSemantics { },
+                    contentAlignment = Alignment.Center,
+                ) {
+                    // Glifo de texto (sin iconos nuevos); su tamaño no sigue la letra del sistema para que no se salga del círculo.
+                    Text("✎", color = ProfileCoverBadgeInk, fontSize = with(LocalDensity.current) { 14.dp.toSp() })
+                }
+                Box(
+                    Modifier
+                        .matchParentSize()
+                        .clickable(role = Role.Button, onClick = onChangeAvatar)
+                        .semantics { contentDescription = "Cambiar avatar" },
+                )
+            }
+            Text(
+                displayName,
+                style = MaterialTheme.typography.titleLarge,
+                color = Color.White,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 12.dp),
+            )
+            if (email.isNotBlank()) {
+                Text(
+                    email,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = Color.White,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Pestaña Perfil: la portada (avatar, nombre y correo) y debajo tres tarjetas: «Cuenta» (cambiar avatar y editar nombre), «Preferencias»
+ * (modo oscuro y, si corresponde, administración) y «Cerrar sesión». Aquí viven los diálogos de avatar y de nombre, para que los abran
+ * la portada y las filas. Reemplaza a la antigua `ProfileCard`.
+ */
+@Composable
+private fun ProfileSection(
+    image: Painter?,
     email: String,
     displayName: String,
     hasCustomName: Boolean,
@@ -496,32 +593,33 @@ private fun ProfileCard(
 ) {
     var editingName by rememberSaveable { mutableStateOf(false) }
     var choosingAvatar by rememberSaveable { mutableStateOf(false) }
-    HomeGlassCard {
-        Text("Perfil", style = MaterialTheme.typography.titleLarge)
-        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            AvatarImage(avatarId, displayName, 64.dp)
-            Column(Modifier.weight(1f)) {
-                Text(displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+
+    fun openAvatarPicker() {
+        onClearAvatarError()
+        choosingAvatar = true
+    }
+
+    Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        ProfileCover(image, avatarId, displayName, email, onChangeAvatar = ::openAvatarPicker)
+        HomeGlassCard {
+            Text("Cuenta", style = MaterialTheme.typography.titleLarge)
+            ProfileRow("Cambiar avatar", onClick = ::openAvatarPicker)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+            ProfileRow("Editar nombre", onClick = { editingName = true })
+        }
+        HomeGlassCard {
+            Text("Preferencias", style = MaterialTheme.typography.titleLarge)
+            ProfileRow("Modo oscuro", onClick = { onDarkThemeChange(!darkTheme) }) {
+                Switch(checked = darkTheme, onCheckedChange = null)
+            }
+            if (showAdmin) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+                ProfileRow("Administración (abre el navegador)", onClick = onOpenAdmin)
             }
         }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-        ProfileRow("Cambiar avatar", onClick = {
-            onClearAvatarError()
-            choosingAvatar = true
-        })
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-        ProfileRow("Editar nombre", onClick = { editingName = true })
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-        ProfileRow("Modo oscuro", onClick = { onDarkThemeChange(!darkTheme) }) {
-            Switch(checked = darkTheme, onCheckedChange = null)
+        HomeGlassCard {
+            ProfileRow(if (isLoggingOut) "Saliendo…" else "Cerrar sesión", enabled = !isLoggingOut, onClick = onLogout)
         }
-        if (showAdmin) {
-            HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-            ProfileRow("Administración (abre el navegador)", onClick = onOpenAdmin)
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
-        ProfileRow(if (isLoggingOut) "Saliendo…" else "Cerrar sesión", enabled = !isLoggingOut, onClick = onLogout)
     }
     if (choosingAvatar) {
         AvatarPickerDialog(
