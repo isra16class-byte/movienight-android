@@ -106,6 +106,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.isra16.movienight.MovieNightApp
 import com.isra16.movienight.R
 import com.isra16.movienight.net.ChatMessage
 import com.isra16.movienight.net.FullscreenState
@@ -149,11 +150,15 @@ import com.isra16.movienight.ui.auth.GlassCompactField
 import com.isra16.movienight.ui.auth.GlassFieldGroup
 import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.auth.GlassPasswordField
+import com.isra16.movienight.ui.common.AvatarImage
 import com.isra16.movienight.ui.upload.KeepScreenOn
 
 /** Una sala: según la fase muestra la comprobación, el pedido de contraseña, un error o el chat. */
 @Composable
 fun RoomScreen(onLeave: () -> Unit, vm: RoomViewModel = viewModel()) {
+    // La lista de avatares del servidor (para el chat y los conectados): un solo pedido por vez, compartido por toda la app; no toca el ViewModel.
+    val avatarDirectory = (LocalContext.current.applicationContext as MovieNightApp).container.avatars
+    LaunchedEffect(Unit) { avatarDirectory.ensureLoaded() }
     // Al pasar la app a segundo plano el video se pausa (si no, el sonido sigue con la pantalla apagada), salvo que
     // pase a la ventana flotante (PiP): ahí sigue, y se pausa cuando la ventana se cierra o deja de verse.
     PauseWhenAppStops(onStop = vm::onAppStopped, backgroundAudioActive = vm::hasBackgroundAudio)
@@ -635,6 +640,9 @@ private fun MessageRow(message: ChatMessage, mine: Boolean, onReply: ((ChatMessa
                     // El host se distingue en negrita, no por color. El nombre se recorta con elipsis y " · host" queda siempre visible.
                     val nameStyle = MaterialTheme.typography.labelMedium.copy(fontWeight = if (message.isHost) FontWeight.Bold else FontWeight.Normal)
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // Avatar de 20 dp antes del nombre (Fase 8, «Avatares de cuenta»); sin avatar, la inicial en círculo. Los avisos del sistema y la cita no lo llevan.
+                        AvatarImage(message.avatarId, message.user, 20.dp)
+                        Spacer(Modifier.width(6.dp))
                         Text(
                             message.user,
                             modifier = Modifier.weight(1f, fill = false),

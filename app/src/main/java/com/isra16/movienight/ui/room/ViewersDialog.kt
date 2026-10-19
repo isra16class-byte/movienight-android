@@ -4,6 +4,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.offset
@@ -35,6 +36,7 @@ import com.isra16.movienight.ui.auth.GlassButton
 import com.isra16.movienight.ui.auth.GlassDialog
 import com.isra16.movienight.ui.auth.GlassFieldDivider
 import com.isra16.movienight.ui.auth.GlassLinkButton
+import com.isra16.movienight.ui.common.AvatarImage
 
 /** Una acción que espera confirmación: se guarda el id (no la fila) porque la lista puede cambiar mientras se decide. */
 private data class AwaitingConfirm(val action: ModerationAction, val viewerId: String, val name: String)
@@ -153,6 +155,9 @@ private fun ViewerRow(
         val label = viewerLabel(viewer, isMe)
         val suffix = label.removePrefix(viewer.username)
         Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+            // Avatar de 32 dp antes del nombre (Fase 8, «Avatares de cuenta»); sin avatar, la inicial en círculo. La fila conserva su alto mínimo de 44 dp.
+            AvatarImage(viewer.avatarId, viewer.username, 32.dp)
+            Spacer(Modifier.width(10.dp))
             Text(
                 viewer.username,
                 modifier = Modifier.weight(1f, fill = false),
