@@ -20,3 +20,6 @@ fun homeTabAt(index: Int): HomeTab = HomeTab.entries.getOrNull(index) ?: DEFAULT
 
 /** La barra se esconde mientras el teclado está abierto (`imeBottomPx` = alto del teclado en píxeles): si no, quedaría encima de él. */
 fun showHomeBottomBar(imeBottomPx: Int): Boolean = imeBottomPx <= 0
+
+/** El encabezado de Home (imagen, nombre de la app y lema) sale en todas las pestañas menos Perfil, que ya muestra el avatar y el nombre en su propia tarjeta. */
+fun showHomeHeader(tab: HomeTab): Boolean = tab != HomeTab.PROFILE

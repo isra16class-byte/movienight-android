@@ -4,6 +4,7 @@ import com.isra16.movienight.net.DEFAULT_HOME_TAB
 import com.isra16.movienight.net.HomeTab
 import com.isra16.movienight.net.homeTabAt
 import com.isra16.movienight.net.showHomeBottomBar
+import com.isra16.movienight.net.showHomeHeader
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -39,5 +40,14 @@ class HomeTabLogicTest {
         assertTrue(showHomeBottomBar(-5))
         assertFalse(showHomeBottomBar(1))
         assertFalse(showHomeBottomBar(900))
+    }
+
+    @Test
+    fun `el encabezado sale en todas las pestanas menos en Perfil`() {
+        assertTrue(showHomeHeader(HomeTab.ROOMS))
+        assertTrue(showHomeHeader(HomeTab.LIBRARY))
+        assertTrue(showHomeHeader(HomeTab.UPLOADS))
+        assertFalse(showHomeHeader(HomeTab.PROFILE))
+        assertEquals(listOf(HomeTab.PROFILE), HomeTab.entries.filterNot { showHomeHeader(it) })
     }
 }

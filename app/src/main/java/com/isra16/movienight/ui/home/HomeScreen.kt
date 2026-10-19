@@ -64,6 +64,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.ImeAction
@@ -93,6 +94,7 @@ import com.isra16.movienight.net.recentRoomSubtitle
 import com.isra16.movienight.net.recentRoomTitle
 import com.isra16.movienight.net.shouldShowAdminAccess
 import com.isra16.movienight.net.showHomeBottomBar
+import com.isra16.movienight.net.showHomeHeader
 import com.isra16.movienight.ui.auth.ErrorText
 import com.isra16.movienight.ui.auth.GLASS_CARD_TINT_ALPHA
 import com.isra16.movienight.ui.auth.GlassButton
@@ -209,7 +211,17 @@ fun HomeScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp),
                     ) {
-                        item { HeaderCard(image = headerImage, onOpenProfile = { tabIndex = HomeTab.PROFILE.ordinal }) }
+                        // En Perfil no hay encabezado: su tarjeta ya muestra el avatar y el nombre y arranca arriba.
+                        if (showHomeHeader(tab)) {
+                            item {
+                                HeaderCard(
+                                    image = headerImage,
+                                    avatarId = vm.myAvatarId,
+                                    name = vm.displayName,
+                                    onOpenProfile = { tabIndex = HomeTab.PROFILE.ordinal },
+                                )
+                            }
+                        }
                         when (tab) {
                             HomeTab.ROOMS -> {
                                 item { JoinCard(vm, onOpenRoom) }
@@ -345,11 +357,12 @@ private fun rememberHeaderImage(): Painter? {
 }
 
 /**
- * Tarjeta de encabezado: imagen (o degradado) con el nombre y el lema abajo a la izquierda, y el avatar arriba a la
- * derecha, que lleva a la pestaña Perfil. El texto es siempre blanco: va sobre la imagen oscurecida, no sobre el vidrio.
+ * Tarjeta de encabezado: imagen (o degradado) con el nombre y el lema abajo a la izquierda, y el avatar de la cuenta arriba a la
+ * derecha, que lleva a la pestaña Perfil ([name] es el nombre efectivo; en blanco, se deja el icono de persona). El texto es siempre
+ * blanco: va sobre la imagen oscurecida, no sobre el vidrio. El círculo visible mide 44 dp y su área de toque 48 dp, sin moverlo.
  */
 @Composable
-private fun HeaderCard(image: Painter?, onOpenProfile: () -> Unit) {
+private fun HeaderCard(image: Painter?, avatarId: String?, name: String, onOpenProfile: () -> Unit) {
     val shape = RoundedCornerShape(HOME_CARD_CORNER)
     Box(
         Modifier
@@ -368,18 +381,33 @@ private fun HeaderCard(image: Painter?, onOpenProfile: () -> Unit) {
             Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 30.sp, lineHeight = 36.sp), color = Color.White)
             Text(HOME_TAGLINE, style = MaterialTheme.typography.bodyMedium, color = Color.White)
         }
+        // Área de toque de 48 dp (12 dp de margen + 48 = el mismo lugar que 14 dp + 44) con el círculo visible de 44 dp dentro. El botón se
+        // anuncia «Perfil» con rol de botón; lo que hay dentro (el nombre que lee AvatarImage) no se anuncia.
         Box(
             Modifier
                 .align(Alignment.TopEnd)
-                .padding(14.dp)
-                .size(44.dp)
+                .padding(12.dp)
+                .size(48.dp)
                 .clip(CircleShape)
-                .background(Color(0x66FFFFFF))
-                .border(2.dp, Color.White, CircleShape)
-                .clickable(role = Role.Button, onClick = onOpenProfile),
+                .clickable(role = Role.Button, onClick = onOpenProfile)
+                .semantics { contentDescription = "Perfil" },
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(R.drawable.ic_person), contentDescription = "Perfil", tint = Color.White, modifier = Modifier.size(26.dp))
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x66FFFFFF))
+                    .border(2.dp, Color.White, CircleShape)
+                    .clearAndSetSemantics { },
+                contentAlignment = Alignment.Center,
+            ) {
+                if (name.isBlank()) {
+                    Icon(painterResource(R.drawable.ic_person), contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                } else {
+                    AvatarImage(avatarId, name, 40.dp)
+                }
+            }
         }
     }
 }
