@@ -124,16 +124,17 @@ una sala sin cuenta).
 
 ---
 
-## Avatares (servidor desde `fc1d27c`; la app todavía **no** los usa)
+## Avatares (servidor desde `fc1d27c`; la app los usa desde `5e076af`)
 
 *(Leído en `server.js` y `lib/avatars.js` del repo `movienight`, rama `plan-produccion`, commit `62aadf8`, el 2026-10-18; no es una prueba contra el servidor en marcha.)*
 
 - `GET /api/avatars` (público, sin sesión): `{ avatars: [{ id, name, url }] }` en el orden del manifiesto. `url` es **relativa** (`/avatars/<archivo>?v=<hash>`): hay que anteponerle la dirección del servidor. El `?v=` cambia si se reemplaza el archivo: sirve para la caché. Cabecera `Cache-Control: public, max-age=60`.
-- `avatar` en `/auth/me` y `avatarId` en `viewer-list` y `chat-message` son **nuevos y opcionales**: en los eventos va solo el `id` (se resuelve con la lista de `/api/avatars`); `null` o ausente = sin avatar. Los mensajes del historial de una sala anteriores al cambio no lo traen: tratar `undefined` como `null`. La app actual ya ignora los campos que no conoce (el parseo usa `opt*`).
+- `avatar` en `/auth/me` y `avatarId` en `viewer-list` y `chat-message` son **nuevos y opcionales**: en los eventos va solo el `id` (se resuelve con la lista de `/api/avatars`); `null` o ausente = sin avatar. Los mensajes del historial de una sala anteriores al cambio no lo traen: tratar `undefined` como `null`. La app anterior a `5e076af` ignoraba los campos que no conocía (el parseo usa `opt*`); desde ese commit los lee (`ChatMessage.avatarId`, `Viewer.avatarId`, `parseAvatarList`, `avatarIdFromMe`).
 - El servidor pone `avatarId` desde la sesión; el que mande el cliente en `join-room` o `chat-message` se ignora. Las personas sin cuenta llevan `null`.
 - Un cambio de avatar se ve al volver a entrar a una sala; un socket ya conectado conserva el anterior.
 - Los iconos son PNG de 256x256 (el servidor también admite WebP y SVG). **La app no tiene ninguna librería para SVG** (solo `BitmapFactory`): usar PNG o WebP, o decidir una dependencia nueva.
 - Los ids no se renombran: renombrar uno deja sin avatar a quien lo eligió (el servidor lo trata como `null`).
+- **Cómo los usa la app (según lo que contó la persona el 2026-10-19; el asistente no lo probó contra el servidor):** pide `GET /api/avatars` y antepone la dirección del servidor a cada `url`; elige o quita su avatar con `PUT /auth/avatar`; lee el propio con `GET /auth/me`. Un servidor sin esta ruta responde `Cannot GET /api/avatars` (404) y la app lo muestra como «El servidor respondió algo inesperado…».
 
 ---
 

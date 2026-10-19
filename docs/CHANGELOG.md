@@ -5,6 +5,18 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-19 — Avatares de cuenta en la app (elegir en Perfil, verlos en el chat y en los conectados), hechos y confirmados
+
+- **Qué:** la persona dijo (2026-10-19) que probó los 11 puntos de la lista y que «dieron resultados positivos»; no dio detalle por punto ni qué teléfono ni versión de Android usó. Ahora se puede elegir un avatar de los 6 del servidor desde Perfil y se ve junto al nombre en el chat y en la lista de conectados; sin avatar, un círculo con la inicial.
+- **Commits (en `origin/main`):** `5e076af` (lógica pura, modelos, red y caché de imágenes), `cdf3640` (elegir avatar en Perfil) y `28c73d0` (chat y conectados). Sin servidor, sin `RoomViewModel`, `RoomPlayer` ni dependencias nuevas.
+- **Qué hay:** `net/AvatarLogic.kt` (JVM puro, `AvatarLogicTest`, 30 tests), `net/AvatarParsing.kt` (`AvatarParsingTest`, 9), `net/AvatarDirectory.kt`, `net/AvatarImageLoader.kt`, `avatarId` en `ChatMessage` y `Viewer` (4 tests nuevos en `RoomEventsTest`, ahora 24), `MovieNightApi.putJson`, `AppContainer.avatars` y `avatarImages`, `ui/common/AvatarImage.kt`, `ui/home/AvatarPickerDialog.kt` y cambios en `HomeViewModel` (`myAvatarId`, `refreshMyAvatar`, `chooseAvatar`), `HomeScreen`, `RoomScreen` y `ViewersDialog`. Se muestra en Perfil (64 dp), el chat (20 dp) y los conectados (32 dp); no en «Mis salas», el encabezado de Home ni la cita de una respuesta. El cambio lo ven los demás al volver a entrar a una sala.
+- **Lo que pasó al probar:** el selector mostró «El servidor respondió algo inesperado…» porque el servidor de la persona no tenía el código (`Cannot GET /api/avatars`). Ella reconstruyó su imagen de Docker y los avatares cargaron. No hizo falta migración a mano (el servidor crea `avatar_id` al arrancar, según `lib/db.js`; no se verificó en su base). Un `pm2 restart` dio «not found»: ese servidor corre con Docker.
+- **Verificado por el asistente:** 146 tests de lógica pura con kotlinc 2.0.21 y un arnés propio (**no `gradlew`**) sobre un clon fresco con el patch aplicado (los nuevos y los que construyen `ChatMessage(` y `Viewer(`); 5 mutaciones sobre copias fallaron como debían; `origin/main` tiene el mismo árbol que se probó. El asistente vio, en una captura de la persona, avatares con imagen y una inicial en el chat (no es una prueba formal). **No se compiló nada de Android.**
+- **Sin confirmar:** `gradlew testDebugUnitTest` con estos commits (la última corrida completa es la de `522e8fc`); otros teléfonos y tamaños; contraste de la inicial; cuánto crecen las burbujas; los mensajes de error del cambio (400, 404 y 429). **Pendiente del servidor:** origen y licencia de los 6 iconos (`NO INFORMADO`); `pajaro-rojo` se parece a un personaje de marca.
+- **Solo documentación en este commit:** `API-CONTRATO.md` (la sección «Avatares» ya no dice que la app no los usa), `MEMORIA.md` (primera entrada de «Por dónde seguir», estructura de archivos, datos vigentes y pendientes), `PLAN-PRODUCCION.md` (el ítem de avatares pasa a hecho) y esta entrada. Las entradas históricas no se tocan.
+
+---
+
 ## 2026-10-18 — Docs: el servidor ya tiene avatares; la app todavía no los usa (avatares del servidor confirmados por la persona)
 
 - **Qué:** en el repo del servidor (`movienight`, rama `plan-produccion`, `7ac4edb` a `62aadf8`) se agregaron los avatares de cuenta con 6 iconos reales. Esta entrada solo deja constancia en los docs de la app; **no hay cambios de código**.
