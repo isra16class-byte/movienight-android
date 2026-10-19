@@ -203,4 +203,40 @@ class RoomEventsTest {
     fun reactionEstaEntreLosEventosEscuchados() {
         assertTrue("reaction" in com.isra16.movienight.net.HANDLED_SERVER_EVENTS)
     }
+
+    // --- Avatares (campo `avatarId`, opcional) ---
+
+    @Test
+    fun mensajeDeChatConAvatar() {
+        val msg = JSONObject("""{"system":false,"user":"isra","text":"hola","isHost":false,"userId":"u-1","avatarId":"trex"}""")
+        assertEquals("trex", (parse("chat-message", msg) as RoomEvent.Chat).message.avatarId)
+    }
+
+    @Test
+    fun mensajeDeChatSinAvatarONuloOVacioDaNull() {
+        val sinCampo = JSONObject("""{"system":false,"user":"isra","text":"hola","userId":"u-1"}""")
+        val nulo = JSONObject("""{"system":false,"user":"isra","text":"hola","userId":"u-1","avatarId":null}""")
+        val vacio = JSONObject("""{"system":false,"user":"isra","text":"hola","userId":"u-1","avatarId":""}""")
+        assertNull((parse("chat-message", sinCampo) as RoomEvent.Chat).message.avatarId)
+        assertNull((parse("chat-message", nulo) as RoomEvent.Chat).message.avatarId)
+        assertNull((parse("chat-message", vacio) as RoomEvent.Chat).message.avatarId)
+    }
+
+    @Test
+    fun historialConMensajesViejosSinAvatarYNuevosConAvatar() {
+        val history = JSONArray(
+            """[{"system":false,"user":"ana","text":"viejo","userId":"u-2"},{"system":false,"user":"isra","text":"nuevo","userId":"u-1","avatarId":"pinguino"},{"system":true,"text":"aviso"}]""",
+        )
+        val messages = (parse("chat-history", history) as RoomEvent.ChatHistory).messages
+        assertEquals(listOf(null, "pinguino", null), messages.map { it.avatarId })
+    }
+
+    @Test
+    fun listaDeConectadosConAvatares() {
+        val list = JSONArray(
+            """[{"id":"s1","username":"isra","isHost":true,"muted":false,"buffering":false,"avatarId":"koala-ninja"},{"id":"s2","username":"ana","isHost":false,"muted":false,"buffering":false,"avatarId":null},{"id":"s3","username":"beto","isHost":false,"muted":false,"buffering":false}]""",
+        )
+        val viewers = (parse("viewer-list", list) as RoomEvent.ViewerList).viewers
+        assertEquals(listOf("koala-ninja", null, null), viewers.map { it.avatarId })
+    }
 }

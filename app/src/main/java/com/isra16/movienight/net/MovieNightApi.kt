@@ -38,6 +38,14 @@ class MovieNightApi(private val http: OkHttpClient) {
                 .build()
         }
 
+    suspend fun putJson(baseUrl: String, path: String, body: JSONObject = JSONObject()): Result =
+        execute {
+            Request.Builder()
+                .url(baseUrl + path)
+                .put(body.toString().toRequestBody(jsonType))
+                .build()
+        }
+
     private suspend fun execute(buildRequest: () -> Request): Result = withContext(Dispatchers.IO) {
         try {
             http.newCall(buildRequest()).execute().use { response ->

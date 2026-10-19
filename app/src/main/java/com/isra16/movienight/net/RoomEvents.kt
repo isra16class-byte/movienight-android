@@ -9,6 +9,8 @@ data class ReplyTo(val user: String, val text: String, val isHost: Boolean)
 /**
  * Un mensaje del chat. [system] = avisos del server ("X se unió a la sala"): solo traen [text].
  * [userId] es el id persistente de quien escribió (no el nombre: dos personas pueden elegir el mismo).
+ * [avatarId] es el id del avatar de esa cuenta (se resuelve con `GET /api/avatars`); `null` si no tiene, si es anónima o si el mensaje es
+ * anterior a los avatares (el historial viejo no lo trae).
  */
 data class ChatMessage(
     val system: Boolean,
@@ -17,15 +19,17 @@ data class ChatMessage(
     val isHost: Boolean,
     val userId: String?,
     val replyTo: ReplyTo?,
+    val avatarId: String? = null,
 )
 
-/** Un integrante conectado a la sala (`viewer-list`). */
+/** Un integrante conectado a la sala (`viewer-list`). [avatarId]: el id de su avatar, o `null` si no tiene (ver [ChatMessage.avatarId]). */
 data class Viewer(
     val id: String,
     val username: String,
     val isHost: Boolean,
     val muted: Boolean,
     val buffering: Boolean,
+    val avatarId: String? = null,
 )
 
 /** Eventos servidor -> cliente de la sala que la app usa (ver docs/API-CONTRATO.md). */
@@ -131,6 +135,7 @@ fun parseChatMessage(obj: JSONObject): ChatMessage {
         isHost = obj.optBoolean("isHost", false),
         userId = obj.optStringOrNull("userId"),
         replyTo = reply,
+        avatarId = obj.optStringOrNull("avatarId"),
     )
 }
 
@@ -146,6 +151,7 @@ fun parseViewers(array: JSONArray): List<Viewer> =
                 isHost = it.optBoolean("isHost", false),
                 muted = it.optBoolean("muted", false),
                 buffering = it.optBoolean("buffering", false),
+                avatarId = it.optStringOrNull("avatarId"),
             )
         }
     }

@@ -5,6 +5,8 @@ import com.isra16.movienight.auth.ProfilePrefs
 import com.isra16.movienight.auth.RecentRoomsStore
 import com.isra16.movienight.auth.SessionManager
 import com.isra16.movienight.auth.UserIdStore
+import com.isra16.movienight.net.AvatarDirectory
+import com.isra16.movienight.net.AvatarImageLoader
 import com.isra16.movienight.net.MovieNightApi
 import com.isra16.movienight.net.PersistentCookieJar
 import com.isra16.movienight.net.VisibilityCounter
@@ -17,6 +19,7 @@ import com.isra16.movienight.notify.UploadNotifier
 import com.isra16.movienight.room.RoomPasswordCache
 import com.isra16.movienight.ui.theme.ThemePrefs
 import okhttp3.OkHttpClient
+import java.io.File
 import java.util.concurrent.TimeUnit
 
 /**
@@ -63,6 +66,12 @@ class AppContainer(context: Context) {
 
     /** El nombre que cada cuenta eligió para las salas (Home > Perfil); solo en este teléfono. */
     val profilePrefs = ProfilePrefs(context)
+
+    /** La lista de avatares que ofrece el servidor (`GET /api/avatars`), compartida por Perfil, el chat y la lista de conectados. */
+    val avatars = AvatarDirectory(api, baseUrl)
+
+    /** Baja y guarda los iconos de los avatares (memoria y `cacheDir/avatars`), sin librerías de imágenes. */
+    val avatarImages = AvatarImageLoader(httpClient, File(context.cacheDir, "avatars"))
 
     /** Cuántas pantallas de la app se ven ahora (lo actualiza [MovieNightApp]); el aviso de subida lo consulta. */
     val visibility = VisibilityCounter()
