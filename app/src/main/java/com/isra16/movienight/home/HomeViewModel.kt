@@ -29,6 +29,8 @@ import com.isra16.movienight.net.RECENT_ROOMS_PARALLEL_CHECKS
 import com.isra16.movienight.net.RecentRoomItem
 import com.isra16.movienight.net.RoomCheckStatus
 import com.isra16.movienight.net.apiErrorMessage
+import com.isra16.movienight.net.avatarChangeMessage
+import com.isra16.movienight.net.avatarIdFromMe
 import com.isra16.movienight.net.createRoomBody
 import com.isra16.movienight.net.extractRoomId
 import com.isra16.movienight.net.interpretCreateRoom
@@ -47,6 +49,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import org.json.JSONObject
 
 private const val MSG_NAME_NOT_SAVED = "No se pudo guardar. Inténtalo de nuevo."
 
@@ -182,6 +185,77 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
         refreshDisplayName()
     }
 
+    // --- Avatar de la cuenta (Home > Perfil) ----------------------------------------------------------
+
+    /** El id del avatar de la cuenta (`GET /auth/me`), o `null` si no tiene o aún no se supo. Los iconos los resuelve `container.avatars`. */
+    var myAvatarId by mutableStateOf<String?>(null)
+        private set
+
+    /** `true` mientras se guarda un cambio de avatar (no se aceptan dos a la vez). */
+    var isChangingAvatar by mutableStateOf(false)
+        private set
+
+    /** Mensaje del último cambio de avatar que falló; se borra al empezar otro o con [clearAvatarError]. */
+    var avatarError by mutableStateOf<String?>(null)
+        private set
+
+    private var avatarRefreshJob: Job? = null
+
+    /** Sube cada vez que se elige un avatar: una lectura de `/auth/me` que salió antes no debe pisar lo que se acaba de elegir. */
+    private var avatarEpoch = 0
+
+    /**
+     * Lee el avatar de la cuenta con `GET /auth/me`. Se llama al abrir Home (`init`) y cada vez que Home vuelve al frente (el ON_RESUME de la
+     * actividad, en `HomeScreen`, igual que «Mis salas»). Un fallo (sin red, 5xx, sesión no iniciada) no cambia lo que ya se sabía; con otra
+     * lectura en curso o con un cambio guardándose no hace nada.
+     */
+    fun refreshMyAvatar() {
+        // El avatar de Perfil se dibuja con la lista del servidor: se pide aquí (un solo pedido por vez, y tras un fallo no antes de 30 s).
+        container.avatars.ensureLoaded()
+        if (avatarRefreshJob?.isActive == true || isChangingAvatar) return
+        val epoch = avatarEpoch
+        avatarRefreshJob = viewModelScope.launch {
+            val result = api.get(baseUrl, "/auth/me")
+            if (result.code != 200 || epoch != avatarEpoch) return@launch
+            val json = parseJsonObject(result.body) ?: return@launch
+            if (!json.optBoolean("loggedIn", false)) return@launch
+            myAvatarId = avatarIdFromMe(json)
+        }
+    }
+
+    fun clearAvatarError() {
+        avatarError = null
+    }
+
+    /**
+     * Elige el avatar [id] (`PUT /auth/avatar`) o lo quita con `null`. Un solo pedido a la vez. Éxito: actualiza [myAvatarId] y llama a
+     * [onSuccess]. 401: pide al `SessionManager` que vuelva a consultar la sesión (la app vuelve sola al login) y deja el mensaje. Otro
+     * error: deja el mensaje de [avatarChangeMessage] en [avatarError]. El cambio lo ven los demás al volver a entrar a una sala.
+     */
+    fun chooseAvatar(id: String?, onSuccess: () -> Unit = {}) {
+        if (isChangingAvatar) return
+        isChangingAvatar = true
+        avatarError = null
+        avatarEpoch++
+        viewModelScope.launch {
+            try {
+                val body = JSONObject().put("avatarId", id ?: JSONObject.NULL)
+                val result = api.putJson(baseUrl, "/auth/avatar", body)
+                if (result.code == 200) {
+                    // El servidor devuelve el avatar guardado (o null); si la respuesta no se entiende se confía en lo pedido.
+                    val saved = parseJsonObject(result.body)
+                    myAvatarId = if (saved != null) avatarIdFromMe(saved) else id
+                    onSuccess()
+                } else {
+                    avatarError = avatarChangeMessage(result.code)
+                    if (isSessionExpired(result.code)) container.session.refresh()
+                }
+            } finally {
+                isChangingAvatar = false
+            }
+        }
+    }
+
     /**
      * 1) Muestra al instante lo guardado (conservando lo último que se supo de cada sala). 2) Comprueba cada sala con
      * `GET /api/room/<id>`, de a [RECENT_ROOMS_PARALLEL_CHECKS]: 404 la quita de la lista y del teléfono, 200 actualiza si
@@ -268,6 +342,7 @@ class HomeViewModel(app: Application) : AndroidViewModel(app) {
 
     init {
         refresh()
+        refreshMyAvatar()
     }
 
     /**

@@ -103,6 +103,7 @@ import com.isra16.movienight.ui.auth.GlassLinkButton
 import com.isra16.movienight.ui.auth.GlassPasswordField
 import com.isra16.movienight.ui.auth.GlassPanel
 import com.isra16.movienight.ui.auth.GlassTextField
+import com.isra16.movienight.ui.common.AvatarImage
 import com.isra16.movienight.ui.room.findActivity
 import com.isra16.movienight.ui.theme.AuthTitleStyle
 import com.isra16.movienight.ui.theme.LocalGlassColors
@@ -182,6 +183,15 @@ fun HomeScreen(
         onDispose { lifecycleActivity?.lifecycle?.removeObserver(observer) }
     }
 
+    // El avatar de la cuenta se vuelve a leer (`GET /auth/me`) cada vez que Home vuelve al frente; al abrirlo ya lo lee el ViewModel.
+    DisposableEffect(lifecycleActivity) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) vm.refreshMyAvatar()
+        }
+        lifecycleActivity?.lifecycle?.addObserver(observer)
+        onDispose { lifecycleActivity?.lifecycle?.removeObserver(observer) }
+    }
+
     // Todo lo de Home va dentro de GlassContent: fija los colores del modo y, dentro de cada panel, GlassBarContent los cambia.
     GlassContent {
         // Arriba y a los lados lo respeta esta columna; abajo, la barra de pestañas se extiende bajo la barra del sistema
@@ -241,6 +251,11 @@ fun HomeScreen(
                                         hasCustomName = vm.hasCustomName,
                                         onSaveName = vm::saveDisplayName,
                                         onResetName = vm::resetDisplayName,
+                                        avatarId = vm.myAvatarId,
+                                        avatarBusy = vm.isChangingAvatar,
+                                        avatarError = vm.avatarError,
+                                        onChooseAvatar = vm::chooseAvatar,
+                                        onClearAvatarError = vm::clearAvatarError,
                                         isLoggingOut = isLoggingOut,
                                         onLogout = onLogout,
                                         darkTheme = darkTheme,
@@ -429,7 +444,7 @@ private fun ProfileRow(label: String, enabled: Boolean = true, onClick: () -> Un
 }
 
 /**
- * Pestaña Perfil: el nombre con el que apareces en las salas, el correo, «Editar nombre» y lo que antes era el menú "Cuenta" (modo
+ * Pestaña Perfil: tu avatar junto al nombre con el que apareces en las salas y al correo, «Cambiar avatar», «Editar nombre» y lo que antes era el menú "Cuenta" (modo
  * oscuro, administración si corresponde y cerrar sesión), ahora a la vista.
  */
 @Composable
@@ -439,6 +454,11 @@ private fun ProfileCard(
     hasCustomName: Boolean,
     onSaveName: (String) -> String?,
     onResetName: () -> Unit,
+    avatarId: String?,
+    avatarBusy: Boolean,
+    avatarError: String?,
+    onChooseAvatar: (id: String?, onSuccess: () -> Unit) -> Unit,
+    onClearAvatarError: () -> Unit,
     isLoggingOut: Boolean,
     onLogout: () -> Unit,
     darkTheme: Boolean,
@@ -447,10 +467,21 @@ private fun ProfileCard(
     onOpenAdmin: () -> Unit,
 ) {
     var editingName by rememberSaveable { mutableStateOf(false) }
+    var choosingAvatar by rememberSaveable { mutableStateOf(false) }
     HomeGlassCard {
         Text("Perfil", style = MaterialTheme.typography.titleLarge)
-        Text(displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            AvatarImage(avatarId, displayName, 64.dp)
+            Column(Modifier.weight(1f)) {
+                Text(displayName, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                if (email.isNotBlank()) Text(email, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        ProfileRow("Cambiar avatar", onClick = {
+            onClearAvatarError()
+            choosingAvatar = true
+        })
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ProfileRow("Editar nombre", onClick = { editingName = true })
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -463,6 +494,16 @@ private fun ProfileCard(
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
         ProfileRow(if (isLoggingOut) "Saliendo…" else "Cerrar sesión", enabled = !isLoggingOut, onClick = onLogout)
+    }
+    if (choosingAvatar) {
+        AvatarPickerDialog(
+            currentId = avatarId,
+            busy = avatarBusy,
+            error = avatarError,
+            onChoose = { id -> onChooseAvatar(id) { choosingAvatar = false } },
+            onRemove = { onChooseAvatar(null) { choosingAvatar = false } },
+            onDismiss = { choosingAvatar = false },
+        )
     }
     if (editingName) {
         EditNameDialog(
