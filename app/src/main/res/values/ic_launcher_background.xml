@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Verde del logo (branding/logo.svg). Es el fondo del icono adaptable. -->
+    <color name="ic_launcher_background">#75A38F</color>
+</resources>
