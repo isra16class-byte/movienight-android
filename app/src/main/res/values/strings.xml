@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">MovieNight</string>
+    <string name="home_tagline">Una película, buena compañía.</string>
     <string name="playback_channel_name">Reproducción</string>
 </resources>

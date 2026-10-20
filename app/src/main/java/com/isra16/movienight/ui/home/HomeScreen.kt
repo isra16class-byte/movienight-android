@@ -63,6 +63,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -337,7 +338,6 @@ fun HomeScreen(
 /** Nombre (sin extensión) del recurso `res/drawable-nodpi/home_header.*` con la imagen del encabezado. Si no existe, el encabezado usa un degradado. */
 private const val HOME_HEADER_IMAGE_NAME = "home_header"
 
-private const val HOME_TAGLINE = "Una película, buena compañía."
 private val HOME_HEADER_MIN_HEIGHT = 168.dp
 
 /** Fondo del encabezado mientras no hay imagen (provisional): verdes y azules oscuros, para que el texto blanco se lea. */
@@ -382,7 +382,7 @@ private fun HeaderCard(image: Painter?, avatarId: String?, name: String, onOpenP
         Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
             // El título de las pantallas de entrada (Playfair Display, provisional hasta el paso 6).
             Text("MovieNight", style = AuthTitleStyle.copy(fontSize = 30.sp, lineHeight = 36.sp), color = Color.White)
-            Text(HOME_TAGLINE, style = MaterialTheme.typography.bodyMedium, color = Color.White)
+            Text(stringResource(R.string.home_tagline), style = MaterialTheme.typography.bodyMedium, color = Color.White)
         }
         // Área de toque de 48 dp (12 dp de margen + 48 = el mismo lugar que 14 dp + 44) con el círculo visible de 44 dp dentro. El botón se
         // anuncia «Perfil» con rol de botón; lo que hay dentro (el nombre que lee AvatarImage) no se anuncia.
