@@ -5,6 +5,17 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-20 — Fase 8: el botón «Actualizar» del diálogo «Cambiar el video de la sala» ya no se parte (hecho y confirmado)
+
+- **Qué pasó:** «Actualizar» se veía partido en «Actualiz / ar». El título de su fila no tenía weight y se quedaba con todo el ancho; el enlace recibía lo que sobraba (peor con letra grande).
+- **Qué se hizo:** `9a118aa`, solo `ui/room/ChangeVideoDialog.kt`: el `Text` lleva `Modifier.weight(1f).padding(end = 8.dp)`. `GlassLinkButton` no se tocó. Sin servidor, `RoomViewModel`, `RoomPlayer`, 7B ni dependencias.
+- **Verificado / no verificado:** aplicó limpio con `git am` en un clon fresco de `origin/main`; imports repasados con grep. No se compiló nada de Android. La persona dijo que todas las pruebas «dieron resultados positivos», sin detalle por prueba, ni teléfono ni versión.
+- **Solo reportado, sin cambiar:** filas con `Text` sin weight junto a un botón corto en `HomeScreen.kt` (~809, ~912 y `ProfileRow` ~469).
+- **Pendiente anotado:** «Sala sin host cuando el dueño se va» (regla del servidor; decidido dejarlo así por ahora). Ver «Pendientes que arrastramos» de `MEMORIA.md`.
+- **Solo documentación:** MEMORIA.md, PLAN-PRODUCCION.md y CHANGELOG.md.
+
+---
+
 ## 2026-10-20 — Fase 8, paso 6 (parte de la intro): «el despeje» a pantalla completa con el logo (hecho y confirmado)
 
 - **Qué:** la persona dijo (2026-10-20) que todas las pruebas de la lista pedida «dieron resultados positivos»; no dio detalle por prueba ni qué teléfono ni versión de Android usó. Dos commits en `origin/main`, solo de la app (sin servidor, `RoomPlayer`, `RoomViewModel`, `HomeViewModel`, servicio 7B ni dependencias nuevas): `ae636a5` (lógica pura, sesión A) y `7d565fe` (pantalla, sesión B). Los hashes cambiaron al aplicarse con `git am`; el contenido es el que probó el asistente (`app/` idéntico).
