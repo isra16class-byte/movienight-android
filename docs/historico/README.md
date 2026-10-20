@@ -7,5 +7,6 @@ archivos activos quedan con un resumen corto y al día.
 | Archivo | Qué contiene |
 |---|---|
 | `MEMORIA-fases-1-a-3B.md` | Entradas de "Por dónde seguir" de la Fase 1, la Sesión B de la Fase 2 y las Fases 3A y 3B, tal cual estaban el 2026-10-08. |
+| `MEMORIA-fases-3C-a-6C.md` | Entradas de "Por dónde seguir" de las Fases 3C, 4A, 4B, 5, 6A, 6B y 6C (2026-10-08 a 2026-10-10), tal cual estaban el 2026-10-20. |
 
 Lo vigente siempre está en `docs/MEMORIA.md`; si algo de acá lo contradice, manda `MEMORIA.md`.

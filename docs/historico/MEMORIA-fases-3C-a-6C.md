@@ -1,0 +1,283 @@
+# Histórico — entradas de «Por dónde seguir» de las Fases 3C, 4A, 4B, 5, 6A, 6B y 6C
+
+Archivado el 2026-10-20 desde `docs/MEMORIA.md`, **tal cual estaba**, de la más nueva a la más vieja (6C, 6B,
+6A, 5, 4B, 4A, 3C). Es detalle de lo que se hizo y probó en esas fases (2026-10-08 a 2026-10-10).
+
+Ojo al leerlo: frases como «ver arriba», «la entrada siguiente» o «la primera entrada» se escribieron cuando
+estas entradas estaban en «Por dónde seguir» y **ya no apuntan a lo que decían**. Lo vigente está en
+`docs/MEMORIA.md` («Datos que siguen vigentes…» y «Pendientes que arrastramos»); si algo de acá lo
+contradice, manda `MEMORIA.md`.
+
+---
+
+**Fase 6C hecha y probada en el emulador (2026-10-10): notificaciones que se pueden hacer sin tocar el servidor.** Con esto
+la Fase 6 queda cerrada, salvo el push real, que se evaluó y **no se hizo** (exige cambiar el servidor; ver abajo). Lo que sigue
+es la **Fase 7** (PiP y reproducción en segundo plano), ya escrita en el plan; releerla antes de empezar.
+- **Evaluación (verificada en `server.js` y `lib/`, rama `plan-produccion`):** las salas expiran tras `ROOM_TTL_HOURS` sin
+  actividad (24 h por defecto; `null` = nunca) con un barrido cada 30 minutos. **No hay aviso previo** a la expiración: lo único
+  que existe es el `room-error` "Esta sala expiró por inactividad…" emitido **después** de cerrarla y solo a los sockets
+  conectados. Los demás eventos (`host-status`, `mute-status`, `chat-message`, `video-changed`, `room-error`) también llegan solo
+  a quien tiene el socket abierto. No hay nada de push: ni tokens de dispositivo, ni Firebase, ni web-push.
+- **Push real, no hecho:** exigiría cambiar el servidor (guardar el token de cada dispositivo con un endpoint nuevo, una cuenta
+  de servicio de Firebase para enviar, ganchos en cada evento y un programador que avise antes de expirar la sala) y en la app un
+  proyecto de Firebase con su `google-services.json` y sus dependencias, comprobando antes que no exijan un Kotlin más nuevo que
+  el 2.0.21. Es la única forma de avisar con la app cerrada y de tener "sala por expirar". Queda en el plan sin tildar.
+- **A — aviso local de subida.** Cuando una subida llega a `Done` o `Failed` y la app **no se está viendo**, sale una notificación
+  (canal `uploads`, id 1001): "Subida terminada", "Sala lista", "Video de la sala cambiado", "No se pudo subir el video" o
+  "La subida quedó a medias" (video ya subido pero falló el paso siguiente). Tocarla trae la app al frente; con la app a la vista
+  no avisa, y al volver a verla se borra el aviso viejo. Lógica pura en `net/UploadNotificationLogic.kt` (`uploadNotice`,
+  `shouldAskNotificationPermission`, `VisibilityCounter`); la notificación en `notify/UploadNotifier.kt`. `UploadFlow` avisa por
+  `onFinished` desde un único punto (el setter de `state`). Se sabe si la app se ve contando `onActivityStarted`/`Stopped` en
+  `MovieNightApp`, sin dependencias nuevas; se comprueba con `areNotificationsEnabled()`.
+- **Permiso `POST_NOTIFICATIONS` (Android 13+):** se pide **una sola vez, justo antes de abrir el selector de video** (en "Solo
+  subir", "Subir y crear sala" y "Cambiar video" de la sala), con un cuadro que explica para qué es
+  (`ui/upload/NotificationPermissionGate.kt`). "Activar avisos" abre el cuadro del sistema; "Ahora no" no vuelve a preguntar;
+  cerrar el cuadro sin elegir sí vuelve a preguntar la próxima vez; con cualquier respuesta la subida sigue. Nunca se pide al abrir
+  la app y en Android 12 o menos no aparece nada. El "ya se preguntó" vive en `NotificationPrefs` y se excluye del backup.
+- **B — servicio en primer plano de subidas.** Hallazgo de la prueba real: con la app en segundo plano la subida **fallaba siempre**
+  con "Se cortó la conexión durante la subida" aunque el proceso seguía vivo (el aviso de fallo salía de ese mismo proceso). Se
+  sospecha que Android corta la red de una app en segundo plano sin servicio en primer plano; **la causa técnica exacta no se
+  registró** (el detalle del error de red, `PutOutcome.NetworkFailure.detail`, se descarta y no se muestra ni se loguea). El
+  servicio la resolvió en el emulador. Piezas: `net/UploadServiceLogic.kt` (`progressNoticeFor`, `UploadActivityTracker`, JVM
+  puro), `notify/UploadKeepAlive.kt` (controlador en el `AppContainer`), `notify/UploadService.kt` (servicio `dataSync`) y
+  `UploadFlow.onStateChanged`, que cada `HomeViewModel` y `RoomViewModel` conectan con su propia clave.
+- **Cómo funciona B:** el servicio **no sube nada**: la subida sigue siendo la corrutina de `UploadFlow`; el servicio solo mantiene
+  vivo el proceso y muestra una notificación de avance (canal silencioso `upload_progress`, id 1002, barra con porcentaje entero
+  que solo se actualiza al cambiar el número). Se arranca ya en `Preparing` (Android 12+ no deja arrancarlo desde segundo plano;
+  las notificaciones de servicios de vida corta se difieren, así que un archivo inválido que falla al instante no muestra nada) y se
+  para 2 s después de que no queda ninguna subida (para no pararlo antes de que termine de arrancar). `onStartCommand` siempre llama
+  a `startForeground` y devuelve `START_NOT_STICKY`. Con dos subidas a la vez (principal y sala) sigue hasta que terminen ambas.
+  `UploadFlow.release()` avisa `Idle` al cerrarse la pantalla dueña. Si Android no deja arrancarlo, la subida sigue como antes.
+  Manifiesto nuevo: `POST_NOTIFICATIONS`, `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_DATA_SYNC` y el servicio con
+  `foregroundServiceType="dataSync"`. Sin dependencias nuevas. Se actualizaron las pistas de la subida (ya no dicen "dejá la app
+  abierta") y el texto del cuadro de permiso.
+- **Qué se probó** (la persona confirmó "todas las pruebas funcionaron como debían" con el checklist de la B): la subida sigue con
+  la app en segundo plano con la notificación de avance; el aviso de "terminada" al acabar; salir de la app justo después de
+  elegir el video; pantalla apagada; un archivo inválido no muestra notificación de avance; con el wifi cortado sale el aviso de
+  fallo y la notificación de avance desaparece; rotar el teléfono durante la subida. Antes, con A sola, el aviso de **fallo** sí
+  llegó (esa prueba mostró el problema que resolvió B). **No se confirmaron uno por uno** los puntos del checklist de la A: el
+  cuadro de permiso y su texto, "Ahora no", el permiso negado, "Subir y crear sala" y "Cambiar video" desde una sala. **Verificado
+  por el asistente:** los 11 tests de `UploadNotificationLogicTest` y los 11 de `UploadServiceLogicTest` pasan (`kotlinc` 2.0.21,
+  arnés propio); el resto del código nuevo (UI, servicio, notificaciones) pasó el parser sin errores de sintaxis.
+  `gradlew testDebugUnitTest` no se confirmó en esta fase (la app sí compiló y corrió en el emulador).
+- **Límites:** cerrar la app deslizándola desde recientes **cancela** la subida (muere el ViewModel que la tiene), igual que salir
+  de la sala mientras se cambia el video; evitarlo exigiría mover la subida al servicio, un cambio mayor. Android 15 limita los
+  servicios `dataSync` a unas 6 h por día (`onTimeout` lo para). Si el sistema mata el proceso aun así, la subida se pierde (sin
+  basura en el bucket). La notificación de avance no tiene botón de cancelar (se cancela desde la app). Si el cuadro de permiso se
+  pierde al girar el teléfono en ese instante, el selector no se abre y hay que volver a tocar el botón (en "Subir y crear sala" la
+  contraseña recién se guarda cuando se abre el selector, así que no queda pendiente).
+Siguiente: **Fase 7** (7A, PiP) según el plan, o lo que decida la persona.
+
+**Fase 6B hecha y probada en el emulador (2026-10-09): acceso al panel de administración desde la app.** Queda la 6C
+(el único punto sin tildar de la Fase 6 en el plan es PWA/notificaciones push; releer el plan antes de elegir). Se eligió
+el alcance mínimo (opción a): **no hay pantallas nativas del panel**, solo un botón que abre el panel web.
+- **Cómo sabe la app si la cuenta es admin:** `GET /auth/me` no lo dice (solo `loggedIn`, `id` y `email`). El rol vive en
+  Postgres (`users.role`) y `requireAdmin` lo consulta en cada request a las rutas de admin. La app hace un sondeo de
+  solo lectura a `GET /admin/stats` (`ADMIN_PROBE_PATH`): **200 con el JSON esperado (trae `activeRooms`) = admin**;
+  401 / 403 / 404 = no admin; red, 429 o 5xx = no se sabe (`adminAccessFrom`). Una respuesta dudosa no borra lo ya
+  sabido y una clara lo reemplaza (`mergeAdminAccess`), así que quitarle el rol a una cuenta oculta el botón en la
+  próxima consulta. Solo `AdminAccess.ADMIN` muestra algo (`shouldShowAdminAccess`).
+- **Cuándo se consulta:** `HomeScreen` llama a `HomeViewModel.refreshAdminAccess()` cada vez que entra en composición
+  (al abrir la app y al volver de una sala). **No** se vuelve a consultar al volver del navegador a la app. El estado
+  vive en el `HomeViewModel`, que muere al cerrar sesión: una cuenta nueva no hereda el acceso de la anterior.
+- **El acceso:** tarjeta "Administración" en la pantalla principal (`AdminCard`, solo con admin confirmado) con el botón
+  "Abrir panel de administración"; abre `adminPanelUrl(baseUrl)` = `<server>/admin.html` con
+  `Intent.ACTION_VIEW` (`ui/home/AdminPanelLauncher.kt`, sin librerías nuevas; Custom Tabs hubiera exigido
+  `androidx.browser`). Si no hay navegador, muestra `ADMIN_NO_BROWSER_MESSAGE` (ese aviso no se probó).
+- **Sesión y cookie (verificado leyendo el código del server; el comportamiento en el navegador lo confirmó la persona):** el
+  panel usa la misma sesión de siempre (cookie `movienight.sid`), no tiene login ni contraseña propios. `/admin.html` es un
+  archivo estático que se sirve sin autenticar; si el navegador no tiene sesión, la página redirige a `/`, donde se inicia
+  sesión con el mismo email y contraseña, y **no vuelve sola al panel** (hay que abrir `/admin.html` otra vez). La cookie
+  de la app queda en `PersistentCookieJar` (SharedPreferences privadas) y no pasa al navegador: el navegador crea una
+  sesión distinta en el server, y cerrar sesión en el panel no cierra la de la app. Lo único compartido es el límite de
+  intentos de login (por IP y email).
+- **Cómo se hace admin una cuenta:** no hay ninguna ruta HTTP, a propósito. Solo `scripts/make-admin.js <email>` en el
+  server, con la cuenta ya registrada. Con Docker, desde la carpeta del server: `docker compose exec app node
+  scripts/make-admin.js <email>` (correrlo con `node` directo en Windows falla: `DATABASE_URL` solo está dentro del
+  contenedor). El rol se nota sin cerrar sesión.
+- **Qué se probó** (la persona lo confirmó, "todos los puntos funcionaron"): cuenta admin ve la tarjeta y llega al panel
+  (con el login aparte en el navegador); cuenta normal no ve nada; la tarjeta desaparece al quitar el rol y volver a la
+  pantalla principal; cerrar sesión en el panel no cierra la de la app. **Verificado antes** (arnés del asistente): los 11
+  tests de `AdminAccessLogicTest` pasan, y el `requireAdmin` real del server dio 200 / 403 / 401 / 404 / 500 con una base
+  simulada. `gradlew testDebugUnitTest` no se confirmó en esta fase (la app sí compiló y corrió en el emulador).
+- **Mejora posible, no hecha:** que `/auth/me` devuelva el rol (hoy hay que sondear una ruta de admin). Tocaría el server
+  y la app tendría que seguir funcionando con servers viejos. No se tocó el server.
+Siguiente: **6C** (releer el plan antes de elegir).
+
+**Fase 6A hecha y probada en el emulador (2026-10-09): aviso de `server-restarting` y reconexión coherente.** Quedan
+pendientes la 6B y la 6C del resto de la Fase 6 (ver el plan). Qué hace la app cuando el server se reinicia:
+- **Aviso** (franja sobre el chat, `connectionBanner` en `net/ServerRestartLogic.kt`): "El servidor se va a reiniciar en
+  unos segundos…" mientras sigue la conexión y "El servidor se está reiniciando. Reconectando en cuanto vuelva…" cuando
+  se corta. Manda sobre los demás avisos (los `connect_error` de la caída no lo pisan) y desaparece solo cuando
+  `room-data` confirma que volvimos a la sala. Si el server no vuelve, a los 90 s (`RESTART_GIVE_UP_MS`) cae al genérico.
+- **Posición:** `RestartState` (inmutable) sabe si el reinicio fue anunciado y si el socket llegó a cortarse; solo
+  entonces `room-data` cuenta como "vuelta de un reinicio" y `planRejoin(afterRestart = true)` **no salta**. El host
+  conserva su posición y su pausa y su heartbeat alinea al resto en unos 4 s; el invitado toma solo la pausa de la sala.
+  Motivo: Redis guarda la posición con hasta ~8 s de atraso. Sin reinicio, `planRejoin` sigue igual que en la 5.
+- **Video en error:** si el mismo video había quedado en error durante la caída (típico con videos en disco, los sirve el
+  mismo Node), `RoomPlayer.load` lo vuelve a preparar. **Sin probar.**
+- **`room-error` al volver:** se le agrega contexto (`roomErrorAfterRestart`); típico: la sala no se recuperó.
+- **Subidas:** sin cambios. El PUT va directo a R2; solo `presign` y el paso final pasan por el server y son reintentables.
+**Lo que hace el server** (verificado en `server.js`, rama `plan-produccion`, y con un server real): SIGTERM / SIGINT / IPC
+de PM2 → `gracefulShutdown` → `io.emit('server-restarting')` a todos, **sin payload** → corte `SHUTDOWN_GRACE_MS` después
+(5 s; PM2 `kill_timeout: 8000`), razón `transport close`, el cliente reconecta solo. Al volver, `join-room` devuelve
+chat-history, host-status y room-data; las salas salen de Redis.
+**Cómo se probó** (Docker Desktop, proyecto `movienight`): reiniciar con ⋮ → Restart sobre **`app-1`** (no sobre
+`redis-1` ni el grupo). `app-1` no termina de arrancar sin Redis. Las salas están en Redis como `movienight:room:<id>`
+(`docker exec movienight-redis-1 redis-cli --scan --pattern "movienight:room:*"`). Para probar la sala perdida hay que
+**detener `app-1`** antes de borrar la clave: mientras corre, el server la vuelve a escribir (el heartbeat del host la guarda).
+**Qué se probó** (la persona lo confirmó, con la web como la otra punta): aviso y reconexión; el video del host no
+retrocede ni se adelanta; el invitado se realinea; host y silencio; sala perdida; server caído más de 90 s; subida en
+curso (las dos últimas, "pasaron", sin más detalle). **No se probó:** la recarga del video en error (prueba 4,
+descartada).
+**Pendientes fuera de la app** (no se tocó el server ni la web):
+- **El navegador (no host) retrocede 5-6 s** al terminar el reinicio y luego se corrige con el heartbeat del host.
+  Hipótesis sin confirmar: `room.html` compara `player.src.indexOf(videoFile)`; con nombres con espacios, tildes o
+  símbolos `player.src` queda codificado, no coincide, y se reaplica la posición vieja de `room-data`.
+- **El dueño recupera el host tras un reinicio** aunque se lo hubiera pasado a otro (probado): `join-room` concede el host
+  a cualquier socket que pruebe ser el dueño y el host vive solo en memoria. Del código se deduce que también pasa con
+  una reconexión normal del dueño (no se probó). Si el host era alguien que NO es el dueño y el dueño no está, tras el
+  reinicio la sala queda sin host hasta que entre el dueño: la app no manda `hostToken` en `join-room` (no se cambió para
+  no alterar las reconexiones normales).
+Siguiente: **6B y 6C** del resto de la Fase 6 (releer el plan antes de elegir).
+
+**Fase 5 hecha y probada en el emulador (2026-10-09).** Queda hecho todo lo que el plan pedía hasta la Fase 5 (el
+fallback sin R2 de la Fase 4 sigue fuera de alcance).
+La app como host modera la sala, y como invitada reacciona bien cuando la moderan:
+- **Lista "En la sala"** (`ui/room/ViewersDialog.kt`, se abre tocando "N conectados"): cada persona con su estado
+  ("vos", "host", "silenciado"). Si la app es host **confirmado por `host-status`**, cada otra persona trae un menú
+  **Acciones**: hacer host, silenciar / quitar silencio y expulsar. Los invitados no ven acciones. Hacer host y
+  expulsar piden confirmar; silenciar no (se revierte con un toque).
+- **Resultado a la vista:** el silencio se ve en la fila; al pasar el host, la app pierde el menú (y la fila
+  pasa a decir "host") y la web lo gana; un expulsado desaparece de la lista.
+**Lo que hace el server** (verificado en `server.js`, rama `plan-produccion`, y no es lo mismo que `change-video`):
+- Los tres eventos los autoriza **solo `socket.isHost`**, no el dueño de la sala. El payload es el `id` de socket
+  del objetivo como **texto plano** (el `id` de cada fila de `viewer-list`).
+- **No contestan nada** (sin confirmación ni error): lo que no corresponde se ignora en silencio. El resultado se ve
+  en `viewer-list`, `host-status`, y `kicked` / `mute-status` en el objetivo. Solo `make-host` deja un mensaje de
+  sistema en el chat; expulsar y silenciar no.
+- Solo `make-host` rechaza hacerse host a uno mismo. `kick-user` y `toggle-mute` sobre uno mismo SÍ se ejecutan, y
+  **ninguno protege al dueño** de la sala. Expulsar no veta: la persona puede volver a entrar.
+**Cómo funciona / decisiones:**
+- Lógica pura en `net/ModerationLogic.kt` (con `ModerationLogicTest`, 30 tests): qué acciones se ofrecen según el rol,
+  la comprobación que se repite justo al emitir, los textos y el seguimiento de pedidos. `RoomSocket.sendModeration`
+  no encola si no hay conexión (igual que `sendSync`). `RoomViewModel.moderate()` es el único camino que emite.
+- **Nunca se ofrece nada sobre uno mismo ni sobre quien figura como host**, y si no se conoce el `id` de socket propio
+  (`RoomSocket.socketId`, se relee en cada conexión y lista) no se ofrece nada.
+- Como el server no confirma, la app espera **5 s** a que `viewer-list` refleje el cambio; si no, avisa dentro de la
+  lista. Mientras hay un pedido en curso sobre alguien no se acepta otro sobre esa persona (`toggle-mute` ALTERNA:
+  dos toques seguidos lo dejarían como estaba). Los pedidos en curso se descartan al ceder el host, desconectarse o
+  ser expulsado.
+- Se pide confirmar también para **hacer host**, aunque lo pedido era solo expulsar: es la única acción con la que
+  el host se quita su propio control, y en una sala con dueño solo se recupera volviendo a entrar con esa cuenta.
+**Lado receptor, corregido:**
+- `kicked` ahora tiene su propia pantalla ("Te sacaron de la sala", `RoomPhase.Kicked`), en vez del "No se pudo entrar a
+  la sala" del error genérico, y deja limpio el rol, la lista y cualquier subida en curso.
+- **Bug del silencio:** el server borra el silencio a los 15 s de que te fuiste y, al volver, solo avisa si SIGUES
+  silenciado (nunca manda `muted:false`). La app conservaba el silencio viejo y podía dejar el chat bloqueado sin
+  motivo; ahora lo borra al desconectarse y el server lo vuelve a mandar si corresponde.
+**Qué se probó:** la persona confirmó "todo funcionó" y detalló: el menú Acciones en pantallas chicas; hacer host
+(el menú desaparece en la app y aparece en la web); la web como host contra la app (expulsar, silenciar y quitar
+silencio, con la app reaccionando bien); y reconectar siendo silenciado (el chat vuelve a bloquearse). **No se
+probó:** el botón deshabilitado mientras hay un pedido en curso y el aviso a los 5 s sin confirmación (hay que
+forzar un fallo), silenciar a alguien y que vuelva tras más de 15 s sin conexión, ser expulsado mientras se subía
+un video como ex-host, ni una sala sin dueño con la app como host (el mismo pendiente de la 4B).
+Siguiente: **Fase 6** (extras, no bloqueante). Antes de elegir, releer el plan: probar `server-restarting` y decidir
+si hay algo que valga la pena (acceso al panel de administración, notificaciones).
+
+**Fase 4B hecha y probada en el emulador (2026-10-08). La Fase 4 queda completa.** La app crea una sala con
+un video recién subido y el host puede cambiar el video de la sala:
+- **"Subir y crear sala"** (pantalla principal): contraseña opcional → selector del sistema → subida →
+  `POST /create-room-from-upload` con la key del presign → entra sola a la sala (solo si la pantalla estaba a
+  la vista; si no, queda el botón "Entrar a la sala"). También sigue "Solo subir", de la 4A.
+- **"Cambiar video"** (solo el host, en la fila de controles del video; `ui/room/ChangeVideoDialog.kt`): elegir
+  uno de la biblioteca (pide confirmar) o "Subir uno nuevo", que al terminar pasa a ser el video de la sala.
+  Usa `POST /room/:id/change-video-from-upload` con `{ filename, hostToken? }`. Si se oculta el cuadro durante
+  una subida, `RoomUploadBanner` muestra el avance.
+- **Quién ve el cambio:** el servidor emite `video-changed` a TODA la sala, a quien lo pidió también, pone la
+  posición en 0 y en pausa y manda un mensaje de sistema al chat. La app ya lo manejaba desde la 3A (recarga
+  forzada), así que no hubo que tocar el receptor.
+**Cómo funciona / decisiones:**
+- La subida de la 4A salió de `HomeViewModel` a `net/UploadFlow.kt`, compartida por la pantalla principal y la
+  sala, con un paso siguiente opcional (`UploadGoal`: `LIBRARY`, `CREATE_ROOM`, `CHANGE_ROOM_VIDEO`). Si la
+  subida sale bien y falla el paso siguiente, **Reintentar repite solo ese paso** (misma key, no resube). No se
+  puede cancelar durante el paso siguiente (es un POST de un instante y cortarlo dejaría en duda si la sala se
+  creó). La lógica pura está en `net/RoomVideoLogic.kt` y `net/UploadLogic.kt`, con tests.
+- **El servidor autoriza el cambio por el DUEÑO de la sala, no por quién es host** (`isRoomOwner`, en
+  `lib/hostAuth.js`). En una sala con dueño (creada con sesión: todas las que crea la app) solo vale la sesión
+  de esa cuenta y el `hostToken` se ignora. Un host por traspaso que no la creó recibe **403**, y la app lo
+  explica ("solo quien creó la sala puede cambiarle el video"). En una sala sin dueño (anónima de la web) vale
+  el `hostToken`, que el server manda al host en `host-status`: la app lo guarda solo en memoria
+  (`RoomEvent.HostStatus.hostToken`) y lo borra al dejar de ser host o al desconectarse.
+- Si cuando termina la subida ya no se es host (traspaso mientras subía), no se manda el cambio y el video
+  queda en la biblioteca.
+- El servidor valida el contenido del video recién en estas dos rutas y **borra de la biblioteca** el que no
+  pasa. Ante cualquier 400 la app recarga la lista.
+- La subida desde la sala es una corrutina de `RoomViewModel`: **si se sale de la sala mientras sube, se
+  corta** (mismo límite que en la 4A; desde la 6C sigue valiendo para salir de la sala, aunque con la app en
+  segundo plano la subida ya no se corta: ver la primera entrada). La pantalla se mantiene encendida
+  mientras sube.
+**Qué se probó:** la persona confirmó "todo funcionó" con el checklist de la sesión (crear con y sin
+contraseña; cambiar desde la biblioteca y subiendo uno nuevo con la web viendo el cambio; un host que no es el
+dueño; cancelar y ocultar el cuadro durante la subida; modo avión en el último paso con reintento sin resubir;
+repaso de la 4A), sin detallar caso por caso. **No se probó:** una sala sin dueño donde la app sea host (usa el
+`hostToken`; no estaba en el checklist), archivos de cientos de MB o GB, salir de la sala mientras sube, ni el
+proceso muerto en segundo plano.
+
+**Fase 4A hecha y probada en el emulador (2026-10-08).** La app sube un video del teléfono a la biblioteca:
+selector del sistema (`OpenDocument`, sin permisos de almacenamiento), `POST /api/uploads/presign`
+(`{ filename, contentType }` → `{ key, uploadUrl, expiresIn }`) y `PUT` directo al bucket de R2, leyendo el
+archivo en streaming (bloques de 64 KB, nunca entero en memoria), con barra de progreso, cancelar y reintentar.
+Código en `net/UploadLogic.kt` (lógica pura con tests), `net/VideoUploader.kt`, `HomeViewModel` y `HomeScreen`.
+**Cómo funciona / decisiones:**
+- La URL prefirmada firma solo el header `host`; el `PUT` manda el mismo `Content-Type`, como la web. Después
+  del `PUT` **no hay confirmación**: `GET /api/uploads` lista el bucket filtrando por extensión, así que el
+  video aparece solo. El contenido recién se valida al crear una sala con él.
+- Extensiones aceptadas: mp4, mkv, mov, webm, avi, m4v. Límite: 5 GiB − 5 MiB (el del `PUT` simple de R2).
+  El nombre se manda sin tildes.
+- El `PUT` va por un cliente HTTP aparte (sin CookieJar y sin tope de duración de llamada). **Reintentar pide
+  una URL nueva y sube desde cero.**
+- La pantalla se mantiene encendida mientras sube. La subida es una corrutina del `HomeViewModel`, sin
+  servicio en primer plano: sigue mientras Android mantenga vivo el proceso; **si lo mata, hay que empezar de
+  nuevo** (un `PUT` simple cortado no deja objeto en el bucket). Es un límite aceptado, no un bug. **(Superado en la 6C:
+  con la app en segundo plano la subida falló siempre en la prueba real y se agregó un servicio en primer plano; ver la
+  primera entrada de "Por dónde seguir".)**
+**Qué se probó:** el checklist completo de la 4A (selector, progreso, aparece en la biblioteca de la app y de
+la web, crear sala con ese video y reproducirlo, cancelar sin dejar un video a medias, error y reintento con
+modo avión, nombre con tilde y espacio, pantalla encendida y segundo plano) con un video de prueba de ~47 MB y
+uno corto de 1,7 MB, generados con ffmpeg. **No se probó:** un archivo de cientos de MB o de GB, ni el límite
+de 5 GiB con un archivo real (solo tests unitarios), ni el proceso muerto en segundo plano.
+(Desde la 4B la subida vive en `net/UploadFlow.kt`; `HomeViewModel` solo la usa.)
+
+**Fase 3C hecha y probada en el emulador (2026-10-08). La Fase 3 queda completa.** Con la app como host y la
+web como invitada, la web sigue la reproducción: play, pausa y seek de la app (un solo `seek` al soltar la
+barra) y un heartbeat cada 4 s. Según la persona, todas las pruebas de la lista de la sesión funcionaron
+(cambio de host, corte de red, segundo plano, subtítulos, buffering, la app como invitada).
+**Cómo emite** (`RoomViewModel`, `RoomPlayer`, `net/SyncLogic.kt`): lo que hace la persona entra por
+`RoomPlayer.togglePlay` / `seekTo` / `pause`, que DEVUELVEN el `sync` a emitir; el único que emite es
+`RoomViewModel.emitSync`, y exige `canEmitSync` (rol de host confirmado por `host-status` + socket conectado).
+Lo que viene del server entra solo por `applySync`, `load`/`alignToRoom` y `setSubtitle`, y ninguno emite: un
+seek del server no puede rebotar. Forma emitida (verificada en `server.js`): `{ type, time (segundos) }` y, solo
+en el heartbeat, `paused`. **Decisiones:** (1) al desconectarse el rol se da por perdido (`isHost = false`)
+hasta el `host-status` del nuevo join; sin conexión no se encola nada (socket.io soltaría posiciones viejas al
+reconectar). (2) El heartbeat no se manda sin un video sano: con la cinta caída le pondría la sala en 0 y en
+pausa a todos. (3) Al pasar la app a segundo plano el host emite `pause`. (4) Quien pasa a ser host pierde la
+referencia del seguimiento (`setHostRole`), para que un `resync` viejo nunca mueva su video. (5) `buffering-status`
+lo reportan todos los roles, solo en cambios y solo si el video quiere reproducir y se quedó sin datos
+(`shouldReportBuffering`); se reenvía en cada `host-status` porque el server empieza de cero con cada socket.
+(6) Subtítulos: `subtitle-changed` (objeto `{ subtitleFile }`, solo server→cliente) y `room-data.subtitleFile`; se
+carga como `SubtitleConfiguration` WebVTT; cambiarlo con un video cargado lo vuelve a preparar en la posición
+actual. El subtítulo persiste al cambiar de video, como en el server.
+**Bug encontrado en la prueba, corregido:** si la app volvía a la sala con el mismo video ya cargado (p. ej. tras
+pasarse el host a la web y volver), `load()` ignoraba la posición de `room-data`; como host no tenía a quién
+seguir y su heartbeat devolvía a la sala a la posición vieja. Ahora `alignToRoom` / `planRejoin` la alinea con la
+sala (de host o de invitado). **Límite conocido:** esa posición es la del último heartbeat guardado en el server
+(hasta unos 4 s de antigüedad), así que la app puede quedar un poco atrás.
+**Logcat** (`adb logcat -s MovieNightSync`): hay log de lo que la app EMITE (`emito ...`), de los cambios de
+buffering (con `bufferedAhead`, para distinguir red lenta de un fallo de la app) y de la alineación al
+reconectar. **No hay log de los `sync` que RECIBE:** una versión anterior de este archivo y el CHANGELOG de la
+3B decían que sí, pero ese log nunca estuvo en el código.
+**Buffering con R2:** en la prueba, buffering solo tras un salto a una zona sin descargar (unos 3,5 s); en más de
+5 minutos de reproducción continua no hubo ninguno espontáneo. Sin señal de un bug de la app; con archivos
+grandes desde R2 sigue siendo esperable (`movienight/docs/MEMORIA.md`, 2026-09-10).
+(La Fase 4 está completa: lo siguiente es la Fase 5, arriba.)

@@ -5,6 +5,14 @@ histórico archivado, cuando exista, va a vivir en `docs/historico/`.
 
 ---
 
+## 2026-10-20 — Docs: renovación de MEMORIA.md (se archivan las entradas de las Fases 3C a 6C)
+
+- **Qué:** solo documentación, sin código, sin servidor. Las entradas de «Por dónde seguir» de las Fases 6C, 6B, 6A, 5, 4B, 4A y 3C (unas 270 líneas) pasan, sin cambios, a `docs/historico/MEMORIA-fases-3C-a-6C.md`, con un aviso al inicio de que sus referencias internas («ver arriba», «la primera entrada») ya no aplican. `MEMORIA.md` baja de 974 a 706 líneas.
+- **En `MEMORIA.md`:** «Resumen de lo ya hecho» apunta a los dos archivos históricos y gana una línea para cada una de las Fases 6A, 6B y 6C; se quitó «ver arriba, es lo último que se hizo» de la línea de la Fase 5; en «Pendientes que arrastramos», las cuatro referencias a la «primera entrada» que hablaban de 4A, 6A, 6B y 6C ahora apuntan al archivo histórico.
+- **En `docs/historico/README.md`:** fila nueva en la tabla.
+- **Sin cambios a propósito:** lo vigente («Datos que siguen vigentes…» y «Pendientes que arrastramos») no se tocó salvo esas cuatro referencias; no se archivó `CHANGELOG.md` ni se tocaron las entradas de la Fase 7 y de la Fase 8. Siguen diciendo «ver la primera entrada» cuatro pendientes de la Fase 7 (PiP y sala en horizontal), que ya apuntaban a una entrada que dejó de ser la primera antes de este cambio; no se corrigieron.
+- **Verificado:** las líneas movidas son las 571 a 841 de `MEMORIA.md` de `b4e7c7c`, copiadas tal cual; ninguna entrada que se quedó en «Por dónde seguir» las cita por su nombre, salvo una mención de pasada a la 6C en la Fase 7. **No se probó nada de Android** (no aplica).
+
 ## 2026-10-20 — Fase 8, paso 6 (parte del logo): el logo de MovieNight como icono de la app (hecho; sin confirmar del todo)
 
 - **Qué:** un commit en `origin/main`, `3928427` (el mismo contenido que probó el asistente: `res/` y `branding/` idénticos; al aplicarse con `git am` cambió el hash). El icono de la app pasa del robot por defecto de Android Studio al logo elegido por la persona (luna con un play, nubes y horizonte; descripción del asistente), sin cambiar sus formas ni sus colores (verde `#75A38F` y crema `#F4FAED`). 16 archivos, 66 líneas agregadas y 201 quitadas. Sin servidor, `RoomPlayer`, `RoomViewModel`, servicio 7B, dependencias, paleta de la app, tipografías ni intro.
