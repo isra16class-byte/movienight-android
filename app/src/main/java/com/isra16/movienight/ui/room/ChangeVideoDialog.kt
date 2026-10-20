@@ -123,7 +123,11 @@ fun ChangeVideoDialog(vm: RoomViewModel) {
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text("O elige uno de la biblioteca", style = MaterialTheme.typography.titleSmall)
+                        Text(
+                            "O elige uno de la biblioteca",
+                            style = MaterialTheme.typography.titleSmall,
+                            modifier = Modifier.weight(1f).padding(end = 8.dp),
+                        )
                         GlassLinkButton(
                             "Actualizar",
                             enabled = vm.changeLibrary !is LibraryState.Loading,
